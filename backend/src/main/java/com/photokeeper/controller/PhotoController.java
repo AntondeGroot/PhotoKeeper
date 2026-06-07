@@ -4,8 +4,7 @@ import com.photokeeper.model.TokenData;
 import com.photokeeper.service.LightroomService;
 import com.photokeeper.service.TokenStore;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.Objects;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -22,8 +21,6 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api")
 public class PhotoController {
 
-    private static final Logger log = LoggerFactory.getLogger(PhotoController.class);
-
     private final LightroomService lightroomService;
     private final TokenStore tokenStore;
 
@@ -38,7 +35,8 @@ public class PhotoController {
         TokenData td = resolveToken(authToken);
         Map<String, Object> catalog = lightroomService.getCatalog(td.getAccessToken());
         if (td.getCatalogId() == null) {
-            td.setCatalogId((String) catalog.get("id"));
+            String id = Objects.requireNonNull((String) catalog.get("id"), "Lightroom catalog id missing");
+            td.setCatalogId(id);
         }
         return ResponseEntity.ok(catalog);
     }
@@ -48,8 +46,8 @@ public class PhotoController {
             @RequestHeader("X-Auth-Token") String authToken,
             @RequestParam(defaultValue = "20") int limit) {
         TokenData td = resolveToken(authToken);
-        ensureCatalog(td);
-        Map<String, Object> assets = lightroomService.getAssets(td.getAccessToken(), td.getCatalogId(), limit);
+        String catalogId = ensureCatalog(td);
+        Map<String, Object> assets = lightroomService.getAssets(td.getAccessToken(), catalogId, limit);
         return ResponseEntity.ok(assets);
     }
 
@@ -59,10 +57,10 @@ public class PhotoController {
             @PathVariable String assetId,
             @RequestParam(defaultValue = "640") String size) {
         TokenData td = resolveToken(authToken);
-        ensureCatalog(td);
+        String catalogId = ensureCatalog(td);
 
         ResponseEntity<byte[]> upstream = lightroomService.getRendition(
-                td.getAccessToken(), td.getCatalogId(), assetId, size);
+                td.getAccessToken(), catalogId, assetId, size);
 
         HttpHeaders headers = new HttpHeaders();
         MediaType contentType = upstream.getHeaders().getContentType();
@@ -76,10 +74,13 @@ public class PhotoController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token"));
     }
 
-    private void ensureCatalog(TokenData td) {
-        if (td.getCatalogId() == null) {
+    private String ensureCatalog(TokenData td) {
+        String catalogId = td.getCatalogId();
+        if (catalogId == null) {
             Map<String, Object> catalog = lightroomService.getCatalog(td.getAccessToken());
-            td.setCatalogId((String) catalog.get("id"));
+            catalogId = Objects.requireNonNull((String) catalog.get("id"), "Lightroom catalog id missing");
+            td.setCatalogId(catalogId);
         }
+        return catalogId;
     }
 }

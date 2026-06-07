@@ -8,11 +8,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> handleResponseStatus(ResponseStatusException e) {
+        String reason = e.getReason() != null ? e.getReason() : e.getClass().getSimpleName();
+        return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", reason));
+    }
 
     @ExceptionHandler(RestClientResponseException.class)
     public ResponseEntity<Map<String, String>> handleUpstreamError(RestClientResponseException e) {

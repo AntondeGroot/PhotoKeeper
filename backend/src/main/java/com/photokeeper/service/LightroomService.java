@@ -51,7 +51,7 @@ public class LightroomService {
                 .body(MAP_TYPE);
 
         if (response == null || !response.containsKey("access_token")) {
-            throw new RuntimeException("Token exchange failed: no access_token in response");
+            throw new LightroomApiException("Token exchange failed: no access_token in response");
         }
         return (String) response.get("access_token");
     }
@@ -90,14 +90,14 @@ public class LightroomService {
     // Adobe Lightroom API prefixes responses with "while(1){}" to prevent JSON hijacking
     private Map<String, Object> parseJson(String raw) {
         if (raw == null) {
-            throw new RuntimeException("Empty response from Lightroom API");
+            throw new LightroomApiException("Empty response from Lightroom API");
         }
         String json = raw.replaceFirst("^while\\s*\\(\\s*1\\s*\\)\\s*\\{\\s*\\}\\s*", "").trim();
         log.debug("Lightroom raw response (trimmed): {}", json.length() > 200 ? json.substring(0, 200) + "…" : json);
         try {
             return objectMapper.readValue(json, new TypeReference<>() {});
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse Lightroom response: " + e.getMessage(), e);
+            throw new LightroomApiException("Failed to parse Lightroom response: " + e.getMessage(), e);
         }
     }
 }

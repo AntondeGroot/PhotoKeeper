@@ -3,6 +3,7 @@ package com.photokeeper.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "adobe")
+@SuppressWarnings("NullAway.Init")
 public class AdobeConfig {
     private String clientId;
     private String clientSecret;

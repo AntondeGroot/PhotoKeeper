@@ -78,7 +78,9 @@ public class AuthController {
         try {
             Map<String, Object> catalog = lightroomService.getCatalog(accessToken);
             String catalogId = (String) catalog.get("id");
-            tokenStore.get(authKey).ifPresent(td -> td.setCatalogId(catalogId));
+            if (catalogId != null) {
+                tokenStore.get(authKey).ifPresent(td -> td.setCatalogId(catalogId));
+            }
             log.debug("Catalog fetched: {}", catalogId);
         } catch (Exception e) {
             log.warn("Could not pre-fetch catalog: {}", e.getMessage());
