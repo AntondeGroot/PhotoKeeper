@@ -28,14 +28,14 @@ export class LightroomService {
 
   checkStatus(): Observable<{ authenticated: boolean }> {
     return this.http.get<{ authenticated: boolean }>('/api/auth/status', {
-      headers: this.headers()
+      headers: this.headers(),
     });
   }
 
   getPhotos(limit = 20): Observable<{ resources: PhotoAsset[] }> {
     return this.http.get<{ resources: PhotoAsset[] }>('/api/photos', {
       headers: this.headers(),
-      params: { limit }
+      params: { limit },
     });
   }
 
@@ -43,13 +43,13 @@ export class LightroomService {
     return this.http.get(`/api/photos/${assetId}/rendition`, {
       headers: this.headers(),
       params: { size },
-      responseType: 'blob'
+      responseType: 'blob',
     });
   }
 
   logout(): Observable<void> {
     return this.http.delete<void>('/api/auth/logout', {
-      headers: this.headers()
+      headers: this.headers(),
     });
   }
 

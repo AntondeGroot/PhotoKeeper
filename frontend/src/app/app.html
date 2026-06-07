@@ -20,7 +20,9 @@
       <header class="top-bar">
         <span class="brand">PhotoKeeper</span>
         <span class="counter">
-          @if (totalPhotos() > 0) { {{ currentIndex() + 1 }}&nbsp;/&nbsp;{{ totalPhotos() }} }
+          @if (totalPhotos() > 0) {
+            {{ currentIndex() + 1 }}&nbsp;/&nbsp;{{ totalPhotos() }}
+          }
         </span>
         <button class="btn-text" (click)="logout()">Disconnect</button>
       </header>
@@ -40,8 +42,12 @@
       <footer class="controls">
         <button class="btn-nav" (click)="prevPhoto()" [disabled]="!hasPrev()">&#8249;</button>
         <div class="meta">
-          @if (fileName()) { <span class="file-name">{{ fileName() }}</span> }
-          @if (captureDate()) { <span class="date">{{ captureDate() }}</span> }
+          @if (fileName()) {
+            <span class="file-name">{{ fileName() }}</span>
+          }
+          @if (captureDate()) {
+            <span class="date">{{ captureDate() }}</span>
+          }
         </div>
         <button class="btn-nav" (click)="nextPhoto()" [disabled]="!hasNext()">&#8250;</button>
       </footer>

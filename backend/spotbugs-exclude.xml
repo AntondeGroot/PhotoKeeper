@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!--
+    EI_EXPOSE_REP2: Spring beans are singletons managed by the container.
+    Defensive copies in constructor-injected Spring components make no sense.
+  -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Or>
+      <Class name="com.photokeeper.controller.AuthController"/>
+      <Class name="com.photokeeper.controller.PhotoController"/>
+      <Class name="com.photokeeper.service.LightroomService"/>
+    </Or>
+  </Match>
+</FindBugsFilter>

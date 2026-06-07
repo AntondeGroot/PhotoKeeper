@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<ruleset name="PhotoKeeper"
+    xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0
+                        https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+  <description>PhotoKeeper PMD ruleset</description>
+
+  <rule ref="category/java/bestpractices.xml">
+    <!-- varargs changes calling contract when array is intentional -->
+    <exclude name="UseVarargs"/>
+    <!-- oneDeclarationPerLine enforced by Checkstyle instead -->
+    <exclude name="OneDeclarationPerLine"/>
+    <!-- SLF4J parameterized logging doesn't need isDebugEnabled guards -->
+    <exclude name="GuardLogStatement"/>
+    <!-- Spring uses concrete types for HTTP/container APIs; no meaningful interface exists -->
+    <exclude name="LooseCoupling"/>
+    <!-- MockMvc's andExpect() IS an assertion; PMD does not recognise it -->
+    <exclude name="UnitTestShouldIncludeAssert"/>
+    <!-- Multiple MockMvc expectations per test are idiomatic; not a code smell -->
+    <exclude name="UnitTestContainsTooManyAsserts"/>
+  </rule>
+
+  <rule ref="category/java/codestyle.xml">
+    <!-- record-like accessor pattern: field foo + method foo() is intentional -->
+    <exclude name="FieldNamingConventions"/>
+    <!-- Spring beans rely on implicit constructors; requiring explicit ones adds noise -->
+    <exclude name="AtLeastOneConstructor"/>
+    <!-- Makes every local variable verbose with no meaningful safety gain -->
+    <exclude name="LocalVariableCouldBeFinal"/>
+    <!-- Same rationale as LocalVariableCouldBeFinal -->
+    <exclude name="MethodArgumentCouldBeFinal"/>
+    <!-- Guard-clause early-return pattern is idiomatic and improves readability -->
+    <exclude name="OnlyOneReturn"/>
+    <!-- 'e' is the universal convention for catch-block exception variables -->
+    <exclude name="ShortVariable"/>
+    <!-- Static imports for test utilities and MockMvc matchers are standard practice -->
+    <exclude name="TooManyStaticImports"/>
+    <!-- setUp/tearDown naming is a JUnit convention; LinguisticNaming doesn't apply -->
+    <exclude name="LinguisticNaming"/>
+  </rule>
+
+  <rule ref="category/java/design.xml">
+    <!-- @SpringBootApplication entry-point cannot be final despite private constructor -->
+    <exclude name="ClassWithOnlyPrivateConstructorsShouldBeFinal"/>
+    <!-- @ConfigurationProperties is intentionally a data holder; DataClass is by design -->
+    <exclude name="DataClass"/>
+    <!-- Spring fluent builders (RestClient, UriComponentsBuilder) violate Law of Demeter by design -->
+    <exclude name="LawOfDemeter"/>
+    <!-- Method has 4 args by necessity (accessToken, catalogId, assetId, size); a wrapper is over-engineering -->
+    <exclude name="UseObjectForClearerAPI"/>
+    <!-- Broad catch needed at controller boundary to translate errors to HTTP responses -->
+    <exclude name="AvoidCatchingGenericException"/>
+    <!-- Test class fields shared across @Test methods are intentionally non-local -->
+    <exclude name="SingularField"/>
+    <!-- Test classes intentionally have many small @Test methods; splitting adds no value -->
+    <exclude name="TooManyMethods"/>
+  </rule>
+
+  <rule ref="category/java/errorprone.xml">
+    <!-- record-like accessor pattern triggers this; excluded by design -->
+    <exclude name="AvoidFieldNameMatchingMethodName"/>
+    <!-- numeric literals in domain algorithms are clearer than forced constants -->
+    <exclude name="AvoidLiteralsInIfCondition"/>
+    <!-- "return first match" loop pattern is idiomatic Java -->
+    <exclude name="AvoidBranchingStatementAsLastInLoop"/>
+    <!-- ArchUnit test constants are clearer as inline strings in small rule sets -->
+    <exclude name="AvoidDuplicateLiterals"/>
+  </rule>
+
+  <rule ref="category/java/multithreading.xml"/>
+
+  <rule ref="category/java/performance.xml">
+    <!-- factory/builder code must construct objects in loops -->
+    <exclude name="AvoidInstantiatingObjectsInLoops"/>
+  </rule>
+
+  <rule ref="category/java/security.xml"/>
+
+</ruleset>

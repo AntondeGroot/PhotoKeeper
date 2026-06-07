@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
@@ -7,9 +7,9 @@ import { LightroomService, PhotoAsset } from './lightroom.service';
   selector: 'app-root',
   imports: [],
   templateUrl: './app.html',
-  styleUrl: './app.scss'
+  styleUrl: './app.scss',
 })
-export class App implements OnInit {
+export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -26,9 +26,13 @@ export class App implements OnInit {
   hasPrev = computed(() => this.currentIndex() > 0);
   hasNext = computed(() => this.currentIndex() < this.totalPhotos() - 1);
 
-  private objectUrls: string[] = [];
+  private readonly objectUrls: string[] = [];
 
-  async ngOnInit() {
+  ngOnInit(): void {
+    void this.init();
+  }
+
+  private async init(): Promise<void> {
     const params = new URLSearchParams(window.location.search);
     const authError = params.get('auth_error');
     if (authError) {
@@ -59,20 +63,22 @@ export class App implements OnInit {
     }
   }
 
-  private async loadPhotos() {
+  private async loadPhotos(): Promise<void> {
     try {
       const data = await firstValueFrom(this.svc.getPhotos(20));
       const resources = data?.resources ?? [];
-      this.photos.set(resources.filter(a => a.subtype === 'image'));
+      this.photos.set(resources.filter((a) => a.subtype === 'image'));
       if (this.photos().length > 0) {
         this.loadPhoto(0);
       }
-    } catch (e: any) {
-      this.error.set('Could not load photos: ' + (e?.message ?? 'unknown error'));
+    } catch (e: unknown) {
+      this.error.set(
+        'Could not load photos: ' + (e instanceof Error ? e.message : 'unknown error'),
+      );
     }
   }
 
-  private loadPhoto(index: number) {
+  private loadPhoto(index: number): void {
     const photo = this.photos()[index];
     if (!photo) return;
 
@@ -89,18 +95,18 @@ export class App implements OnInit {
       error: () => {
         this.error.set('Could not load photo rendition');
         this.loadingPhoto.set(false);
-      }
+      },
     });
   }
 
-  prevPhoto() {
+  prevPhoto(): void {
     if (!this.hasPrev()) return;
     const idx = this.currentIndex() - 1;
     this.currentIndex.set(idx);
     this.loadPhoto(idx);
   }
 
-  nextPhoto() {
+  nextPhoto(): void {
     if (!this.hasNext()) return;
     const idx = this.currentIndex() + 1;
     this.currentIndex.set(idx);
@@ -111,7 +117,11 @@ export class App implements OnInit {
     const raw = this.currentPhoto()?.payload?.captureDate;
     if (!raw) return null;
     try {
-      return new Date(raw).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+      return new Date(raw).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
     } catch {
       return raw;
     }
@@ -121,15 +131,19 @@ export class App implements OnInit {
     return this.currentPhoto()?.payload?.importSource?.fileName ?? null;
   }
 
-  async logout() {
-    try { await firstValueFrom(this.svc.logout()); } catch { /* ignore */ }
+  async logout(): Promise<void> {
+    try {
+      await firstValueFrom(this.svc.logout());
+    } catch {
+      /* ignore */
+    }
     this.svc.clearAuthToken();
     this.authenticated.set(false);
     this.photos.set([]);
     this.currentPhotoUrl.set(null);
   }
 
-  ngOnDestroy() {
-    this.objectUrls.forEach(u => URL.revokeObjectURL(u));
+  ngOnDestroy(): void {
+    this.objectUrls.forEach((u) => URL.revokeObjectURL(u));
   }
 }

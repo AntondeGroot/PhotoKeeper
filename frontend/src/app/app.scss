@@ -11,13 +11,17 @@
 .spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(255,255,255,.15);
+  border: 3px solid rgba(255, 255, 255, 0.15);
   border-top-color: #fff;
   border-radius: 50%;
-  animation: spin .8s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .splash {
   flex: 1;
@@ -70,7 +74,7 @@
   font-size: 13px;
   margin-bottom: 16px;
   padding: 10px 14px;
-  background: rgba(229, 115, 115, .1);
+  background: rgba(229, 115, 115, 0.1);
   border-radius: 8px;
 }
 
@@ -83,9 +87,11 @@
   font-size: 15px;
   font-weight: 600;
   text-decoration: none;
-  transition: opacity .2s;
+  transition: opacity 0.2s;
 
-  &:hover { opacity: .85; }
+  &:hover {
+    opacity: 0.85;
+  }
 }
 
 /* ── Viewer ── */
@@ -100,12 +106,12 @@
   display: flex;
   align-items: center;
   padding: 14px 20px;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 
   .brand {
     font-weight: 700;
     font-size: 16px;
-    letter-spacing: .5px;
+    letter-spacing: 0.5px;
     flex: 1;
   }
 
@@ -116,7 +122,10 @@
     text-align: center;
   }
 
-  > :last-child { flex: 1; text-align: right; }
+  > :last-child {
+    flex: 1;
+    text-align: right;
+  }
 }
 
 .btn-text {
@@ -127,9 +136,14 @@
   font-size: 13px;
   padding: 4px 8px;
   border-radius: 6px;
-  transition: color .15s, background .15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 
-  &:hover { color: #fff; background: rgba(255,255,255,.08); }
+  &:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
 .stage {
@@ -146,7 +160,7 @@
   max-height: 100%;
   object-fit: contain;
   border-radius: 6px;
-  box-shadow: 0 16px 64px rgba(0,0,0,.6);
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.6);
 }
 
 .photo-placeholder {
@@ -158,7 +172,9 @@
   color: #555;
   font-size: 14px;
 
-  &.error { color: #e57373; }
+  &.error {
+    color: #e57373;
+  }
 }
 
 /* ── Controls ── */
@@ -166,7 +182,7 @@
   display: flex;
   align-items: center;
   padding: 16px 20px;
-  border-top: 1px solid rgba(255,255,255,.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   gap: 16px;
 }
 
@@ -174,17 +190,24 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: rgba(255,255,255,.07);
-  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #fff;
   font-size: 26px;
   line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background .15s, opacity .15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
 
-  &:hover:not(:disabled) { background: rgba(255,255,255,.14); }
-  &:disabled { opacity: .25; cursor: default; }
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  &:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
 }
 
 .meta {

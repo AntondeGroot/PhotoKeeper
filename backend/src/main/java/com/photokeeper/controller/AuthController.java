@@ -1,18 +1,21 @@
 package com.photokeeper.controller;
 
 import com.photokeeper.config.AdobeConfig;
-import com.photokeeper.model.TokenData;
 import com.photokeeper.service.LightroomService;
 import com.photokeeper.service.TokenStore;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.io.IOException;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -75,7 +78,9 @@ public class AuthController {
         try {
             Map<String, Object> catalog = lightroomService.getCatalog(accessToken);
             String catalogId = (String) catalog.get("id");
-            tokenStore.get(authKey).ifPresent(td -> td.setCatalogId(catalogId));
+            if (catalogId != null) {
+                tokenStore.get(authKey).ifPresent(td -> td.setCatalogId(catalogId));
+            }
             log.debug("Catalog fetched: {}", catalogId);
         } catch (Exception e) {
             log.warn("Could not pre-fetch catalog: {}", e.getMessage());

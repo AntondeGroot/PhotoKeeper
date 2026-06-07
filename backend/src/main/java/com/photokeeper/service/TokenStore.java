@@ -1,12 +1,11 @@
 package com.photokeeper.service;
 
 import com.photokeeper.model.TokenData;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.stereotype.Component;
 
 @Component
 public class TokenStore {
