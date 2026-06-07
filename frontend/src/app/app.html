@@ -1,0 +1,50 @@
+<div class="app">
+  @if (loading()) {
+    <div class="splash">
+      <div class="spinner"></div>
+    </div>
+  } @else if (!authenticated()) {
+    <div class="login-screen">
+      <div class="login-card">
+        <div class="logo-mark">PK</div>
+        <h1>PhotoKeeper</h1>
+        <p>Browse your Adobe Lightroom catalogue</p>
+        @if (error()) {
+          <p class="auth-error">{{ error() }}</p>
+        }
+        <a href="https://localhost:8080/api/auth/login" class="btn-connect">Connect to Lightroom</a>
+      </div>
+    </div>
+  } @else {
+    <div class="viewer">
+      <header class="top-bar">
+        <span class="brand">PhotoKeeper</span>
+        <span class="counter">
+          @if (totalPhotos() > 0) { {{ currentIndex() + 1 }}&nbsp;/&nbsp;{{ totalPhotos() }} }
+        </span>
+        <button class="btn-text" (click)="logout()">Disconnect</button>
+      </header>
+
+      <main class="stage">
+        @if (loadingPhoto()) {
+          <div class="photo-placeholder"><div class="spinner"></div></div>
+        } @else if (currentPhotoUrl()) {
+          <img class="photo" [src]="currentPhotoUrl()" alt="Lightroom photo" />
+        } @else if (error()) {
+          <div class="photo-placeholder error">{{ error() }}</div>
+        } @else if (totalPhotos() === 0) {
+          <div class="photo-placeholder">No photos found in your catalogue.</div>
+        }
+      </main>
+
+      <footer class="controls">
+        <button class="btn-nav" (click)="prevPhoto()" [disabled]="!hasPrev()">&#8249;</button>
+        <div class="meta">
+          @if (fileName()) { <span class="file-name">{{ fileName() }}</span> }
+          @if (captureDate()) { <span class="date">{{ captureDate() }}</span> }
+        </div>
+        <button class="btn-nav" (click)="nextPhoto()" [disabled]="!hasNext()">&#8250;</button>
+      </footer>
+    </div>
+  }
+</div>
