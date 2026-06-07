@@ -4,6 +4,10 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "husky": "^9.1.0"
+    "husky": "^9.1.0",
+    "lint-staged": "^15.0.0"
+  },
+  "lint-staged": {
+    "frontend/**/*.{ts,html,scss,css,json,js,md}": "prettier --write --ignore-unknown"
   }
 }

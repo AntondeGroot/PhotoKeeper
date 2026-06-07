@@ -9,15 +9,35 @@ public class AdobeConfig {
     private String redirectUri;
     private String frontendUrl;
 
-    public String getClientId() { return clientId; }
-    public void setClientId(String clientId) { this.clientId = clientId; }
+    public String getClientId() {
+        return clientId;
+    }
 
-    public String getClientSecret() { return clientSecret; }
-    public void setClientSecret(String clientSecret) { this.clientSecret = clientSecret; }
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
 
-    public String getRedirectUri() { return redirectUri; }
-    public void setRedirectUri(String redirectUri) { this.redirectUri = redirectUri; }
+    public String getClientSecret() {
+        return clientSecret;
+    }
 
-    public String getFrontendUrl() { return frontendUrl; }
-    public void setFrontendUrl(String frontendUrl) { this.frontendUrl = frontendUrl; }
+    public void setClientSecret(String clientSecret) {
+        this.clientSecret = clientSecret;
+    }
+
+    public String getRedirectUri() {
+        return redirectUri;
+    }
+
+    public void setRedirectUri(String redirectUri) {
+        this.redirectUri = redirectUri;
+    }
+
+    public String getFrontendUrl() {
+        return frontendUrl;
+    }
+
+    public void setFrontendUrl(String frontendUrl) {
+        this.frontendUrl = frontendUrl;
+    }
 }

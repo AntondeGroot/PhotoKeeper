@@ -1,3 +1,2 @@
-cd frontend
-npm run format:check
-npm run lint
+npx lint-staged
+cd frontend && npm run lint

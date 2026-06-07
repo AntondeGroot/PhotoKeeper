@@ -14,7 +14,7 @@ class ArchitectureTest {
       new ClassFileImporter().importPackages("com.photokeeper");
 
   @Test
-  void controllers_should_not_depend_on_each_other() {
+  void controllersShouldNotDependOnEachOther() {
     ArchRule rule =
         noClasses()
             .that()
@@ -26,7 +26,7 @@ class ArchitectureTest {
   }
 
   @Test
-  void services_should_not_depend_on_controllers() {
+  void servicesShouldNotDependOnControllers() {
     ArchRule rule =
         noClasses()
             .that()
@@ -38,7 +38,7 @@ class ArchitectureTest {
   }
 
   @Test
-  void controllers_should_reside_in_controller_package() {
+  void controllersShouldResideInControllerPackage() {
     ArchRule rule =
         classes()
             .that()
@@ -49,7 +49,7 @@ class ArchitectureTest {
   }
 
   @Test
-  void services_should_reside_in_service_package() {
+  void servicesShouldResideInServicePackage() {
     ArchRule rule =
         classes()
             .that()

@@ -8,8 +8,15 @@ public class TokenData {
         this.accessToken = accessToken;
     }
 
-    public String getAccessToken() { return accessToken; }
+    public String getAccessToken() {
+        return accessToken;
+    }
 
-    public String getCatalogId() { return catalogId; }
-    public void setCatalogId(String catalogId) { this.catalogId = catalogId; }
+    public String getCatalogId() {
+        return catalogId;
+    }
+
+    public void setCatalogId(String catalogId) {
+        this.catalogId = catalogId;
+    }
 }

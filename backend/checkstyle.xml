@@ -9,7 +9,10 @@
 
   <module name="TreeWalker">
     <!-- Naming -->
-    <module name="ConstantName"/>
+    <module name="ConstantName">
+      <!-- allow lowercase log/logger as de-facto standard for SLF4J fields -->
+      <property name="format" value="^(log(ger)?|[A-Z][A-Z0-9]*(_[A-Z0-9]+)*)$"/>
+    </module>
     <module name="LocalFinalVariableName"/>
     <module name="LocalVariableName"/>
     <module name="MemberName"/>
@@ -51,7 +54,6 @@
     <module name="SuperFinalize"/>
 
     <!-- Class design -->
-    <module name="FinalClass"/>
     <module name="HideUtilityClassConstructor"/>
     <module name="InterfaceIsType"/>
 

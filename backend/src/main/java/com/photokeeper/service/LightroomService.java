@@ -89,7 +89,9 @@ public class LightroomService {
 
     // Adobe Lightroom API prefixes responses with "while(1){}" to prevent JSON hijacking
     private Map<String, Object> parseJson(String raw) {
-        if (raw == null) throw new RuntimeException("Empty response from Lightroom API");
+        if (raw == null) {
+            throw new RuntimeException("Empty response from Lightroom API");
+        }
         String json = raw.replaceFirst("^while\\s*\\(\\s*1\\s*\\)\\s*\\{\\s*\\}\\s*", "").trim();
         log.debug("Lightroom raw response (trimmed): {}", json.length() > 200 ? json.substring(0, 200) + "…" : json);
         try {
