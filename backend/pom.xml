@@ -21,6 +21,7 @@
         <error-prone.version>2.39.0</error-prone.version>
         <nullaway.version>0.12.7</nullaway.version>
         <log4j2.version>2.26.0</log4j2.version>
+        <tomcat.version>10.1.55</tomcat.version>
     </properties>
 
     <dependencies>
