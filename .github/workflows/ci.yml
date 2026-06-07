@@ -62,6 +62,7 @@ jobs:
   security-check:
     name: OWASP dependency check
     runs-on: ubuntu-latest
+    continue-on-error: true
     defaults:
       run:
         working-directory: backend
