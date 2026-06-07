@@ -1,0 +1,22 @@
+# Adobe Developer Console credentials
+# Get these from https://developer.adobe.com/console
+adobe.client-id=YOUR_CLIENT_ID
+adobe.client-secret=YOUR_CLIENT_SECRET
+
+# Must match the redirect URI configured in your Adobe Developer Console app
+adobe.redirect-uri=https://localhost:8080/api/auth/callback
+
+# Where to send the browser after successful login
+adobe.frontend-url=http://localhost:4200
+
+server.port=8080
+server.ssl.key-store=classpath:keystore.p12
+server.ssl.key-store-password=photokeeper
+server.ssl.key-store-type=PKCS12
+server.ssl.key-alias=photokeeper
+
+logging.level.com.photokeeper=DEBUG
+logging.level.org.springframework.web.client=DEBUG
+
+server.error.include-message=always
+server.error.include-exception=true

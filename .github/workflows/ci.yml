@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Frontend ────────────────────────────────────────────────────────────────
+
+  frontend-test:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm test -- --watch=false
+
+  # ── Backend ─────────────────────────────────────────────────────────────────
+
+  backend-test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: maven
+
+      - run: mvn verify --batch-mode --no-transfer-progress
+
+  # ── E2E ─────────────────────────────────────────────────────────────────────
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    # TODO: add Playwright or Cypress once an E2E framework is set up
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "No E2E tests yet"
