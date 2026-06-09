@@ -1,5 +1,15 @@
 <div class="photo-card">
-  <p>{{ photo.name }}</p>
-  <p>{{ photo.album || 'No album' }}</p>
-  <p>{{ photo.taken }}</p>
+  <div class="photo-area"></div>
+  <div class="photo-top">
+    <span class="chip">{{ photo.album || 'No album' }}</span>
+  </div>
+  <div class="photo-bottom">
+    <div>
+      <div class="photo-name">{{ photo.name }}.RAW</div>
+      <div class="photo-meta">{{ photo.taken }}</div>
+    </div>
+    @if (photo.starred) {
+      <span class="photo-star">★ 5</span>
+    }
+  </div>
 </div>
