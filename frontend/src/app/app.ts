@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
+import { Photo, MOCK_PHOTOS } from './photo';
 
 @Component({
   selector: 'app-root',
@@ -27,6 +28,7 @@ export class AppComponent implements OnInit, OnDestroy {
   hasPrev = computed(() => this.currentIndex() > 0);
   hasNext = computed(() => this.currentIndex() < this.totalPhotos() - 1);
 
+  readonly reviewPhotos: Photo[] = MOCK_PHOTOS;
   private readonly objectUrls: string[] = [];
 
   ngOnInit(): void {

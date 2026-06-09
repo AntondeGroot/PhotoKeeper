@@ -106,3 +106,38 @@ When is a typed mock data constant useful beyond just building the UI?
 The same exported constant can be imported directly in unit tests as controlled, predictable input — no need to spin up a database or API, and the TypeScript interface guarantees the test data has the right shape.
 
 ===END PAGE===
+
+---
+
+## Session 3 — Importing data and displaying it in the template
+
+===PAGE 1===
+How do you import a value from another TypeScript file in the same folder?
+?
+Use `import { ThingToImport } from './filename'` — the `./` means "same folder," and you omit the `.ts` extension.
+
+---
+
+How do you import multiple exports from the same file?
+?
+List them separated by commas inside the curly braces: `import { Photo, MOCK_PHOTOS } from './photo'`.
+
+---
+
+When should a class property be `readonly` instead of a signal?
+?
+Use `readonly` for data that never changes after the class is created — static constants, injected config, mock data. Signals are for values that change over time and need to trigger re-renders.
+
+---
+
+How do you render a value from the component class as text in an Angular template?
+?
+Wrap it in double curly braces: `{{ myProperty }}` — Angular evaluates the expression and renders it as text.
+
+---
+
+How do you provide a fallback value in a template interpolation when a field might be null?
+?
+Use the `||` operator inside the braces: `{{ photo.album || 'No album' }}` — if `album` is null or empty the fallback string is rendered instead.
+
+===END PAGE===
