@@ -3,10 +3,11 @@ import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
 import { Photo, MOCK_PHOTOS } from './photo';
+import { PhotoCardComponent } from './photo-card/photo-card';
 
 @Component({
   selector: 'app-root',
-  imports: [],
+  imports: [PhotoCardComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
