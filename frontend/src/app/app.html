@@ -50,7 +50,11 @@
 
       <div class="tab-content">
         @if (activeTab() === 'review') {
-          <p>Daily review coming soon</p>
+          <div>
+            <p>{{ reviewPhotos[0].name }}</p>
+            <p>{{ reviewPhotos[0].album || 'No album' }}</p>
+            <p>{{ reviewPhotos[0].taken }}</p>
+          </div>
         } @else if (activeTab() === 'pipeline') {
           <p>Pipeline coming soon</p>
         } @else {
