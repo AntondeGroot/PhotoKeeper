@@ -187,6 +187,43 @@
   padding: 4px 0 0;
 }
 
+/* ── Progress bar ── */
+.progress-bar-section {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 0 2px;
+
+  span {
+    font-size: 12px;
+
+    &:first-child {
+      color: var(--c-dim);
+    }
+    &:last-of-type {
+      color: var(--c-text);
+      font-weight: 600;
+    }
+  }
+}
+
+.progress-track {
+  width: 100%;
+  height: 3px;
+  background: var(--c-line);
+  border-radius: 2px;
+  margin-bottom: 16px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--c-amber);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
 /* ── Session done ── */
 .session-done {
   border: 1px solid var(--c-line);

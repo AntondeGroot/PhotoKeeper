@@ -24,6 +24,7 @@ export class AppComponent implements OnInit, OnDestroy {
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
   reviewIndex = signal(0);
   error = signal<string | null>(null);
+  dailyGoal = signal(15);
 
   currentPhoto = computed(() => this.photos()[this.currentIndex()]);
   totalPhotos = computed(() => this.photos().length);
@@ -32,10 +33,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
   reviewPhotos = signal<Photo[]>(MOCK_PHOTOS);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
-  sessionDone = computed(() => this.reviewPhotos().every((p) => p.status !== 'backlog'));
+  doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
+  sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
   rejectedCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'rejected').length);
   toEditCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit').length);
+  progressPercent = computed(() => Math.min(100, (this.doneToday() / this.dailyGoal()) * 100));
   private readonly objectUrls: string[] = [];
 
   ngOnInit(): void {

@@ -50,6 +50,13 @@
 
       <div class="tab-content">
         @if (activeTab() === 'review') {
+          <div class="progress-bar-section">
+            <span>Today's batch</span>
+            <span>{{ doneToday() }} / {{ dailyGoal() }} today</span>
+            <div class="progress-track">
+              <div class="progress-fill" [style.width.%]="progressPercent()"></div>
+            </div>
+          </div>
           @if (!sessionDone()) {
             <app-photo-card [photo]="currentReviewPhoto()!" />
             <div class="action-buttons">
