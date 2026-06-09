@@ -40,6 +40,7 @@ The goal is to port the React prototype (`keeper-prototype.jsx`) into this Angul
 | 6 | Style the photo card with the darkroom design | `feat: style photo card with darkroom design` |
 | 7 | Keep/reject/edit action buttons with photo decisions | `feat: add keep/reject/edit action buttons with photo decisions` |
 | 8 | Session done screen when all photos are reviewed | `feat: show session done screen when all photos are reviewed` |
+| 9 | Progress bar with daily goal counter | `feat: add progress bar and daily goal counter to review tab` |
 
 ---
 
@@ -47,10 +48,7 @@ The goal is to port the React prototype (`keeper-prototype.jsx`) into this Angul
 
 ### Short term (core review flow)
 
-**Task 9 — Progress bar** ← *currently in progress*
-Show a progress bar above the card with "Today's batch · X / 15 today" and a fill bar driven by `progressPercent` computed. Teaches inline style binding `[style.width.%]`.
-
-**Task 10 — Swipe gestures**
+**Task 10 — Swipe gestures** ← *next up*
 Add pointer event handling to `PhotoCardComponent` so the card can be dragged left (reject), right (keep), up (flag to edit), and down (in doubt). Shows drag offset overlays (← REJECT, KEEP →, etc.). Teaches pointer events, `@HostListener` or template event bindings, and CSS `transform`.
 
 **Task 11 — AI hint chip**
