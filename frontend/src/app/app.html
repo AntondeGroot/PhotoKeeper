@@ -50,11 +50,22 @@
 
       <div class="tab-content">
         @if (activeTab() === 'review') {
-          <div>
-            <p>{{ reviewPhotos[0].name }}</p>
-            <p>{{ reviewPhotos[0].album || 'No album' }}</p>
-            <p>{{ reviewPhotos[0].taken }}</p>
-          </div>
+          @if (currentReviewPhoto()) {
+            <div>
+              <p>{{ currentReviewPhoto().name }}</p>
+              <p>{{ currentReviewPhoto().album || 'No album' }}</p>
+              <p>{{ currentReviewPhoto().taken }}</p>
+            </div>
+            <div>
+              <button (click)="prevReviewPhoto()" [disabled]="reviewIndex() === 0">Previous</button>
+              <button
+                (click)="nextReviewPhoto()"
+                [disabled]="reviewIndex() === reviewPhotos.length - 1"
+              >
+                Next
+              </button>
+            </div>
+          }
         } @else if (activeTab() === 'pipeline') {
           <p>Pipeline coming soon</p>
         } @else {

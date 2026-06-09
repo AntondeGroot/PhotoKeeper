@@ -21,6 +21,7 @@ export class AppComponent implements OnInit, OnDestroy {
   currentPhotoUrl = signal<SafeUrl | null>(null);
   loadingPhoto = signal(false);
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
+  reviewIndex = signal(0);
   error = signal<string | null>(null);
 
   currentPhoto = computed(() => this.photos()[this.currentIndex()]);
@@ -29,6 +30,7 @@ export class AppComponent implements OnInit, OnDestroy {
   hasNext = computed(() => this.currentIndex() < this.totalPhotos() - 1);
 
   readonly reviewPhotos: Photo[] = MOCK_PHOTOS;
+  currentReviewPhoto = computed(() => this.reviewPhotos[this.reviewIndex()]);
   private readonly objectUrls: string[] = [];
 
   ngOnInit(): void {
@@ -114,6 +116,18 @@ export class AppComponent implements OnInit, OnDestroy {
     const idx = this.currentIndex() + 1;
     this.currentIndex.set(idx);
     this.loadPhoto(idx);
+  }
+
+  prevReviewPhoto(): void {
+    if (this.reviewIndex() !== 0) {
+      this.reviewIndex.set(this.reviewIndex() - 1);
+    }
+  }
+
+  nextReviewPhoto(): void {
+    if (this.reviewIndex() < this.reviewPhotos.length - 1) {
+      this.reviewIndex.set(this.reviewIndex() + 1);
+    }
   }
 
   setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {

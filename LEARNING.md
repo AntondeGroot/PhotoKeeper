@@ -141,3 +141,32 @@ How do you provide a fallback value in a template interpolation when a field mig
 Use the `||` operator inside the braces: `{{ photo.album || 'No album' }}` — if `album` is null or empty the fallback string is rendered instead.
 
 ===END PAGE===
+
+---
+
+## Session 4 — Navigation with computed and index signals
+
+===PAGE 1===
+What is a `computed` in Angular and when should you use it instead of a signal?
+?
+A `computed` derives its value from one or more signals and recalculates automatically when they change. Use it when a value can always be calculated from existing state — e.g. the current photo is always `photos[index]`, so it is a computed, not a separate signal.
+
+---
+
+What return type should a navigation method have, and why?
+?
+`void` — navigation methods change state as a side effect and return nothing useful to the caller. Returning the new value implies the caller needs it, which is misleading when the template ignores the return value entirely.
+
+---
+
+Why should all `computed` values be grouped together in the class?
+?
+A reader scanning the class top-to-bottom builds a mental model of what is state (signals) and what is derived (computed). Splitting computed values across the class breaks that model and makes the file harder to reason about.
+
+---
+
+How do you guard against an out-of-bounds array access in an Angular template?
+?
+Wrap the content in `@if (myComputed())` — if the computed returns `undefined` (index out of range) the block is hidden, preventing a runtime error.
+
+===END PAGE===
