@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="PhotoKeeper Backend" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="photokeeper-backend" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.photokeeper.PhotoKeeperApplication" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
