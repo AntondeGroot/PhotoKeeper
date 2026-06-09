@@ -32,6 +32,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   reviewPhotos = signal<Photo[]>(MOCK_PHOTOS);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
+  sessionDone = computed(() => this.reviewPhotos().every((p) => p.status !== 'backlog'));
+  keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
+  rejectedCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'rejected').length);
+  toEditCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit').length);
   private readonly objectUrls: string[] = [];
 
   ngOnInit(): void {

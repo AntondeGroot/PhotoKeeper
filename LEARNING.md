@@ -279,3 +279,26 @@ this.reviewPhotos.update((list) =>    // give me the current array, I'll return 
 You cannot change an item inside a signal's array directly — instead you replace the whole array with a new one where one item is different. `.map()` produces that new array.
 
 ===END PAGE===
+
+---
+
+## Session 8 — Array methods and comparison operators
+
+===PAGE 1===
+What is the difference between `==` and `===` in TypeScript?
+?
+`===` (strict equality) checks both value and type — `1 === '1'` is false. `==` (loose equality) coerces types before comparing — `1 == '1'` is true. Always use `===` in TypeScript; loose equality leads to subtle bugs and is flagged by the ESLint `eqeqeq` rule in this project.
+
+---
+
+How do you check whether every item in an array passes a condition?
+?
+Use `Array.every()` — it returns `true` if all items pass the test, `false` as soon as one fails: `photos.every(p => p.status !== 'backlog')`.
+
+---
+
+How do you count items in an array that match a condition?
+?
+Chain `Array.filter()` and `.length` — `filter()` returns a new array of matching items, `.length` gives the count: `photos.filter(p => p.status === 'kept').length`.
+
+===END PAGE===

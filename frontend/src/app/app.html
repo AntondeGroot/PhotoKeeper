@@ -50,12 +50,20 @@
 
       <div class="tab-content">
         @if (activeTab() === 'review') {
-          @if (currentReviewPhoto()) {
+          @if (!sessionDone()) {
             <app-photo-card [photo]="currentReviewPhoto()!" />
             <div class="action-buttons">
               <button (click)="decide('rejected')">✕</button>
               <button (click)="decide('toEdit')">↑</button>
               <button (click)="decide('kept')">✓</button>
+            </div>
+          } @else {
+            <div class="session-done">
+              <h2>All caught up.</h2>
+              <p>{{ keptCount() }} kept</p>
+              <p>{{ rejectedCount() }} rejected</p>
+              <p>{{ toEditCount() }} flagged to edit</p>
+              <button (click)="setActiveTab('pipeline')">Review pipeline →</button>
             </div>
           }
         } @else if (activeTab() === 'pipeline') {
