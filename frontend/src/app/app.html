@@ -51,11 +51,7 @@
       <div class="tab-content">
         @if (activeTab() === 'review') {
           @if (currentReviewPhoto()) {
-            <div>
-              <p>{{ currentReviewPhoto().name }}</p>
-              <p>{{ currentReviewPhoto().album || 'No album' }}</p>
-              <p>{{ currentReviewPhoto().taken }}</p>
-            </div>
+            <app-photo-card [photo]="currentReviewPhoto()!" />
             <div>
               <button (click)="prevReviewPhoto()" [disabled]="reviewIndex() === 0">Previous</button>
               <button

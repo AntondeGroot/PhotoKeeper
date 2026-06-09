@@ -170,3 +170,57 @@ How do you guard against an out-of-bounds array access in an Angular template?
 Wrap the content in `@if (myComputed())` — if the computed returns `undefined` (index out of range) the block is hidden, preventing a runtime error.
 
 ===END PAGE===
+
+---
+
+## Session 5 — Standalone components and @Input()
+
+===PAGE 1===
+What is an Angular component and why split UI into multiple components?
+?
+A component is a self-contained piece of UI with its own TypeScript class, template, and styles. Splitting into components keeps each file small and focused — a single large component becomes unmanageable as the app grows.
+
+---
+
+What is the difference between a TypeScript `import` and Angular's `imports: []` array?
+?
+A TypeScript `import` at the top of the file makes a symbol available to use in that file. Angular's `imports: []` inside `@Component` tells Angular which other *components* the template needs to render — TypeScript interfaces and constants never go there.
+
+---
+
+How do you pass data from a parent component into a child component?
+?
+Decorate a property in the child class with `@Input()`, then bind to it from the parent template with `[propertyName]="value"`. The `@Input()` decorator must be imported from `@angular/core`.
+
+---
+
+What does `!` after a property declaration mean in TypeScript?
+?
+The non-null assertion `photo!: Photo` tells TypeScript "I guarantee this will be assigned before it is used." Use it on required `@Input()` properties that have no default value but are always provided by the parent.
+
+---
+
+How do you make a component available to use in another component's template?
+?
+Add it to the `imports: []` array in the parent's `@Component` decorator, and import the class at the top of the parent's TypeScript file.
+
+---
+
+What does a complete minimal Angular component with an `@Input()` look like?
+?
+```typescript
+import { Component, Input } from '@angular/core';
+import { Photo } from '../photo';
+
+@Component({
+  selector: 'app-photo-card',
+  templateUrl: './photo-card.html',
+  imports: [],
+})
+export class PhotoCardComponent {
+  @Input() photo!: Photo;
+}
+```
+The `@Component` decorator configures the component; the class body holds its inputs and logic.
+
+===END PAGE===
