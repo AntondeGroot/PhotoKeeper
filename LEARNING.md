@@ -302,3 +302,21 @@ How do you count items in an array that match a condition?
 Chain `Array.filter()` and `.length` — `filter()` returns a new array of matching items, `.length` gives the count: `photos.filter(p => p.status === 'kept').length`.
 
 ===END PAGE===
+
+---
+
+## Session 9 — Style binding and progress tracking
+
+===PAGE 1===
+How do you bind a CSS property value directly from the component in Angular?
+?
+Use the style binding syntax: `[style.width.%]="expression"` — the property name goes after `style.`, the optional unit after a second dot. If `expression` returns `60`, the element gets `width: 60%`.
+
+---
+
+How do you clamp a computed number to a maximum value?
+?
+Use `Math.min(max, value)` — `Math.min(100, percent)` ensures the result never exceeds 100 regardless of the input.
+
+
+===END PAGE===
