@@ -52,14 +52,10 @@
         @if (activeTab() === 'review') {
           @if (currentReviewPhoto()) {
             <app-photo-card [photo]="currentReviewPhoto()!" />
-            <div>
-              <button (click)="prevReviewPhoto()" [disabled]="reviewIndex() === 0">Previous</button>
-              <button
-                (click)="nextReviewPhoto()"
-                [disabled]="reviewIndex() === reviewPhotos.length - 1"
-              >
-                Next
-              </button>
+            <div class="action-buttons">
+              <button (click)="decide('rejected')">✕</button>
+              <button (click)="decide('toEdit')">↑</button>
+              <button (click)="decide('kept')">✓</button>
             </div>
           }
         } @else if (activeTab() === 'pipeline') {
