@@ -224,3 +224,58 @@ export class PhotoCardComponent {
 The `@Component` decorator configures the component; the class body holds its inputs and logic.
 
 ===END PAGE===
+
+---
+
+## Session 6 & 7 — Signals as mutable state, updating arrays, and the spread operator
+
+===PAGE 1===
+What is the difference between `signal.set()` and `signal.update()`?
+?
+`.set(value)` replaces the signal's value entirely. `.update(fn)` gives you the current value and replaces it with whatever the function returns — useful when the new value depends on the old one.
+
+---
+
+How do you update one item inside an array signal without mutating it?
+?
+Use `.update()` with `Array.map()` — return a new array where the matching item is replaced and all others pass through unchanged:
+```typescript
+this.items.update(list =>
+  list.map(item => item.id === targetId ? { ...item, status: 'done' } : item)
+);
+```
+
+---
+
+What does the spread operator `{ ...obj, field: value }` do?
+?
+It creates a new object with all fields copied from `obj`, then overrides the specified field. The original object is not mutated — this is the standard pattern for updating one field on an immutable object.
+
+---
+
+Why should a local variable not share a name with a class property?
+?
+A local variable shadows the class property within that scope — a reader cannot tell which one is meant without checking both. Use a distinct name for the local variable to make the intent clear.
+
+---
+
+What is a TypeScript `type` alias and when is it useful?
+?
+`type MyVerdict = 'kept' | 'rejected' | 'toEdit'` gives a name to a union type so it can be reused. Use it when the same union appears in multiple places.
+
+---
+
+How do you read the "update one item in an array signal" pattern line by line?
+?
+```typescript
+this.reviewPhotos.update((list) =>    // give me the current array, I'll return a new one
+  list.map((item) =>                  // go through every photo one by one
+    item.id === current.id            // is this the photo we decided on?
+      ? { ...item, status: verdict }  // yes → copy it with the new status
+      : item                          // no → return it unchanged
+  )
+);
+```
+You cannot change an item inside a signal's array directly — instead you replace the whole array with a new one where one item is different. `.map()` produces that new array.
+
+===END PAGE===

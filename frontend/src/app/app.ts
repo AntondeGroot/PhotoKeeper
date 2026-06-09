@@ -30,8 +30,8 @@ export class AppComponent implements OnInit, OnDestroy {
   hasPrev = computed(() => this.currentIndex() > 0);
   hasNext = computed(() => this.currentIndex() < this.totalPhotos() - 1);
 
-  readonly reviewPhotos: Photo[] = MOCK_PHOTOS;
-  currentReviewPhoto = computed(() => this.reviewPhotos[this.reviewIndex()]);
+  reviewPhotos = signal<Photo[]>(MOCK_PHOTOS);
+  currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
   private readonly objectUrls: string[] = [];
 
   ngOnInit(): void {
@@ -126,13 +126,23 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   nextReviewPhoto(): void {
-    if (this.reviewIndex() < this.reviewPhotos.length - 1) {
+    if (this.reviewIndex() < this.reviewPhotos().length - 1) {
       this.reviewIndex.set(this.reviewIndex() + 1);
     }
   }
 
   setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {
     this.activeTab.set(tab);
+  }
+
+  decide(verdict: 'kept' | 'rejected' | 'toEdit'): void {
+    const current = this.currentReviewPhoto();
+    if (!current) return;
+
+    this.reviewPhotos.update((list) =>
+      list.map((item) => (item.id === current.id ? { ...item, status: verdict } : item)),
+    );
+    this.nextReviewPhoto();
   }
 
   captureDate(): string | null {
