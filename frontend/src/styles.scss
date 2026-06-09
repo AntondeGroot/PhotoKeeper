@@ -1,3 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..600&family=Hanken+Grotesk:wght@400;500;600&display=swap');
+
+/* ── Darkroom palette ── */
+:root {
+  --c-bg: #131110;
+  --c-panel: #1c1916;
+  --c-panel2: #221e1a;
+  --c-line: #2c2722;
+  --c-text: #ede6dc;
+  --c-dim: #9a9087;
+  --c-faint: #6e665e;
+  --c-amber: #e5a045;
+  --c-amber-deep: #8a5a1e;
+  --c-keep: #8fae7e;
+  --c-reject: #c9685a;
+  --c-print: #7fa8a0;
+  --c-holiday: #c39bc7;
+  --c-stereo: #9bb4dc;
+  --c-device: #6fae9e;
+  --c-star: #e8c84a;
+  --c-maybe: #8e9bb0;
+  --c-keepsake: #d98aa0;
+
+  --font-head: 'Fraunces', Georgia, serif;
+  --font-body: 'Hanken Grotesk', 'Avenir Next', sans-serif;
+}
+
 *,
 *::before,
 *::after {
@@ -5,8 +32,29 @@
   margin: 0;
   padding: 0;
 }
+
 html,
 body {
   height: 100%;
-  background: #0d0d0d;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: var(--font-body);
+}
+
+/* Prevent text selection / tap highlights on interactive elements */
+button,
+[role='button'] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+button:active {
+  transform: scale(0.97);
 }

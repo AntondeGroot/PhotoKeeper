@@ -19,6 +19,7 @@ export class AppComponent implements OnInit, OnDestroy {
   currentIndex = signal(0);
   currentPhotoUrl = signal<SafeUrl | null>(null);
   loadingPhoto = signal(false);
+  activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
   error = signal<string | null>(null);
 
   currentPhoto = computed(() => this.photos()[this.currentIndex()]);
@@ -111,6 +112,10 @@ export class AppComponent implements OnInit, OnDestroy {
     const idx = this.currentIndex() + 1;
     this.currentIndex.set(idx);
     this.loadPhoto(idx);
+  }
+
+  setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {
+    this.activeTab.set(tab);
   }
 
   captureDate(): string | null {
