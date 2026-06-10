@@ -58,6 +58,12 @@
             </div>
           </div>
           @if (!sessionDone()) {
+            <div class="card-toolbar">
+              <button (click)="toggleKeepsake()">
+                {{ currentReviewPhoto().keepsake ? '♥' : '♡' }}
+              </button>
+              <button (click)="toggleStar()">{{ currentReviewPhoto().starred ? '★' : '☆' }}</button>
+            </div>
             <app-photo-card [photo]="currentReviewPhoto()!" (swiped)="decide($event)" />
             <div class="action-buttons">
               <button (click)="decide('rejected')">✕</button>

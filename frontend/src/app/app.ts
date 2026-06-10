@@ -152,6 +152,22 @@ export class AppComponent implements OnInit, OnDestroy {
     this.nextReviewPhoto();
   }
 
+  toggleStar(): void {
+    const current = this.currentReviewPhoto();
+    if (!current) return;
+    this.reviewPhotos.update((list) =>
+      list.map((item) => (item.id === current.id ? { ...item, starred: !item.starred } : item)),
+    );
+  }
+
+  toggleKeepsake(): void {
+    const current = this.currentReviewPhoto();
+    if (!current) return;
+    this.reviewPhotos.update((list) =>
+      list.map((item) => (item.id === current.id ? { ...item, keepsake: !item.keepsake } : item)),
+    );
+  }
+
   captureDate(): string | null {
     const raw = this.currentPhoto()?.payload?.captureDate;
     if (!raw) return null;
