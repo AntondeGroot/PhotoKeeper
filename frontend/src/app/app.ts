@@ -142,7 +142,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.activeTab.set(tab);
   }
 
-  decide(verdict: 'kept' | 'rejected' | 'toEdit'): void {
+  decide(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {
     const current = this.currentReviewPhoto();
     if (!current) return;
 

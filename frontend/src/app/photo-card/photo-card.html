@@ -1,5 +1,25 @@
-<div class="photo-card">
+<div
+  class="photo-card"
+  (pointerdown)="onPointerDown($event)"
+  (pointermove)="onPointerMove($event)"
+  (pointerup)="onPointerUp()"
+  (pointercancel)="onPointerUp()"
+  [style.transform]="dragTransform()"
+  [class.dragging]="dragging()"
+>
   <div class="photo-area"></div>
+  <div class="swipe-overlay overlay-keep" [style.opacity]="dragX() > 0 ? dragX() / 100 : 0">
+    KEEP →
+  </div>
+  <div class="swipe-overlay overlay-reject" [style.opacity]="dragX() < 0 ? -dragX() / 100 : 0">
+    ← REJECT
+  </div>
+  <div class="swipe-overlay overlay-edit" [style.opacity]="dragY() < 0 ? -dragY() / 100 : 0">
+    ↑ FLAG
+  </div>
+  <div class="swipe-overlay overlay-maybe" [style.opacity]="dragY() > 0 ? dragY() / 100 : 0">
+    ↓ MAYBE
+  </div>
   <div class="photo-top">
     <span class="chip">{{ photo.album || 'No album' }}</span>
   </div>

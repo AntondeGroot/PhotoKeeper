@@ -320,3 +320,60 @@ Use `Math.min(max, value)` — `Math.min(100, percent)` ensures the result never
 
 
 ===END PAGE===
+
+---
+
+## Session 10 — Outputs, pointer events, and template literals
+
+===PAGE 1===
+How does a child component send an event back up to the parent?
+?
+Decorate a property with `@Output()` and assign it a `new EventEmitter<T>()`. Call `.emit(value)` inside the class to fire the event. The parent listens with `(eventName)="method($event)"` in its template. `@Output` and `EventEmitter` must both be imported from `@angular/core`.
+
+---
+
+What is the difference between `@Input()` and `@Output()`?
+?
+`@Input()` passes data *into* a child — the parent sets it. `@Output()` sends events *out* of a child — the child fires them with `.emit()` and the parent reacts. They are the two directions of parent-child communication in Angular.
+
+---
+
+Does calling `.emit()` stop execution of the current method?
+?
+No. `.emit()` dispatches the event and returns — execution continues on the next line, just like any other method call. Only `return` stops the function. This is why a single `if / else if` chain is needed when emitting verdicts: without `else if`, a diagonal drag could fall through and emit twice.
+
+---
+
+How do you build a string that contains live values in TypeScript?
+?
+Use a template literal — backticks instead of quotes, with `${}` to embed expressions:
+```typescript
+`translate(${this.dragX()}px, ${this.dragY()}px)`
+```
+The result is a regular string with the current values substituted in. Useful for CSS `transform` values and any string that needs computed parts.
+
+---
+
+What are pointer events and why use them instead of mouse or touch events?
+?
+`pointerdown`, `pointermove`, `pointerup`, and `pointercancel` are unified events that fire for mouse, touch, and stylus input. Using them means one set of handlers works on desktop and mobile. `pointercancel` fires when the OS interrupts the gesture (e.g. an incoming call) — always handle it the same as `pointerup` so the card does not get stuck mid-drag.
+
+---
+
+What does `setPointerCapture` do and why is it needed for drag?
+?
+`(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)` tells the browser to keep sending pointer events to this element even if the pointer moves outside it. Without it, moving the finger outside the card boundary stops firing `pointermove` and the drag freezes.
+
+---
+
+What does `touch-action: none` do in CSS?
+?
+It tells the browser not to handle touch gestures (scroll, zoom) on that element, so pointer events are delivered to your code instead. Without it the browser may intercept a swipe gesture and scroll the page rather than firing `pointermove`.
+
+---
+
+How do you toggle a CSS class on an element based on a signal?
+?
+Use `[class.dragging]="dragging()"` — Angular adds the class when the signal is `true` and removes it when it is `false`. Useful for toggling styles like `transition: none` during an active drag so the card tracks the finger instantly instead of lagging.
+
+===END PAGE===
