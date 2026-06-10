@@ -38,6 +38,7 @@ export class AppComponent implements OnInit, OnDestroy {
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
   rejectedCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'rejected').length);
   toEditCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit').length);
+  maybeCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'maybe').length);
   progressPercent = computed(() => Math.min(100, (this.doneToday() / this.dailyGoal()) * 100));
   private readonly objectUrls: string[] = [];
 

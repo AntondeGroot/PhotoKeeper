@@ -41,6 +41,9 @@ The goal is to port the React prototype (`keeper-prototype.jsx`) into this Angul
 | 7 | Keep/reject/edit action buttons with photo decisions | `feat: add keep/reject/edit action buttons with photo decisions` |
 | 8 | Session done screen when all photos are reviewed | `feat: show session done screen when all photos are reviewed` |
 | 9 | Progress bar with daily goal counter | `feat: add progress bar and daily goal counter to review tab` |
+| 10 | Swipe gestures on PhotoCard | `feat: add swipe gestures to photo card` |
+| 11 | AI hint chip | `feat: add AI hint chip to daily review` |
+| 12 | Star and keepsake toggles | `feat: add star and keepsake toggles to review card` |
 
 ---
 
@@ -48,17 +51,11 @@ The goal is to port the React prototype (`keeper-prototype.jsx`) into this Angul
 
 ### Short term (core review flow)
 
-**Task 10 — Swipe gestures** ← *next up*
-Add pointer event handling to `PhotoCardComponent` so the card can be dragged left (reject), right (keep), up (flag to edit), and down (in doubt). Shows drag offset overlays (← REJECT, KEEP →, etc.). Teaches pointer events, `@HostListener` or template event bindings, and CSS `transform`.
+**Task 13 — "In doubt" action** ← *ready to commit*
+Swipe down sets status to `'maybe'`. `maybeCount` computed shown in session done screen. The action bar has four buttons matching the prototype: ✕ reject, ↑ flag to edit, ✓ keep, ★ star toggle. "In doubt" is swipe-down only — no `↓` button.
 
-**Task 11 — AI hint chip**
-Show a small chip below the action buttons when the current photo has an AI suggestion (e.g. "AI leans keep · Tack sharp, strong golden light"). Add an `ai` field to the `Photo` interface. Teaches optional fields (`ai?: ...`) and nested interfaces.
-
-**Task 12 — Star and keepsake toggles**
-Double-tap (or button) to toggle ★5 on a photo. A ♡/♥ keepsake toggle above the card. Both update the photo in the signal. Teaches event handling for double-tap.
-
-**Task 13 — "In doubt" action**
-Add a fourth action (swipe down / button) that sets status to `'maybe'`. Add it to the action bar and update the session done stats.
+**Task 14 — Sort/Edit mode switcher** ← *next up*
+A sub-tab bar inside Daily review that switches between Sort mode (what we have) and Edit mode (a list of photos flagged to edit). Teaches nested tab state.
 
 ### Medium term (tabs and modes)
 
