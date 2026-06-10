@@ -295,10 +295,6 @@
     &:nth-child(1) {
       color: var(--c-keepsake);
     }
-
-    &:nth-child(2) {
-      color: var(--c-star);
-    }
   }
 }
 
@@ -350,6 +346,14 @@
       border-color: var(--c-keep);
       &:hover {
         background: rgba(143, 174, 126, 0.12);
+      }
+    }
+
+    &:nth-child(4) {
+      color: var(--c-star);
+      border-color: var(--c-star);
+      &:hover {
+        background: rgba(229, 160, 69, 0.08);
       }
     }
   }

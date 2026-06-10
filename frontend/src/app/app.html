@@ -62,13 +62,13 @@
               <button (click)="toggleKeepsake()">
                 {{ currentReviewPhoto().keepsake ? '♥' : '♡' }}
               </button>
-              <button (click)="toggleStar()">{{ currentReviewPhoto().starred ? '★' : '☆' }}</button>
             </div>
             <app-photo-card [photo]="currentReviewPhoto()!" (swiped)="decide($event)" />
             <div class="action-buttons">
               <button (click)="decide('rejected')">✕</button>
               <button (click)="decide('toEdit')">↑</button>
               <button (click)="decide('kept')">✓</button>
+              <button (click)="toggleStar()">{{ currentReviewPhoto().starred ? '★' : '☆' }}</button>
             </div>
             @if (currentReviewPhoto().ai; as hint) {
               <div class="ai-hint">
@@ -81,6 +81,7 @@
               <p>{{ keptCount() }} kept</p>
               <p>{{ rejectedCount() }} rejected</p>
               <p>{{ toEditCount() }} flagged to edit</p>
+              <p>{{ maybeCount() }} in doubt</p>
               <button (click)="setActiveTab('pipeline')">Review pipeline →</button>
             </div>
           }
