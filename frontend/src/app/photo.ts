@@ -1,3 +1,8 @@
+export interface AiHint {
+  verdict: 'kept' | 'rejected' | 'toEdit';
+  reason: string;
+}
+
 export interface Photo {
   id: string;
   name: string; // without extension
@@ -6,6 +11,7 @@ export interface Photo {
   status: 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
   starred: boolean;
   keepsake: boolean;
+  ai?: AiHint;
 }
 
 export const MOCK_PHOTOS: Photo[] = [
@@ -17,6 +23,10 @@ export const MOCK_PHOTOS: Photo[] = [
     status: 'backlog',
     starred: false,
     keepsake: false,
+    ai: {
+      verdict: 'kept',
+      reason: 'Tack sharp, strong golden light',
+    },
   },
   {
     id: 'IMG_4022',
@@ -35,6 +45,10 @@ export const MOCK_PHOTOS: Photo[] = [
     status: 'backlog',
     starred: false,
     keepsake: false,
+    ai: {
+      verdict: 'rejected',
+      reason: 'Motion blur on subject, flat light',
+    },
   },
   {
     id: 'IMG_4090',

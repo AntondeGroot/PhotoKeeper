@@ -152,6 +152,17 @@
   border-color: rgba(229, 160, 69, 0.35);
 }
 
+.chip-dim {
+  color: var(--c-dim);
+  border-color: var(--c-line);
+}
+
+.ai-hint {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
 /* ── Tab bar ── */
 .tab-bar {
   display: flex;
