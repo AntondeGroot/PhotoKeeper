@@ -377,3 +377,57 @@ How do you toggle a CSS class on an element based on a signal?
 Use `[class.dragging]="dragging()"` — Angular adds the class when the signal is `true` and removes it when it is `false`. Useful for toggling styles like `transition: none` during an active drag so the card tracks the finger instantly instead of lagging.
 
 ===END PAGE===
+
+---
+
+## Session 11 — Optional fields, nested interfaces, and @if aliasing
+
+===PAGE 1===
+What does `?` after a field name in a TypeScript interface mean?
+?
+The field is optional — it may or may not be present on the object. TypeScript will not complain if you leave it out when creating an object, and the field's type becomes `T | undefined`.
+```typescript
+export interface Photo {
+  ai?: AiHint; // fine to omit entirely
+}
+```
+
+---
+
+What is a nested interface and when should you use one?
+?
+A nested interface is a separate interface used as the type of a field on another interface. Use it when a field holds a structured object with its own named fields rather than a primitive value:
+```typescript
+export interface AiHint {
+  verdict: 'kept' | 'rejected' | 'toEdit';
+  reason: string;
+}
+export interface Photo {
+  ai?: AiHint;
+}
+```
+Both interfaces should be exported so they can be imported and used in other files.
+
+---
+
+How do you capture the value of an `@if` condition into a local variable?
+?
+Use the `; as` syntax — the truthy value is assigned to the named variable and available inside the block:
+```html
+@if (currentReviewPhoto().ai; as hint) {
+  {{ hint.verdict }} · {{ hint.reason }}
+}
+```
+Without `; as`, you would have to repeat the full expression and add `!` to tell TypeScript the value is non-null, because it cannot see inside the `@if` guard:
+```html
+{{ currentReviewPhoto().ai!.verdict }}
+```
+With `; as hint`, TypeScript already knows `hint` is the narrowed non-null value, so no `!` is needed.
+
+---
+
+What does Angular error NG8107 mean?
+?
+"The left side of this optional chain operation does not include null or undefined in its type — replace `?.` with `.`." Angular's strict template checker knows the value cannot be null or undefined at that point, so the `?.` is unnecessary and should be removed.
+
+===END PAGE===

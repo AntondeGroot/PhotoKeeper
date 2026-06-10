@@ -64,6 +64,11 @@
               <button (click)="decide('toEdit')">↑</button>
               <button (click)="decide('kept')">✓</button>
             </div>
+            @if (currentReviewPhoto().ai; as hint) {
+              <div class="ai-hint">
+                <span class="chip chip-dim">AI leans {{ hint.verdict }} · {{ hint.reason }}</span>
+              </div>
+            }
           } @else {
             <div class="session-done">
               <h2>All caught up.</h2>
