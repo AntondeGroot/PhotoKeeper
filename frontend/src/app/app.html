@@ -58,7 +58,7 @@
             </div>
           </div>
           @if (!sessionDone()) {
-            <app-photo-card [photo]="currentReviewPhoto()!" />
+            <app-photo-card [photo]="currentReviewPhoto()!" (swiped)="decide($event)" />
             <div class="action-buttons">
               <button (click)="decide('rejected')">✕</button>
               <button (click)="decide('toEdit')">↑</button>

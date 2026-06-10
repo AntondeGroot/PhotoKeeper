@@ -7,6 +7,63 @@
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
   aspect-ratio: 3 / 4;
   width: 100%;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  transition: transform 0.25s ease;
+
+  &.dragging {
+    transition: none;
+    cursor: grabbing;
+  }
+}
+
+/* ── Swipe overlays ── */
+.swipe-overlay {
+  position: absolute;
+  z-index: 2;
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  border: 3px solid;
+  border-radius: 6px;
+  padding: 4px 12px;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.overlay-keep {
+  top: 28px;
+  left: 16px;
+  color: var(--c-keep);
+  border-color: var(--c-keep);
+  transform: rotate(-12deg);
+}
+
+.overlay-reject {
+  top: 28px;
+  right: 16px;
+  color: var(--c-reject);
+  border-color: var(--c-reject);
+  transform: rotate(12deg);
+}
+
+.overlay-edit {
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-6deg);
+  color: var(--c-amber);
+  border-color: var(--c-amber);
+}
+
+.overlay-maybe {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(6deg);
+  color: var(--c-dim);
+  border-color: var(--c-dim);
 }
 
 .photo-area {
