@@ -22,6 +22,7 @@ export class AppComponent implements OnInit, OnDestroy {
   currentPhotoUrl = signal<SafeUrl | null>(null);
   loadingPhoto = signal(false);
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
+  reviewMode = signal<'sort' | 'edit'>('sort');
   reviewIndex = signal(0);
   error = signal<string | null>(null);
   dailyGoal = signal(15);
@@ -167,6 +168,10 @@ export class AppComponent implements OnInit, OnDestroy {
     this.reviewPhotos.update((list) =>
       list.map((item) => (item.id === current.id ? { ...item, keepsake: !item.keepsake } : item)),
     );
+  }
+
+  setReviewMode(mode: 'sort' | 'edit'): void {
+    this.reviewMode.set(mode);
   }
 
   captureDate(): string | null {
