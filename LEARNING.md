@@ -431,3 +431,18 @@ What does Angular error NG8107 mean?
 "The left side of this optional chain operation does not include null or undefined in its type — replace `?.` with `.`." Angular's strict template checker knows the value cannot be null or undefined at that point, so the `?.` is unnecessary and should be removed.
 
 ===END PAGE===
+
+---
+
+## Session 12 — `as const`
+
+===PAGE 1===
+What does `as const` do and when do you need it?
+?
+`as const` tells TypeScript to treat a value as its narrowest possible literal type instead of widening it. For string literals in object literals TypeScript usually infers the literal type already, but `as const` makes the intent explicit and prevents widening in cases where TypeScript might otherwise infer `string`:
+```typescript
+{ ...item, status: 'toPrint' as const }
+```
+Without `as const` TypeScript might infer `status: string`, which would not be assignable to a union like `'kept' | 'rejected' | 'toPrint'`. With it, the type is locked to `'toPrint'` and the assignment is accepted.
+
+===END PAGE===

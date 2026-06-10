@@ -1,0 +1,8 @@
+<div class="session-done">
+  <h2>All caught up.</h2>
+  <p>{{ keptCount }} kept</p>
+  <p>{{ rejectedCount }} rejected</p>
+  <p>{{ toEditCount }} flagged to edit</p>
+  <p>{{ maybeCount }} in doubt</p>
+  <button (click)="pipelineClick.emit()">Review pipeline →</button>
+</div>

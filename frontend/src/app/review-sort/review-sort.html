@@ -1,0 +1,17 @@
+<div class="card-toolbar">
+  <button (click)="keepsakeToggle.emit()">
+    {{ photo.keepsake ? '♥' : '♡' }}
+  </button>
+</div>
+<app-photo-card [photo]="photo" (swiped)="swiped.emit($event)" />
+<div class="action-buttons">
+  <button (click)="swiped.emit('rejected')">✕</button>
+  <button (click)="swiped.emit('toEdit')">↑</button>
+  <button (click)="swiped.emit('kept')">✓</button>
+  <button (click)="starToggle.emit()">{{ photo.starred ? '★' : '☆' }}</button>
+</div>
+@if (photo.ai; as hint) {
+  <div class="ai-hint">
+    <span class="chip chip-dim">AI leans {{ hint.verdict }} · {{ hint.reason }}</span>
+  </div>
+}
