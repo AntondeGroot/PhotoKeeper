@@ -1,0 +1,35 @@
+.session-done {
+  border: 1px solid var(--c-line);
+  border-radius: 16px;
+  background: var(--c-panel);
+  padding: 30px 24px;
+  text-align: center;
+  margin-top: 8px;
+
+  h2 {
+    font-family: var(--font-head);
+    font-style: italic;
+    font-size: 30px;
+    font-weight: 400;
+    color: var(--c-amber);
+    margin-bottom: 16px;
+  }
+
+  p {
+    font-size: 13px;
+    color: var(--c-dim);
+    margin-bottom: 6px;
+  }
+
+  button {
+    margin-top: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #131110;
+    background: var(--c-amber);
+    border: none;
+    border-radius: 10px;
+    padding: 12px 26px;
+    cursor: pointer;
+  }
+}

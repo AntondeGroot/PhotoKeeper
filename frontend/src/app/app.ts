@@ -3,11 +3,13 @@ import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
 import { Photo, MOCK_PHOTOS } from './photo';
-import { PhotoCardComponent } from './photo-card/photo-card';
+import { ReviewSortComponent } from './review-sort/review-sort';
+import { SessionDoneComponent } from './session-done/session-done';
+import { ReviewEditComponent } from './review-edit/review-edit';
 
 @Component({
   selector: 'app-root',
-  imports: [PhotoCardComponent],
+  imports: [ReviewSortComponent, SessionDoneComponent, ReviewEditComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -26,6 +28,8 @@ export class AppComponent implements OnInit, OnDestroy {
   reviewIndex = signal(0);
   error = signal<string | null>(null);
   dailyGoal = signal(15);
+  editGoal = signal(3);
+  editedToday = signal(0);
 
   currentPhoto = computed(() => this.photos()[this.currentIndex()]);
   totalPhotos = computed(() => this.photos().length);
@@ -40,7 +44,14 @@ export class AppComponent implements OnInit, OnDestroy {
   rejectedCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'rejected').length);
   toEditCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit').length);
   maybeCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'maybe').length);
-  progressPercent = computed(() => Math.min(100, (this.doneToday() / this.dailyGoal()) * 100));
+  progressReviewPercent = computed(() =>
+    Math.min(100, (this.doneToday() / this.dailyGoal()) * 100),
+  );
+  progressEditPercent = computed(() => Math.min(100, (this.editedToday() / this.editGoal()) * 100));
+  toEditQueue = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit'));
+  editDone = computed(
+    () => this.editedToday() >= this.editGoal() || this.toEditQueue().length === 0,
+  );
   private readonly objectUrls: string[] = [];
 
   ngOnInit(): void {
@@ -172,6 +183,13 @@ export class AppComponent implements OnInit, OnDestroy {
 
   setReviewMode(mode: 'sort' | 'edit'): void {
     this.reviewMode.set(mode);
+  }
+
+  promoteToPrint(id: string): void {
+    this.reviewPhotos.update((list) =>
+      list.map((item) => (item.id === id ? { ...item, status: 'toPrint' as const } : item)),
+    );
+    this.editedToday.update((n) => n + 1);
   }
 
   captureDate(): string | null {

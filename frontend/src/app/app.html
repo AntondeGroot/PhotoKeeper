@@ -50,13 +50,23 @@
 
       <div class="tab-content">
         @if (activeTab() === 'review') {
-          <div class="progress-bar-section">
-            <span>Today's batch</span>
-            <span>{{ doneToday() }} / {{ dailyGoal() }} today</span>
-            <div class="progress-track">
-              <div class="progress-fill" [style.width.%]="progressPercent()"></div>
+          @if (reviewMode() === 'sort') {
+            <div class="progress-bar-section">
+              <span>Today's batch</span>
+              <span>{{ doneToday() }} / {{ dailyGoal() }} today</span>
+              <div class="progress-track">
+                <div class="progress-fill" [style.width.%]="progressReviewPercent()"></div>
+              </div>
             </div>
-          </div>
+          } @else {
+            <div class="progress-bar-section">
+              <span>Edit queue</span>
+              <span>{{ editedToday() }} / {{ editGoal() }} today</span>
+              <div class="progress-track">
+                <div class="progress-fill" [style.width.%]="progressEditPercent()"></div>
+              </div>
+            </div>
+          }
           <div class="mode-bar">
             <button
               class="tab-btn"
@@ -75,37 +85,27 @@
           </div>
           @if (reviewMode() === 'sort') {
             @if (!sessionDone()) {
-              <div class="card-toolbar">
-                <button (click)="toggleKeepsake()">
-                  {{ currentReviewPhoto().keepsake ? '♥' : '♡' }}
-                </button>
-              </div>
-              <app-photo-card [photo]="currentReviewPhoto()!" (swiped)="decide($event)" />
-              <div class="action-buttons">
-                <button (click)="decide('rejected')">✕</button>
-                <button (click)="decide('toEdit')">↑</button>
-                <button (click)="decide('kept')">✓</button>
-                <button (click)="toggleStar()">
-                  {{ currentReviewPhoto().starred ? '★' : '☆' }}
-                </button>
-              </div>
-              @if (currentReviewPhoto().ai; as hint) {
-                <div class="ai-hint">
-                  <span class="chip chip-dim">AI leans {{ hint.verdict }} · {{ hint.reason }}</span>
-                </div>
-              }
+              <app-review-sort
+                [photo]="currentReviewPhoto()"
+                (swiped)="decide($event)"
+                (starToggle)="toggleStar()"
+                (keepsakeToggle)="toggleKeepsake()"
+              />
             } @else {
-              <div class="session-done">
-                <h2>All caught up.</h2>
-                <p>{{ keptCount() }} kept</p>
-                <p>{{ rejectedCount() }} rejected</p>
-                <p>{{ toEditCount() }} flagged to edit</p>
-                <p>{{ maybeCount() }} in doubt</p>
-                <button (click)="setActiveTab('pipeline')">Review pipeline →</button>
-              </div>
+              <app-session-done
+                [keptCount]="keptCount()"
+                [rejectedCount]="rejectedCount()"
+                [toEditCount]="toEditCount()"
+                [maybeCount]="maybeCount()"
+                (pipelineClick)="setActiveTab('pipeline')"
+              />
             }
           } @else {
-            <p>Edit queue coming soon</p>
+            <app-review-edit
+              [queue]="toEditQueue()"
+              [editDone]="editDone()"
+              (promoted)="promoteToPrint($event)"
+            />
           }
         } @else if (activeTab() === 'pipeline') {
           <p>Pipeline coming soon</p>

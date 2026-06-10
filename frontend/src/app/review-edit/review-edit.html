@@ -1,0 +1,14 @@
+@if (!editDone) {
+  <div class="edit-queue">
+    @for (photo of queue; track photo.id) {
+      <div class="edit-item">
+        <span class="item-name">{{ photo.name }}</span>
+        <button (click)="promoted.emit(photo.id)">Edited → print</button>
+      </div>
+    }
+  </div>
+} @else {
+  <div class="edit-done">
+    <h2>Edit queue clear.</h2>
+  </div>
+}
