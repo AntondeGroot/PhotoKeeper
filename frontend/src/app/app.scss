@@ -193,6 +193,17 @@
   }
 }
 
+/* ── Mode switcher (Sort / Edit) ── */
+.mode-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+
+  .tab-btn {
+    flex: 1;
+  }
+}
+
 /* ── Tab content areas ── */
 .tab-content {
   padding: 4px 0 0;
