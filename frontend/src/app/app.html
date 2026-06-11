@@ -108,7 +108,7 @@
             />
           }
         } @else if (activeTab() === 'pipeline') {
-          <p>Pipeline coming soon</p>
+          <app-pipeline [toEditByAlbum]="toEditByAlbum()" [toPrintByAlbum]="toPrintByAlbum()" />
         } @else {
           <p>Settings coming soon</p>
         }
