@@ -110,7 +110,12 @@
         } @else if (activeTab() === 'pipeline') {
           <app-pipeline [toEditByAlbum]="toEditByAlbum()" [toPrintByAlbum]="toPrintByAlbum()" />
         } @else {
-          <p>Settings coming soon</p>
+          <app-settings
+            [dailyGoal]="dailyGoal()"
+            [editGoal]="editGoal()"
+            (dailyGoalChange)="dailyGoal.set($event)"
+            (editGoalChange)="editGoal.set($event)"
+          />
         }
       </div>
     </div>

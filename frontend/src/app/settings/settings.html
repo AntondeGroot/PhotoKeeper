@@ -1,0 +1,81 @@
+<div class="settings">
+  <div class="settings-section-label">Daily review</div>
+
+  <div class="settings-card">
+    <h3 class="card-title">Daily goal</h3>
+
+    <!-- sorting row -->
+    <div class="goal-row">
+      <span class="goal-label">Sorting</span>
+      <span class="goal-value">{{ dailyGoal }} / day</span>
+    </div>
+    <div class="preset-buttons">
+      <button class="preset-btn" [class.active]="dailyGoal === 8" (click)="dailyGoalChange.emit(8)">
+        <span>Light</span>
+        <span class="preset-num">8</span>
+      </button>
+      <button
+        class="preset-btn"
+        [class.active]="dailyGoal === 15"
+        (click)="dailyGoalChange.emit(15)"
+      >
+        <span>Steady</span>
+        <span class="preset-num">15</span>
+      </button>
+      <button
+        class="preset-btn"
+        [class.active]="dailyGoal === 20"
+        (click)="dailyGoalChange.emit(20)"
+      >
+        <span>Focused</span>
+        <span class="preset-num">20</span>
+      </button>
+      <button
+        class="preset-btn"
+        [class.active]="dailyGoal === 25"
+        (click)="dailyGoalChange.emit(25)"
+      >
+        <span>Deep</span>
+        <span class="preset-num">25</span>
+      </button>
+    </div>
+    <input
+      class="goal-slider"
+      type="range"
+      min="5"
+      max="40"
+      [value]="dailyGoal"
+      (input)="onDailyGoalChange($event)"
+    />
+
+    <!-- editing row -->
+    <div class="goal-row">
+      <span class="goal-label">Editing</span>
+      <span class="goal-value">{{ editGoal }} / day</span>
+    </div>
+    <div class="preset-buttons">
+      <button class="preset-btn" [class.active]="editGoal === 2" (click)="editGoalChange.emit(2)">
+        <span>Light</span>
+        <span class="preset-num">2</span>
+      </button>
+      <button class="preset-btn" [class.active]="editGoal === 3" (click)="editGoalChange.emit(3)">
+        <span>Steady</span>
+        <span class="preset-num">3</span>
+      </button>
+      <button class="preset-btn" [class.active]="editGoal === 5" (click)="editGoalChange.emit(5)">
+        <span>Deep</span>
+        <span class="preset-num">5</span>
+      </button>
+    </div>
+    <input
+      class="goal-slider"
+      type="range"
+      min="1"
+      max="10"
+      [value]="editGoal"
+      (input)="onEditGoalChange($event)"
+    />
+
+    <p class="goal-hint">Keep editing lower — it's slower than sorting.</p>
+  </div>
+</div>

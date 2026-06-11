@@ -44,32 +44,19 @@ The goal is to port the React prototype (`keeper-prototype.jsx`) into this Angul
 | 10 | Swipe gestures on PhotoCard | `feat: add swipe gestures to photo card` |
 | 11 | AI hint chip | `feat: add AI hint chip to daily review` |
 | 12 | Star and keepsake toggles | `feat: add star and keepsake toggles to review card` |
+| 13 | "In doubt" action and maybe count in session done screen | `fix: align action buttons with prototype (star in bar, maybe swipe-only)` |
+| 14 | Sort/Edit mode switcher | `feat: add Sort/Edit mode switcher to daily review tab` |
+| 15 | Edit queue (edit mode) | `feat: add Sort/Edit mode switcher and edit queue to daily review` |
+| 16 | Pipeline tab with album-grouped lists | `feat: add Pipeline tab with album-grouped to-edit and to-print lists` |
 
 ---
 
 ## Remaining tasks — toward the interactive prototype
 
-### Short term (core review flow)
+### Next up
 
-**Task 13 — "In doubt" action** ← *ready to commit*
-Swipe down sets status to `'maybe'`. `maybeCount` computed shown in session done screen. The action bar has four buttons matching the prototype: ✕ reject, ↑ flag to edit, ✓ keep, ★ star toggle. "In doubt" is swipe-down only — no `↓` button.
-
-**Task 14 — Sort/Edit mode switcher** ← *next up*
-A sub-tab bar inside Daily review that switches between Sort mode (what we have) and Edit mode (a list of photos flagged to edit). Teaches nested tab state.
-
-### Medium term (tabs and modes)
-
-**Task 14 — Sort/Edit mode switcher**
-A sub-tab bar inside Daily review that switches between Sort mode (what we have) and Edit mode (a list of photos flagged to edit). Teaches nested tab state.
-
-**Task 15 — Edit queue (edit mode)**
-Show the `toEdit` photos in a list with a "Edited → print" button per item. Clicking it sets status to `'toPrint'`.
-
-**Task 16 — Pipeline tab**
-Three lanes: To edit, To print, Done. Each lane groups photos by album. "Export ↗" action per album group. Teaches `@for` loops and grouping data in a computed.
-
-**Task 17 — Settings tab**
-Daily goal sliders (sort and edit), reminder time inputs, stereo tools toggle. Teaches two-way binding with `[(ngModel)]` and form inputs.
+**Task 17 — Settings tab** ← *next up*
+Daily goal sliders (sort and edit), reminder time inputs, stereo tools toggle. Persist settings to `localStorage` via `effect()`. Teaches `[value]` + `(input)` signal binding (no `ngModel`), and using `effect()` to react to signal changes for side effects like persistence.
 
 ### Later (special card types)
 
