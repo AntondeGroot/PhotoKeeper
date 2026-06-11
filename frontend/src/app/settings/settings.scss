@@ -1,0 +1,98 @@
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.settings-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--c-faint);
+  margin: 6px 2px 2px;
+}
+
+.settings-card {
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.card-title {
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--c-text);
+  margin: 0 0 16px;
+}
+
+.goal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.goal-label {
+  font-size: 13.5px;
+  color: var(--c-text);
+}
+
+.goal-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-amber);
+}
+
+.preset-buttons {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.preset-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 9px 0;
+  border-radius: 9px;
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-dim);
+  cursor: pointer;
+  font-size: 11.5px;
+  transition: all 0.15s;
+
+  &.active {
+    border-color: var(--c-amber);
+    color: var(--c-amber);
+    background: rgba(197, 145, 78, 0.1);
+  }
+}
+
+.preset-num {
+  font-weight: 700;
+}
+
+.goal-slider {
+  width: 100%;
+  accent-color: var(--c-amber);
+  margin-bottom: 20px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.goal-hint {
+  font-size: 11.5px;
+  color: var(--c-faint);
+  line-height: 1.7;
+  margin: 4px 0 0;
+}

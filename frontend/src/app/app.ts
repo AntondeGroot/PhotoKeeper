@@ -7,10 +7,17 @@ import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
 import { ReviewEditComponent } from './review-edit/review-edit';
 import { PipelineComponent } from './pipeline/pipeline';
+import { SettingsComponent } from './settings/settings';
 
 @Component({
   selector: 'app-root',
-  imports: [ReviewSortComponent, SessionDoneComponent, ReviewEditComponent, PipelineComponent],
+  imports: [
+    ReviewSortComponent,
+    SessionDoneComponent,
+    ReviewEditComponent,
+    PipelineComponent,
+    SettingsComponent,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

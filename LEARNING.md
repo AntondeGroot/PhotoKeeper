@@ -499,7 +499,51 @@ What is the difference between `AlbumGroup` and `AlbumGroup[]` as an `@Input()` 
 ```
 Omitting `[]` means the input expects only a single album group, which would be the wrong shape.
 
+===END PAGE===
+
 ---
 
+## Session 17 — Form inputs, type casting, and preset buttons
+
+===PAGE 1===
+How do you bind a range slider to a signal without `ngModel`?
+?
+Use two separate bindings — `[value]` to read the current value, and `(input)` to write back when the slider moves:
+```html
+<input type="range" [value]="dailyGoal" (input)="onDailyGoalChange($event)" />
+```
+`[value]` is a one-way binding from the signal to the input. `(input)` fires on every movement and calls your handler to emit the new value upward.
+
+---
+
+Why does a slider's `(input)` event handler need `event.target as HTMLInputElement`?
+?
+TypeScript types `$event` as the generic `Event`, which has no `.value` property. The cast tells TypeScript "I know this is specifically an input element, so `.value` exists":
+```typescript
+onDailyGoalChange(event: Event): void {
+  this.dailyGoalChange.emit(Number((event.target as HTMLInputElement).value));
+}
+```
+Without the cast TypeScript gives a compile error because `Event` alone does not guarantee a `.value` field.
+
+---
+
+Why must you convert `event.target.value` to a number, and how?
+?
+The DOM always gives you a string — even a range input's value comes back as `"15"`, not `15`. `Number("15")` converts it to the number `15`. Without the conversion you would be emitting a string into an `EventEmitter<number>` and TypeScript would complain.
+`+value` does the same thing but `Number()` is more readable.
+
+---
+
+How do you make a preset button highlight when it matches the current value?
+?
+Use `[class.active]` bound to a strict equality check against the button's value:
+```html
+<button class="preset-btn" [class.active]="dailyGoal === 15" (click)="dailyGoalChange.emit(15)">
+  <span>Steady</span>
+  <span class="preset-num">15</span>
+</button>
+```
+When `dailyGoal` equals `15` the `active` class is added and the button gets its highlighted style. When the slider moves to a different value the class is removed automatically.
 
 ===END PAGE===
