@@ -6,10 +6,11 @@ import { Photo, MOCK_PHOTOS } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
 import { ReviewEditComponent } from './review-edit/review-edit';
+import { PipelineComponent } from './pipeline/pipeline';
 
 @Component({
   selector: 'app-root',
-  imports: [ReviewSortComponent, SessionDoneComponent, ReviewEditComponent],
+  imports: [ReviewSortComponent, SessionDoneComponent, ReviewEditComponent, PipelineComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -52,6 +53,9 @@ export class AppComponent implements OnInit, OnDestroy {
   editDone = computed(
     () => this.editedToday() >= this.editGoal() || this.toEditQueue().length === 0,
   );
+  toPrintQueue = computed(() => this.reviewPhotos().filter((p) => p.status === 'toPrint'));
+  toEditByAlbum = computed(() => this.groupByAlbum(this.toEditQueue()));
+  toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
   private readonly objectUrls: string[] = [];
 
   ngOnInit(): void {
@@ -190,6 +194,16 @@ export class AppComponent implements OnInit, OnDestroy {
       list.map((item) => (item.id === id ? { ...item, status: 'toPrint' as const } : item)),
     );
     this.editedToday.update((n) => n + 1);
+  }
+
+  private groupByAlbum(photos: Photo[]): { album: string; photos: Photo[] }[] {
+    const map = new Map<string, Photo[]>();
+    for (const p of photos) {
+      const key = p.album ?? 'No album';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
+    }
+    return Array.from(map.entries()).map(([album, photos]) => ({ album, photos }));
   }
 
   captureDate(): string | null {

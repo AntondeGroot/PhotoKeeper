@@ -446,3 +446,60 @@ What does `as const` do and when do you need it?
 Without `as const` TypeScript might infer `status: string`, which would not be assignable to a union like `'kept' | 'rejected' | 'toPrint'`. With it, the type is locked to `'toPrint'` and the assignment is accepted.
 
 ===END PAGE===
+
+---
+
+## Session 16 — Nested loops, grouping data, and component wiring
+
+===PAGE 1===
+What is the correct syntax for `@for` in Angular, including the `track` clause?
+?
+`track` goes at the end after a semicolon:
+```html
+@for (item of items; track item.id) {
+  ...
+}
+```
+
+---
+
+
+---
+
+Is `track` required in Angular's `@for`, and what value should you pass?
+?
+Yes, `track` is always required — Angular gives a compile error without it. The value tells Angular how to identify each item so it can update the DOM efficiently when the list changes:
+- Object with a unique field → `track item.id` (preferred)
+- Plain string or number → `track item` (the value itself is the identity)
+- No unique field → `track $index` (loop index, works but less efficient)
+
+Avoid `track item` for objects. If Angular re-creates the array (e.g. from `.map()`), every object is a new reference even if the data is the same — Angular can't tell they're the same item and rebuilds every DOM element unnecessarily. `track item.id` tracks by value, so unchanged items are skipped.
+
+---
+
+How do you write nested `@for` loops in Angular?
+?
+Put one `@for` block inside the body of another. Use distinct variable names for each level:
+```html
+@for (group of albumGroups; track group.album) {
+  <h4>{{ group.album }}</h4>
+  @for (photo of group.photos; track photo.id) {
+    <div>{{ photo.name }}</div>
+  }
+}
+```
+
+---
+
+What is the difference between `AlbumGroup` and `AlbumGroup[]` as an `@Input()` type?
+?
+`AlbumGroup` is a single object with one album and its photos. `AlbumGroup[]` is an array of those objects — one entry per album. A component that receives multiple albums needs `AlbumGroup[]`:
+```typescript
+@Input() toEditByAlbum: AlbumGroup[] = [];
+```
+Omitting `[]` means the input expects only a single album group, which would be the wrong shape.
+
+---
+
+
+===END PAGE===

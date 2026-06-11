@@ -14,6 +14,11 @@ export interface Photo {
   ai?: AiHint;
 }
 
+export interface AlbumGroup {
+  album: string;
+  photos: Photo[];
+}
+
 export const MOCK_PHOTOS: Photo[] = [
   {
     id: 'IMG_4021',
