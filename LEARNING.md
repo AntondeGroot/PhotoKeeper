@@ -547,3 +547,46 @@ Use `[class.active]` bound to a strict equality check against the button's value
 When `dailyGoal` equals `15` the `active` class is added and the button gets its highlighted style. When the slider moves to a different value the class is removed automatically.
 
 ===END PAGE===
+
+---
+
+## Session 17b — Persisting state with `localStorage` and `effect()`
+
+===PAGE 1===
+How do you persist signal values to `localStorage` so they survive a page reload?
+?
+Use `effect()` in the constructor to watch signals and write to `localStorage` whenever they change. On init, read the saved values back and restore them with `.set()`:
+```typescript
+constructor() {
+  effect(() => {
+    localStorage.setItem('dailyGoal', String(this.dailyGoal()));
+  });
+}
+
+ngOnInit(): void {
+  const saved = localStorage.getItem('dailyGoal');
+  if (saved) this.dailyGoal.set(Number(saved));
+}
+```
+`effect()` must be called in the constructor because it needs to run inside Angular's injection context.
+
+---
+
+Why does `localStorage` need `String()` when saving and `Number()` when loading?
+?
+`localStorage` only stores strings. `String(15)` converts the number to `"15"` for storage. When you read it back with `getItem()` you get `"15"` again — `Number("15")` converts it back to `15`. Without these conversions the types would be wrong and TypeScript would complain.
+
+---
+
+How do you save and restore a boolean signal to `localStorage`?
+?
+Save with `String()` — booleans become `"true"` or `"false"`. Restore by comparing the string to `"true"`:
+```typescript
+localStorage.setItem('silentEvening', String(this.silentEvening()));
+// restore:
+const saved = localStorage.getItem('silentEvening');
+if (saved) this.silentEvening.set(saved === 'true');
+```
+`Boolean("false")` would give `true` (any non-empty string is truthy) — so always compare to the string `"true"` explicitly.
+
+===END PAGE===

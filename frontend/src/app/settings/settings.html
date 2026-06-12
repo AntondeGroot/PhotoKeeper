@@ -78,4 +78,44 @@
 
     <p class="goal-hint">Keep editing lower — it's slower than sorting.</p>
   </div>
+  <div class="settings-card">
+    <h3 class="card-title">Daily reminder</h3>
+
+    <!-- time row -->
+    <div class="reminder-row">
+      <span class="reminder-label">Remind me at</span>
+      <input
+        class="time-input"
+        type="time"
+        [value]="reminderTime"
+        (change)="onReminderTimeChange($event)"
+      />
+    </div>
+
+    <!-- silent toggle row -->
+    <div class="reminder-row">
+      <div class="reminder-text">
+        <div class="reminder-label">Silent evening reminder</div>
+        <div class="reminder-description">
+          A quiet nudge if you haven't reviewed and photos still remain
+        </div>
+      </div>
+      <div class="toggle-group">
+        <button
+          class="toggle"
+          [class.on]="silentEvening"
+          (click)="silentEveningChange.emit(!silentEvening)"
+          aria-label="toggle silent evening reminder"
+        ></button>
+        @if (silentEvening) {
+          <input
+            class="time-input"
+            type="time"
+            [value]="silentTime"
+            (change)="onSilentTimeChange($event)"
+          />
+        }
+      </div>
+    </div>
+  </div>
 </div>

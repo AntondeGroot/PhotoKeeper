@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
@@ -38,6 +38,9 @@ export class AppComponent implements OnInit, OnDestroy {
   dailyGoal = signal(15);
   editGoal = signal(3);
   editedToday = signal(0);
+  reminderTime = signal('09:00');
+  silentTime = signal('21:00');
+  silentEvening = signal(true);
 
   currentPhoto = computed(() => this.photos()[this.currentIndex()]);
   totalPhotos = computed(() => this.photos().length);
@@ -65,7 +68,27 @@ export class AppComponent implements OnInit, OnDestroy {
   toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
   private readonly objectUrls: string[] = [];
 
+  constructor() {
+    effect(() => {
+      localStorage.setItem('dailyGoal', String(this.dailyGoal()));
+      localStorage.setItem('editGoal', String(this.editGoal()));
+      localStorage.setItem('reminderTime', this.reminderTime());
+      localStorage.setItem('silentTime', this.silentTime());
+      localStorage.setItem('silentEvening', String(this.silentEvening()));
+    });
+  }
+
   ngOnInit(): void {
+    const savedDailyGoal = localStorage.getItem('dailyGoal');
+    if (savedDailyGoal) this.dailyGoal.set(Number(savedDailyGoal));
+    const savedEditGoal = localStorage.getItem('editGoal');
+    if (savedEditGoal) this.editGoal.set(Number(savedEditGoal));
+    const savedReminderTime = localStorage.getItem('reminderTime');
+    if (savedReminderTime) this.reminderTime.set(savedReminderTime);
+    const savedSilentTime = localStorage.getItem('silentTime');
+    if (savedSilentTime) this.silentTime.set(savedSilentTime);
+    const savedSilentEvening = localStorage.getItem('silentEvening');
+    if (savedSilentEvening) this.silentEvening.set(savedSilentEvening === 'true');
     void this.init();
   }
 

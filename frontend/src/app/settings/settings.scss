@@ -90,6 +90,90 @@
   }
 }
 
+.reminder-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.reminder-text {
+  flex: 1;
+  padding-right: 10px;
+}
+
+.reminder-label {
+  font-size: 13.5px;
+  color: var(--c-text);
+}
+
+.reminder-description {
+  font-size: 11.5px;
+  color: var(--c-faint);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+.time-input {
+  font-size: 13px;
+  color: var(--c-text);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color-scheme: dark;
+  flex-shrink: 0;
+}
+
+.toggle {
+  position: relative;
+  width: 46px;
+  height: 27px;
+  border-radius: 14px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    border-color 0.18s,
+    background 0.18s;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 21px;
+    height: 21px;
+    border-radius: 50%;
+    background: var(--c-faint);
+    transition:
+      left 0.18s,
+      background 0.18s;
+  }
+
+  &.on {
+    border-color: var(--c-amber);
+    background: rgba(197, 145, 78, 0.2);
+
+    &::after {
+      left: 21px;
+      background: var(--c-amber);
+    }
+  }
+}
+
+.toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .goal-hint {
   font-size: 11.5px;
   color: var(--c-faint);
