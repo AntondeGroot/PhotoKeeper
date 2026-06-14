@@ -2,12 +2,13 @@ import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
-import { Photo, MOCK_PHOTOS } from './photo';
+import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
 import { ReviewEditComponent } from './review-edit/review-edit';
 import { PipelineComponent } from './pipeline/pipeline';
 import { SettingsComponent } from './settings/settings';
+import { BurstCardComponent } from './burst-card/burst-card';
 
 @Component({
   selector: 'app-root',
@@ -17,6 +18,7 @@ import { SettingsComponent } from './settings/settings';
     ReviewEditComponent,
     PipelineComponent,
     SettingsComponent,
+    BurstCardComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -47,7 +49,7 @@ export class AppComponent implements OnInit, OnDestroy {
   hasPrev = computed(() => this.currentIndex() > 0);
   hasNext = computed(() => this.currentIndex() < this.totalPhotos() - 1);
 
-  reviewPhotos = signal<Photo[]>(MOCK_PHOTOS);
+  reviewPhotos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST]);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
   sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
@@ -59,11 +61,15 @@ export class AppComponent implements OnInit, OnDestroy {
     Math.min(100, (this.doneToday() / this.dailyGoal()) * 100),
   );
   progressEditPercent = computed(() => Math.min(100, (this.editedToday() / this.editGoal()) * 100));
-  toEditQueue = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit'));
+  toEditQueue = computed(() =>
+    this.reviewPhotos().filter((p): p is Photo => p.kind === 'photo' && p.status === 'toEdit'),
+  );
   editDone = computed(
     () => this.editedToday() >= this.editGoal() || this.toEditQueue().length === 0,
   );
-  toPrintQueue = computed(() => this.reviewPhotos().filter((p) => p.status === 'toPrint'));
+  toPrintQueue = computed(() =>
+    this.reviewPhotos().filter((p): p is Photo => p.kind === 'photo' && p.status === 'toPrint'),
+  );
   toEditByAlbum = computed(() => this.groupByAlbum(this.toEditQueue()));
   toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
   private readonly objectUrls: string[] = [];
@@ -203,7 +209,11 @@ export class AppComponent implements OnInit, OnDestroy {
     const current = this.currentReviewPhoto();
     if (!current) return;
     this.reviewPhotos.update((list) =>
-      list.map((item) => (item.id === current.id ? { ...item, starred: !item.starred } : item)),
+      list.map((item) =>
+        item.id === current.id && item.kind === 'photo'
+          ? { ...item, starred: !item.starred }
+          : item,
+      ),
     );
   }
 
@@ -211,12 +221,36 @@ export class AppComponent implements OnInit, OnDestroy {
     const current = this.currentReviewPhoto();
     if (!current) return;
     this.reviewPhotos.update((list) =>
-      list.map((item) => (item.id === current.id ? { ...item, keepsake: !item.keepsake } : item)),
+      list.map((item) =>
+        item.id === current.id && item.kind === 'photo'
+          ? { ...item, keepsake: !item.keepsake }
+          : item,
+      ),
     );
   }
 
   setReviewMode(mode: 'sort' | 'edit'): void {
     this.reviewMode.set(mode);
+  }
+
+  pickFromBurst(): void {
+    const current = this.currentReviewPhoto();
+    if (!current) return;
+    this.reviewPhotos.update((list) =>
+      list.map((item) => (item.id === current.id ? { ...item, status: 'kept' as const } : item)),
+    );
+    this.nextReviewPhoto();
+  }
+
+  rejectBurst(): void {
+    const current = this.currentReviewPhoto();
+    if (!current) return;
+    this.reviewPhotos.update((list) =>
+      list.map((item) =>
+        item.id === current.id ? { ...item, status: 'rejected' as const } : item,
+      ),
+    );
+    this.nextReviewPhoto();
   }
 
   promoteToPrint(id: string): void {
