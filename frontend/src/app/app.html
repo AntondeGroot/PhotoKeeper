@@ -85,12 +85,23 @@
           </div>
           @if (reviewMode() === 'sort') {
             @if (!sessionDone()) {
-              <app-review-sort
-                [photo]="currentReviewPhoto()"
-                (swiped)="decide($event)"
-                (starToggle)="toggleStar()"
-                (keepsakeToggle)="toggleKeepsake()"
-              />
+              @switch (currentReviewPhoto().kind) {
+                @case ('photo') {
+                  <app-review-sort
+                    [photo]="$any(currentReviewPhoto())"
+                    (swiped)="decide($event)"
+                    (starToggle)="toggleStar()"
+                    (keepsakeToggle)="toggleKeepsake()"
+                  />
+                }
+                @case ('burst') {
+                  <app-burst-card
+                    [burst]="$any(currentReviewPhoto())"
+                    (picked)="pickFromBurst()"
+                    (rejectedAll)="rejectBurst()"
+                  />
+                }
+              }
             } @else {
               <app-session-done
                 [keptCount]="keptCount()"

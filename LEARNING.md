@@ -590,3 +590,64 @@ if (saved) this.silentEvening.set(saved === 'true');
 `Boolean("false")` would give `true` (any non-empty string is truthy) — so always compare to the string `"true"` explicitly.
 
 ===END PAGE===
+
+---
+
+## Session 18 — Discriminated unions, @switch, and type narrowing
+
+===PAGE 1===
+
+How do you use `@switch` in an Angular template?
+?
+`@switch` evaluates an expression and renders the matching `@case` block:
+```html
+@switch (currentReviewPhoto().kind) {
+  @case ('photo') {
+    <app-review-sort ... />
+  }
+  @case ('burst') {
+    <app-burst-card ... />
+  }
+}
+```
+Unlike JavaScript `switch`, there is no fall-through and no `break` needed.
+
+---
+
+What is `$any()` in an Angular template and when do you use it?
+?
+`$any(value)` is Angular's escape hatch that bypasses the template type checker — it tells Angular to treat the value as `any`. Use it when you know the type is safe but Angular can't narrow it automatically:
+```html
+@case ('burst') {
+  <app-burst-card [burst]="$any(currentReviewPhoto())" />
+}
+```
+Inside `@case ('burst')` Angular doesn't narrow `currentReviewPhoto()` from `ReviewItem` to `Burst`, so `[burst]` would fail type checking without `$any()`. Use it sparingly — it silences TypeScript errors.
+
+---
+
+What is a type predicate in a `.filter()` call and why is it needed?
+?
+A type predicate `(p): p is Photo` tells TypeScript that items passing the filter are narrowed to `Photo`. Without it, `.filter()` on a `ReviewItem[]` still returns `ReviewItem[]` even if you check `p.kind === 'photo'`:
+```typescript
+toEditQueue = computed(() =>
+  this.reviewPhotos().filter(
+    (p): p is Photo => p.kind === 'photo' && p.status === 'toEdit'
+  )
+);
+```
+The result is `Photo[]` instead of `ReviewItem[]`, which satisfies components that expect `Photo[]`.
+
+---
+
+How do you get the loop index inside an Angular `@for` block?
+?
+Declare a local variable with `let i = $index` in the `@for` expression:
+```html
+@for (photo of survivors; track photo.id; let i = $index) {
+  <div class="frame-label">{{ i === 0 ? 'A' : 'B' }}</div>
+}
+```
+`$index` is a built-in `@for` variable that starts at `0`. Other built-ins include `$first`, `$last`, `$even`, and `$odd`.
+
+===END PAGE===

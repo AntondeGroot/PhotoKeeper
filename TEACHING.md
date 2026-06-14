@@ -48,6 +48,7 @@ The goal is to port the React prototype (`keeper-prototype.jsx`) into this Angul
 | 14 | Sort/Edit mode switcher | `feat: add Sort/Edit mode switcher to daily review tab` |
 | 15 | Edit queue (edit mode) | `feat: add Sort/Edit mode switcher and edit queue to daily review` |
 | 16 | Pipeline tab with album-grouped lists | `feat: add Pipeline tab with album-grouped to-edit and to-print lists` |
+| 17 | Settings tab with goal sliders, presets, reminders, and localStorage persistence | `feat: add Settings tab with goal sliders, presets, reminders, and localStorage persistence` |
 
 ---
 
