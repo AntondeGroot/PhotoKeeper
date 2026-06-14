@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
-import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO } from './photo';
+import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
 import { ReviewEditComponent } from './review-edit/review-edit';
@@ -10,6 +10,7 @@ import { PipelineComponent } from './pipeline/pipeline';
 import { SettingsComponent } from './settings/settings';
 import { BurstCardComponent } from './burst-card/burst-card';
 import { PanoCardComponent } from './pano-card/pano-card';
+import { StereoCardComponent } from './stereo-card/stereo-card';
 
 @Component({
   selector: 'app-root',
@@ -21,6 +22,7 @@ import { PanoCardComponent } from './pano-card/pano-card';
     SettingsComponent,
     BurstCardComponent,
     PanoCardComponent,
+    StereoCardComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -51,7 +53,7 @@ export class AppComponent implements OnInit, OnDestroy {
   hasPrev = computed(() => this.currentIndex() > 0);
   hasNext = computed(() => this.currentIndex() < this.totalPhotos() - 1);
 
-  reviewPhotos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO]);
+  reviewPhotos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO]);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
   sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);

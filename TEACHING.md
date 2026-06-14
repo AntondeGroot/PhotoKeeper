@@ -54,21 +54,19 @@ The goal is to port the React prototype (`keeper-prototype.jsx`) into this Angul
 
 ## Remaining tasks — toward the interactive prototype
 
-### Next up
+### Completed
 
-**Task 17 — Settings tab** ← *next up*
-Daily goal sliders (sort and edit), reminder time inputs, stereo tools toggle. Persist settings to `localStorage` via `effect()`. Teaches `[value]` + `(input)` signal binding (no `ngModel`), and using `effect()` to react to signal changes for side effects like persistence.
+**Task 17 — Settings tab** ✓
+Daily goal sliders (sort and edit), reminder time inputs, silent evening toggle. Persists to `localStorage` via `effect()`. Used `[value]` + `(input)` signal binding (not `ngModel`).
 
-### Later (special card types)
+**Task 18 — Burst card** ✓
+A/B duel UI for burst clusters. Introduced `ReviewItem` discriminated union, `@switch`/`@case`, `$any()` template escape hatch, type predicates in computed signals.
 
-**Task 18 — Burst card**
-When the current item is a burst cluster, show the A/B duel UI instead of a swipe card. Teaches discriminated unions and `@switch` blocks.
+**Task 19 — Panorama card** ✓
+Frame strip with swipe actions. Extended `ReviewItem` with `Pano`. Added `MOCK_PANO` and `@case ('pano')`.
 
-**Task 19 — Panorama card**
-Show the pano frames as a strip and treat the whole set as one swipeable card.
-
-**Task 20 — Stereo workbench**
-The most complex card — per-baseline keep/edit/reject decisions, 2D still option, fullscreen viewer.
+**Task 20 — Stereo workbench** ✓
+Per-baseline Keep/Edit/Reject buttons, "Also queue a 2D still" checkbox, "Done with this set" button disabled until all baselines decided. `verdicts` signal (`Record<string, verdict>`), `allChosen` computed, overall verdict rolled up in `confirm()`.
 
 ---
 
