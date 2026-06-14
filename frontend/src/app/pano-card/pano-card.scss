@@ -1,0 +1,79 @@
+.pano-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pano-strip {
+  display: flex;
+  gap: 3px;
+  height: 220px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+}
+
+.pano-frame {
+  flex: 1;
+  background: var(--c-panel);
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+
+  &.blur {
+    opacity: 0.45;
+  }
+
+  &:not(:last-child) {
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+.frame-name {
+  font-size: 9px;
+  color: var(--c-faint);
+  letter-spacing: 0.5px;
+}
+
+.pano-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.pano-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.pano-meta {
+  font-size: 11px;
+  color: var(--c-dim);
+  margin-top: 2px;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+
+  button {
+    flex: 1;
+    padding: 14px 0;
+    border-radius: 12px;
+    border: 1px solid var(--c-line);
+    background: var(--c-panel);
+    color: var(--c-text);
+    font-size: 18px;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:active {
+      background: var(--c-line);
+    }
+  }
+}
