@@ -101,6 +101,9 @@
                     (rejectedAll)="rejectBurst()"
                   />
                 }
+                @case ('pano') {
+                  <app-pano-card [pano]="$any(currentReviewPhoto())" (swiped)="decide($event)" />
+                }
               }
             } @else {
               <app-session-done

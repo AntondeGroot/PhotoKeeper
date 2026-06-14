@@ -3,7 +3,7 @@ export interface AiHint {
   reason: string;
 }
 
-export type ReviewItem = Photo | Burst;
+export type ReviewItem = Photo | Burst | Pano;
 
 export interface Burst {
   id: string;
@@ -13,6 +13,22 @@ export interface Burst {
   status: 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
   kind: 'burst';
   photos: BurstPhoto[];
+}
+
+export interface PanoFrame {
+  id: string;
+  name: string;
+  blur?: boolean;
+}
+
+export interface Pano {
+  id: string;
+  name: string;
+  album: string | null;
+  taken: string;
+  status: 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
+  kind: 'pano';
+  frames: PanoFrame[];
 }
 
 export interface BurstPhoto {
@@ -89,6 +105,21 @@ export const MOCK_PHOTOS: Photo[] = [
     keepsake: true,
   },
 ];
+
+export const MOCK_PANO: Pano = {
+  id: 'pano1',
+  name: 'Panorama · 4 frames',
+  album: 'Peaks',
+  taken: '2026-05-24',
+  status: 'backlog',
+  kind: 'pano',
+  frames: [
+    { id: 'pn1', name: 'DSC_5001' },
+    { id: 'pn2', name: 'DSC_5002' },
+    { id: 'pn3', name: 'DSC_5003', blur: true },
+    { id: 'pn4', name: 'DSC_5004' },
+  ],
+};
 
 export const MOCK_BURST: Burst = {
   id: 'burst1',

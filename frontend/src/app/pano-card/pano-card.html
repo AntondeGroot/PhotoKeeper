@@ -1,0 +1,22 @@
+<div class="pano-card">
+  <div class="pano-strip">
+    @for (frame of pano.frames; track frame.id) {
+      <div class="pano-frame" [class.blur]="frame.blur">
+        <div class="frame-name">{{ frame.name }}</div>
+      </div>
+    }
+  </div>
+  <div class="pano-info">
+    <div>
+      <div class="pano-name">{{ pano.name }}</div>
+      <div class="pano-meta">{{ pano.frames.length }} frames · sweep · ~30% overlap</div>
+    </div>
+    <span class="chip chip-amber">panorama</span>
+  </div>
+  <div class="action-buttons">
+    <button (click)="swiped.emit('rejected')">✕</button>
+    <button (click)="swiped.emit('toEdit')">↑</button>
+    <button (click)="swiped.emit('kept')">✓</button>
+    <button (click)="swiped.emit('maybe')">↓</button>
+  </div>
+</div>
