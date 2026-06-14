@@ -3,7 +3,7 @@ export interface AiHint {
   reason: string;
 }
 
-export type ReviewItem = Photo | Burst | Pano;
+export type ReviewItem = Photo | Burst | Pano | Stereo;
 
 export interface Burst {
   id: string;
@@ -118,6 +118,66 @@ export const MOCK_PANO: Pano = {
     { id: 'pn2', name: 'DSC_5002' },
     { id: 'pn3', name: 'DSC_5003', blur: true },
     { id: 'pn4', name: 'DSC_5004' },
+  ],
+};
+
+export interface StereoFrame {
+  id: string;
+  name: string;
+  blur?: boolean;
+}
+
+export interface StereoBaseline {
+  key: string;
+  label: string;
+  hint: string;
+  frames: StereoFrame[];
+  recommended?: boolean;
+}
+
+export interface Stereo {
+  id: string;
+  name: string;
+  album: string | null;
+  taken: string;
+  status: 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
+  kind: 'stereo';
+  left: StereoFrame[];
+  baselines: StereoBaseline[];
+}
+
+export const MOCK_STEREO: Stereo = {
+  id: 'stereo1',
+  name: 'Stereo set · 7 frames',
+  album: 'Field work',
+  taken: '2026-05-24',
+  status: 'backlog',
+  kind: 'stereo',
+  left: [
+    { id: 's1', name: 'DSC_6001' },
+    { id: 's2', name: 'DSC_6002' },
+    { id: 's3', name: 'DSC_6003' },
+  ],
+  baselines: [
+    {
+      key: '3m',
+      label: '3 m',
+      hint: 'avg of 1 · 1 soft excluded',
+      frames: [
+        { id: 's4', name: 'DSC_6004' },
+        { id: 's5', name: 'DSC_6005', blur: true },
+      ],
+    },
+    {
+      key: '10m',
+      label: '10 m',
+      hint: 'avg of 2',
+      frames: [
+        { id: 's6', name: 'DSC_6006' },
+        { id: 's7', name: 'DSC_6007' },
+      ],
+      recommended: true,
+    },
   ],
 };
 

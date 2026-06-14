@@ -1,0 +1,70 @@
+<div class="stereo-card">
+  <div class="stereo-header">
+    <div>
+      <div class="stereo-name">{{ stereo.name }}</div>
+      <div class="stereo-meta">
+        {{ stereo.left.length }} shared left frames · {{ stereo.baselines.length }} baselines
+      </div>
+    </div>
+    <span class="chip chip-stereo">stereo</span>
+  </div>
+
+  <div class="frame-strip">
+    @for (frame of stereo.left; track frame.id) {
+      <div class="frame-thumb" [class.blur]="frame.blur">
+        <div class="frame-name">{{ frame.name }}</div>
+      </div>
+    }
+  </div>
+
+  @for (baseline of stereo.baselines; track baseline.key) {
+    <div class="baseline-row">
+      <div class="baseline-header">
+        <div class="baseline-label-row">
+          <span class="baseline-label">{{ baseline.label }}</span>
+          @if (baseline.recommended) {
+            <span class="chip chip-stereo chip-sm">recommended</span>
+          }
+        </div>
+        <span class="baseline-hint">{{ baseline.hint }}</span>
+      </div>
+      <div class="frame-strip frame-strip-sm">
+        @for (frame of baseline.frames; track frame.id) {
+          <div class="frame-thumb" [class.blur]="frame.blur">
+            <div class="frame-name">{{ frame.name }}</div>
+          </div>
+        }
+      </div>
+      <div class="verdict-buttons">
+        <button
+          class="verdict-btn keep"
+          [class.active]="verdicts()[baseline.key] === 'keep'"
+          (click)="setVerdict(baseline.key, 'keep')"
+        >
+          Keep
+        </button>
+        <button
+          class="verdict-btn edit"
+          [class.active]="verdicts()[baseline.key] === 'edit'"
+          (click)="setVerdict(baseline.key, 'edit')"
+        >
+          Edit
+        </button>
+        <button
+          class="verdict-btn reject"
+          [class.active]="verdicts()[baseline.key] === 'reject'"
+          (click)="setVerdict(baseline.key, 'reject')"
+        >
+          Reject
+        </button>
+      </div>
+    </div>
+  }
+
+  <label class="two-d-row">
+    <input type="checkbox" [checked]="twoD()" (change)="twoD.set($any($event.target).checked)" />
+    Also queue a 2D still
+  </label>
+
+  <button class="done-btn" [disabled]="!allChosen()" (click)="confirm()">Done with this set</button>
+</div>
