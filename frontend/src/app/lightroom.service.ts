@@ -9,6 +9,10 @@ export class LightroomService {
   private readonly http = inject(HttpClient);
   private authToken: string | null = null;
 
+  loginHref(): string {
+    return 'api/auth/login';
+  }
+
   setAuthToken(token: string): void {
     this.authToken = token;
     localStorage.setItem(TOKEN_KEY, token);
@@ -27,20 +31,20 @@ export class LightroomService {
   }
 
   checkStatus(): Observable<{ authenticated: boolean }> {
-    return this.http.get<{ authenticated: boolean }>('/api/auth/status', {
+    return this.http.get<{ authenticated: boolean }>('api/auth/status', {
       headers: this.headers(),
     });
   }
 
   getPhotos(limit = 20): Observable<{ resources: PhotoAsset[] }> {
-    return this.http.get<{ resources: PhotoAsset[] }>('/api/photos', {
+    return this.http.get<{ resources: PhotoAsset[] }>('api/photos', {
       headers: this.headers(),
       params: { limit },
     });
   }
 
   getPhotoBlob(assetId: string, size = '640'): Observable<Blob> {
-    return this.http.get(`/api/photos/${assetId}/rendition`, {
+    return this.http.get(`api/photos/${assetId}/rendition`, {
       headers: this.headers(),
       params: { size },
       responseType: 'blob',
@@ -48,7 +52,7 @@ export class LightroomService {
   }
 
   logout(): Observable<void> {
-    return this.http.delete<void>('/api/auth/logout', {
+    return this.http.delete<void>('api/auth/logout', {
       headers: this.headers(),
     });
   }

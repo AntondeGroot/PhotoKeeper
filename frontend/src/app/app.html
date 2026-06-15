@@ -12,7 +12,7 @@
         @if (error()) {
           <p class="auth-error">{{ error() }}</p>
         }
-        <a href="https://localhost:8080/api/auth/login" class="btn-connect">Connect to Lightroom</a>
+        <a [attr.href]="loginHref" class="btn-connect">Connect to Lightroom</a>
       </div>
     </div>
   } @else {
