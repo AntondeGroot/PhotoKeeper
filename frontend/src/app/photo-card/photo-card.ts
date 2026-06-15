@@ -7,6 +7,7 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { SafeUrl } from '@angular/platform-browser';
 import { Photo } from '../photo';
 
 @Component({
@@ -18,6 +19,7 @@ import { Photo } from '../photo';
 })
 export class PhotoCardComponent {
   @Input() photo!: Photo;
+  @Input() imageUrl: SafeUrl | null = null;
   @Output() swiped = new EventEmitter<'kept' | 'rejected' | 'toEdit' | 'maybe'>();
   private startX = 0;
   private startY = 0;

@@ -1,0 +1,160 @@
+.album-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.manager-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.back-btn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel);
+  color: var(--c-text);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.manager-title {
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--c-text);
+}
+
+.album-search {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: var(--c-text);
+  background: var(--c-panel2);
+  border: 1px solid var(--c-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color-scheme: dark;
+  outline: none;
+
+  &::placeholder {
+    color: var(--c-faint);
+  }
+
+  &:focus {
+    border-color: var(--c-amber);
+  }
+}
+
+.filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filter-pill {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--c-line);
+  color: var(--c-dim);
+  background: transparent;
+
+  &.active {
+    border-color: var(--c-amber);
+    color: var(--c-amber);
+    background: color-mix(in srgb, var(--c-amber) 12%, transparent);
+  }
+}
+
+.album-count {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--c-faint);
+}
+
+.album-list {
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  background: var(--c-panel);
+  padding: 2px 16px;
+}
+
+.album-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--c-line);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.album-name {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: var(--c-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vacation-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--c-line);
+  color: var(--c-dim);
+  background: transparent;
+
+  .pill-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--c-faint);
+  }
+
+  &.on {
+    border-color: var(--c-holiday);
+    color: var(--c-holiday);
+    background: color-mix(in srgb, var(--c-holiday) 12%, transparent);
+
+    .pill-dot {
+      background: var(--c-holiday);
+    }
+  }
+}
+
+.album-empty {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--c-faint);
+  text-align: center;
+  padding: 22px 0;
+}
+
+.manager-hint {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--c-faint);
+  line-height: 1.7;
+  padding: 0 4px;
+}

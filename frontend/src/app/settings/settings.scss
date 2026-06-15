@@ -21,6 +21,42 @@
   padding: 16px;
 }
 
+.manage-albums-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--c-holiday);
+  }
+}
+
+.manage-albums-title {
+  font-family: var(--font-head);
+  font-size: 18px;
+  color: var(--c-text);
+}
+
+.manage-albums-sub {
+  font-size: 12px;
+  color: var(--c-dim);
+  margin-top: 3px;
+}
+
+.manage-albums-chevron {
+  color: var(--c-faint);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
 .card-title {
   font-family: var(--font-head);
   font-style: italic;

@@ -89,6 +89,7 @@
                 @case ('photo') {
                   <app-review-sort
                     [photo]="$any(currentReviewPhoto())"
+                    [imageUrl]="currentReviewPhotoUrl()"
                     (swiped)="decide($event)"
                     (starToggle)="toggleStar()"
                     (keepsakeToggle)="toggleKeepsake()"
@@ -129,6 +130,13 @@
           }
         } @else if (activeTab() === 'pipeline') {
           <app-pipeline [toEditByAlbum]="toEditByAlbum()" [toPrintByAlbum]="toPrintByAlbum()" />
+        } @else if (manageAlbumsOpen()) {
+          <app-album-manager
+            [albums]="albums()"
+            [vacationAlbumIds]="vacationAlbumIds()"
+            (toggleVacation)="toggleVacationAlbum($event)"
+            (back)="manageAlbumsOpen.set(false)"
+          />
         } @else {
           <app-settings
             [dailyGoal]="dailyGoal()"
@@ -141,6 +149,7 @@
             (reminderTimeChange)="reminderTime.set($event)"
             (silentTimeChange)="silentTime.set($event)"
             (silentEveningChange)="silentEvening.set($event)"
+            (manageAlbums)="manageAlbumsOpen.set(true)"
           />
         }
       </div>

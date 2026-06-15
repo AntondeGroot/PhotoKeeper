@@ -1,18 +1,22 @@
 package com.photokeeper.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.photokeeper.model.AlbumSummary;
 import com.photokeeper.model.TokenData;
 import com.photokeeper.service.LightroomService;
+import com.photokeeper.service.PhotoFeedService;
 import com.photokeeper.service.TokenStore;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +38,9 @@ class PhotoControllerTest {
 
     @MockitoBean
     private LightroomService lightroomService;
+
+    @MockitoBean
+    private PhotoFeedService photoFeedService;
 
     @MockitoBean
     private TokenStore tokenStore;
@@ -95,6 +102,52 @@ class PhotoControllerTest {
 
         mockMvc.perform(get("/api/photos").header("X-Auth-Token", "token-no-cat"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void albumsWithValidTokenReturnsAlbumList() throws Exception {
+        when(lightroomService.getAlbums("access-token", "cat-123"))
+                .thenReturn(List.of(new AlbumSummary("alb-1", "Lisbon, May")));
+
+        mockMvc.perform(get("/api/albums").header("X-Auth-Token", "valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("alb-1"))
+                .andExpect(jsonPath("$[0].name").value("Lisbon, May"));
+    }
+
+    @Test
+    void albumsWithNullCatalogIdFetchesCatalogFirst() throws Exception {
+        TokenData tdNoCatalog = new TokenData("access-token");
+        when(tokenStore.get("token-no-cat")).thenReturn(Optional.of(tdNoCatalog));
+        when(lightroomService.getCatalog("access-token")).thenReturn(Map.of("id", "fetched-cat"));
+        when(lightroomService.getAlbums("access-token", "fetched-cat")).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/albums").header("X-Auth-Token", "token-no-cat"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    void feedPassesVacationIdsAndReturnsResources() throws Exception {
+        when(photoFeedService.buildFeed(
+                        eq("access-token"), eq("cat-123"), eq(Set.of("alb-1", "alb-2")), eq(20)))
+                .thenReturn(List.of(Map.of("id", "asset-1")));
+
+        mockMvc.perform(get("/api/feed")
+                        .header("X-Auth-Token", "valid-token")
+                        .param("vacationAlbums", "alb-1,alb-2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resources[0].id").value("asset-1"));
+    }
+
+    @Test
+    void feedWithNoVacationAlbumsPassesEmptySet() throws Exception {
+        when(photoFeedService.buildFeed("access-token", "cat-123", Set.of(), 20))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/feed").header("X-Auth-Token", "valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resources").isArray());
     }
 
     @Test

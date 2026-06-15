@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom, timeout } from 'rxjs';
-import { LightroomService, PhotoAsset } from './lightroom.service';
+import { Album, LightroomService, PhotoAsset } from './lightroom.service';
 import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
@@ -20,6 +20,7 @@ import { SettingsComponent } from './settings/settings';
 import { BurstCardComponent } from './burst-card/burst-card';
 import { PanoCardComponent } from './pano-card/pano-card';
 import { StereoCardComponent } from './stereo-card/stereo-card';
+import { AlbumManagerComponent } from './album-manager/album-manager';
 
 @Component({
   selector: 'app-root',
@@ -32,6 +33,7 @@ import { StereoCardComponent } from './stereo-card/stereo-card';
     BurstCardComponent,
     PanoCardComponent,
     StereoCardComponent,
+    AlbumManagerComponent,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,13 +46,14 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
   authenticated = signal(false);
-  photos = signal<PhotoAsset[]>([]);
-  currentIndex = signal(0);
-  currentPhotoUrl = signal<SafeUrl | null>(null);
-  loadingPhoto = signal(false);
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
   reviewMode = signal<'sort' | 'edit'>('sort');
   reviewIndex = signal(0);
+  // Album list (from the backend) + the ids the user has tagged as "vacation", and whether the
+  // Manage-albums sub-screen is open. Vacation tags persist to localStorage like the other settings.
+  albums = signal<Album[]>([]);
+  vacationAlbumIds = signal<string[]>([]);
+  manageAlbumsOpen = signal(false);
   error = signal<string | null>(null);
   dailyGoal = signal(15);
   editGoal = signal(3);
@@ -59,13 +62,13 @@ export class AppComponent implements OnInit, OnDestroy {
   silentTime = signal('21:00');
   silentEvening = signal(true);
 
-  currentPhoto = computed(() => this.photos()[this.currentIndex()]);
-  totalPhotos = computed(() => this.photos().length);
-  hasPrev = computed(() => this.currentIndex() > 0);
-  hasNext = computed(() => this.currentIndex() < this.totalPhotos() - 1);
-
+  // Lightroom photos replace the mock list once they load; until then the mock data acts as a
+  // fallback so the UI still works offline / before auth.
   reviewPhotos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO]);
+  photosLoaded = signal(false);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
+  // 2048px rendition of the photo currently under review, fetched as a blob object URL.
+  currentReviewPhotoUrl = signal<SafeUrl | null>(null);
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
   sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
@@ -88,6 +91,7 @@ export class AppComponent implements OnInit, OnDestroy {
   toEditByAlbum = computed(() => this.groupByAlbum(this.toEditQueue()));
   toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
   private readonly objectUrls: string[] = [];
+  private lastLoadedReviewId: string | null = null;
 
   constructor() {
     effect(() => {
@@ -96,6 +100,18 @@ export class AppComponent implements OnInit, OnDestroy {
       localStorage.setItem('reminderTime', this.reminderTime());
       localStorage.setItem('silentTime', this.silentTime());
       localStorage.setItem('silentEvening', String(this.silentEvening()));
+      localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
+    });
+
+    // Whenever the photo under review changes, fetch its 2048 rendition. Guarded by photosLoaded so
+    // the mock fallback (whose ids aren't real assets) never triggers a request, and deduped by id
+    // so a status change on the same photo doesn't refetch.
+    effect(() => {
+      const photo = this.currentReviewPhoto();
+      if (!this.photosLoaded() || !photo || photo.kind !== 'photo') return;
+      if (photo.id === this.lastLoadedReviewId) return;
+      this.lastLoadedReviewId = photo.id;
+      this.loadReviewImage(photo.id);
     });
   }
 
@@ -110,6 +126,13 @@ export class AppComponent implements OnInit, OnDestroy {
     if (savedSilentTime) this.silentTime.set(savedSilentTime);
     const savedSilentEvening = localStorage.getItem('silentEvening');
     if (savedSilentEvening) this.silentEvening.set(savedSilentEvening === 'true');
+    const savedVacation = localStorage.getItem('vacationAlbumIds');
+    if (savedVacation) {
+      const parsed: unknown = JSON.parse(savedVacation);
+      if (Array.isArray(parsed)) {
+        this.vacationAlbumIds.set(parsed.filter((id): id is string => typeof id === 'string'));
+      }
+    }
     void this.init();
   }
 
@@ -141,16 +164,35 @@ export class AppComponent implements OnInit, OnDestroy {
 
     if (this.authenticated()) {
       await this.loadPhotos();
+      await this.loadAlbums();
     }
+  }
+
+  private async loadAlbums(): Promise<void> {
+    try {
+      this.albums.set(await firstValueFrom(this.svc.getAlbums()));
+    } catch {
+      // Leave the album list empty; the Manage-albums screen will show "No albums match".
+    }
+  }
+
+  toggleVacationAlbum(albumId: string): void {
+    this.vacationAlbumIds.update((ids) =>
+      ids.includes(albumId) ? ids.filter((id) => id !== albumId) : [...ids, albumId],
+    );
   }
 
   private async loadPhotos(): Promise<void> {
     try {
-      const data = await firstValueFrom(this.svc.getPhotos(20));
+      const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), 20));
       const resources = data?.resources ?? [];
-      this.photos.set(resources.filter((a) => a.subtype === 'image'));
-      if (this.photos().length > 0) {
-        this.loadPhoto(0);
+      const photos = resources
+        .filter((a) => a.subtype === 'image')
+        .map((a) => this.assetToPhoto(a));
+      if (photos.length > 0) {
+        this.reviewPhotos.set(photos);
+        this.reviewIndex.set(0);
+        this.photosLoaded.set(true);
       }
     } catch (e: unknown) {
       this.error.set(
@@ -159,39 +201,33 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  private loadPhoto(index: number): void {
-    const photo = this.photos()[index];
-    if (!photo) return;
+  private assetToPhoto(asset: PhotoAsset): Photo {
+    const fileName = asset.payload?.importSource?.fileName ?? asset.id;
+    return {
+      id: asset.id,
+      name: fileName.replace(/\.[^.]+$/, ''),
+      album: asset.album ?? null,
+      taken: asset.payload?.captureDate ?? '',
+      status: 'backlog',
+      kind: 'photo',
+      starred: false,
+      keepsake: false,
+    };
+  }
 
-    this.loadingPhoto.set(true);
-    this.currentPhotoUrl.set(null);
-
-    this.svc.getPhotoBlob(photo.id).subscribe({
+  private loadReviewImage(assetId: string): void {
+    this.currentReviewPhotoUrl.set(null);
+    this.svc.getPhotoBlob(assetId, '2048').subscribe({
       next: (blob) => {
         const url = URL.createObjectURL(blob);
         this.objectUrls.push(url);
-        this.currentPhotoUrl.set(this.sanitizer.bypassSecurityTrustUrl(url));
-        this.loadingPhoto.set(false);
+        this.currentReviewPhotoUrl.set(this.sanitizer.bypassSecurityTrustUrl(url));
       },
       error: () => {
-        this.error.set('Could not load photo rendition');
-        this.loadingPhoto.set(false);
+        // Leave the gradient placeholder if the rendition can't be fetched.
+        this.currentReviewPhotoUrl.set(null);
       },
     });
-  }
-
-  prevPhoto(): void {
-    if (!this.hasPrev()) return;
-    const idx = this.currentIndex() - 1;
-    this.currentIndex.set(idx);
-    this.loadPhoto(idx);
-  }
-
-  nextPhoto(): void {
-    if (!this.hasNext()) return;
-    const idx = this.currentIndex() + 1;
-    this.currentIndex.set(idx);
-    this.loadPhoto(idx);
   }
 
   prevReviewPhoto(): void {
@@ -285,24 +321,6 @@ export class AppComponent implements OnInit, OnDestroy {
     return Array.from(map.entries()).map(([album, photos]) => ({ album, photos }));
   }
 
-  captureDate(): string | null {
-    const raw = this.currentPhoto()?.payload?.captureDate;
-    if (!raw) return null;
-    try {
-      return new Date(raw).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return raw;
-    }
-  }
-
-  fileName(): string | null {
-    return this.currentPhoto()?.payload?.importSource?.fileName ?? null;
-  }
-
   async logout(): Promise<void> {
     try {
       await firstValueFrom(this.svc.logout());
@@ -311,8 +329,9 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     this.svc.clearAuthToken();
     this.authenticated.set(false);
-    this.photos.set([]);
-    this.currentPhotoUrl.set(null);
+    this.photosLoaded.set(false);
+    this.currentReviewPhotoUrl.set(null);
+    this.lastLoadedReviewId = null;
   }
 
   ngOnDestroy(): void {

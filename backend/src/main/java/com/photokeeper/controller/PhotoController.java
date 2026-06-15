@@ -1,10 +1,16 @@
 package com.photokeeper.controller;
 
+import com.photokeeper.model.AlbumSummary;
 import com.photokeeper.model.TokenData;
 import com.photokeeper.service.LightroomService;
+import com.photokeeper.service.PhotoFeedService;
 import com.photokeeper.service.TokenStore;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -22,10 +28,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class PhotoController {
 
     private final LightroomService lightroomService;
+    private final PhotoFeedService photoFeedService;
     private final TokenStore tokenStore;
 
-    public PhotoController(LightroomService lightroomService, TokenStore tokenStore) {
+    public PhotoController(
+            LightroomService lightroomService,
+            PhotoFeedService photoFeedService,
+            TokenStore tokenStore) {
         this.lightroomService = lightroomService;
+        this.photoFeedService = photoFeedService;
         this.tokenStore = tokenStore;
     }
 
@@ -49,6 +60,31 @@ public class PhotoController {
         String catalogId = ensureCatalog(td);
         Map<String, Object> assets = lightroomService.getAssets(td.getAccessToken(), catalogId, limit);
         return ResponseEntity.ok(assets);
+    }
+
+    @GetMapping("/albums")
+    public ResponseEntity<List<AlbumSummary>> albums(
+            @RequestHeader("X-Auth-Token") String authToken) {
+        TokenData td = resolveToken(authToken);
+        String catalogId = ensureCatalog(td);
+        return ResponseEntity.ok(lightroomService.getAlbums(td.getAccessToken(), catalogId));
+    }
+
+    @GetMapping("/feed")
+    public ResponseEntity<Map<String, Object>> feed(
+            @RequestHeader("X-Auth-Token") String authToken,
+            @RequestParam(name = "vacationAlbums", defaultValue = "") String vacationAlbums,
+            @RequestParam(defaultValue = "20") int limit) {
+        TokenData td = resolveToken(authToken);
+        String catalogId = ensureCatalog(td);
+        Set<String> vacationIds = vacationAlbums.isBlank()
+                ? Set.of()
+                : Arrays.stream(vacationAlbums.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toSet());
+        List<Object> assets = photoFeedService.buildFeed(td.getAccessToken(), catalogId, vacationIds, limit);
+        return ResponseEntity.ok(Map.of("resources", assets));
     }
 
     @GetMapping("/photos/{assetId}/rendition")

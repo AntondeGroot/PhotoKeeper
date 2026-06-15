@@ -3,6 +3,9 @@ package com.photokeeper.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photokeeper.config.AdobeConfig;
+import com.photokeeper.model.AlbumSummary;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +69,59 @@ public class LightroomService {
     public Map<String, Object> getAssets(String accessToken, String catalogId, int limit) {
         String raw = lrGet("/catalogs/" + catalogId + "/assets?limit=" + limit, accessToken);
         return parseJson(raw);
+    }
+
+    /**
+     * Lists the catalog's albums, keeping only real albums (subtype "collection") and dropping
+     * folders that group albums (subtype "collection_set").
+     */
+    public List<AlbumSummary> getAlbums(String accessToken, String catalogId) {
+        // The Lightroom albums endpoint requires a subtype filter (see the catalog's
+        // /rels/subtyped_albums templated link); "collection" = actual albums (vs collection_set
+        // folders). Without it the API returns no albums.
+        String raw = lrGet("/catalogs/" + catalogId + "/albums?subtype=collection", accessToken);
+        Map<String, Object> parsed = parseJson(raw);
+
+        List<AlbumSummary> albums = new ArrayList<>();
+        if (parsed.get("resources") instanceof List<?> resources) {
+            for (Object item : resources) {
+                if (!(item instanceof Map<?, ?> album) || !"collection".equals(album.get("subtype"))) {
+                    continue;
+                }
+                if (album.get("id") instanceof String id
+                        && album.get("payload") instanceof Map<?, ?> payload
+                        && payload.get("name") instanceof String name) {
+                    albums.add(new AlbumSummary(id, name));
+                }
+            }
+        }
+        return albums;
+    }
+
+    /**
+     * Returns the assets that belong to a single album. The album-assets response wraps each asset
+     * under an "asset" field, which is unwrapped here so callers get plain asset objects (the same
+     * shape as {@link #getAssets}'s resources).
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getAlbumAssets(
+            String accessToken, String catalogId, String albumId, int limit) {
+        // embed=asset is required, otherwise each resource's "asset" is just a stub (id + links) with
+        // no subtype/payload — the catalog's /rels/album_assets link spells this out.
+        String raw = lrGet(
+                "/catalogs/" + catalogId + "/albums/" + albumId + "/assets?embed=asset&limit=" + limit,
+                accessToken);
+        Map<String, Object> parsed = parseJson(raw);
+
+        List<Map<String, Object>> assets = new ArrayList<>();
+        if (parsed.get("resources") instanceof List<?> resources) {
+            for (Object item : resources) {
+                if (item instanceof Map<?, ?> res && res.get("asset") instanceof Map<?, ?> asset) {
+                    assets.add((Map<String, Object>) asset);
+                }
+            }
+        }
+        return assets;
     }
 
     public ResponseEntity<byte[]> getRendition(String accessToken, String catalogId, String assetId, String size) {
