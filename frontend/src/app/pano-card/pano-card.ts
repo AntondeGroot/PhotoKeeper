@@ -1,10 +1,11 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { Pano } from '../photo';
 
 @Component({
   selector: 'app-pano-card',
   templateUrl: './pano-card.html',
   styleUrl: './pano-card.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
 })
 export class PanoCardComponent {

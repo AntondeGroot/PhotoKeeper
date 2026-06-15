@@ -1,10 +1,19 @@
-import { Component, EventEmitter, Input, Output, computed, signal } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  computed,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Stereo } from '../photo';
 
 @Component({
   selector: 'app-stereo-card',
   templateUrl: './stereo-card.html',
   styleUrl: './stereo-card.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
 })
 export class StereoCardComponent {

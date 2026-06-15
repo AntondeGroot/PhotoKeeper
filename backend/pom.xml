@@ -208,9 +208,6 @@
                                 <exclude>com/photokeeper/PhotoKeeperApplication.class</exclude>
                                 <exclude>com/photokeeper/config/AdobeConfig.class</exclude>
                                 <exclude>com/photokeeper/config/CorsConfig.class</exclude>
-                                <exclude>com/photokeeper/service/LightroomService.class</exclude>
-                                <exclude>com/photokeeper/controller/FrontendRoutingController.class</exclude>
-                                <exclude>com/photokeeper/controller/DownloadController.class</exclude>
                             </excludes>
                             <rules>
                                 <rule>
