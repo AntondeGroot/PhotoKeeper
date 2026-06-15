@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
 import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
@@ -31,6 +31,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
   private readonly sanitizer = inject(DomSanitizer);
 
+  readonly loginHref = this.svc.loginHref();
   loading = signal(true);
   authenticated = signal(false);
   photos = signal<PhotoAsset[]>([]);
@@ -108,7 +109,7 @@ export class AppComponent implements OnInit, OnDestroy {
     if (authError) {
       const detail = params.get('detail');
       this.error.set(`Login failed: ${authError}${detail ? ' — ' + detail : ''}`);
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', window.location.pathname);
       this.loading.set(false);
       return;
     }
@@ -116,11 +117,11 @@ export class AppComponent implements OnInit, OnDestroy {
     const token = params.get('token');
     if (token) {
       this.svc.setAuthToken(token);
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', window.location.pathname);
     }
 
     try {
-      const status = await firstValueFrom(this.svc.checkStatus());
+      const status = await firstValueFrom(this.svc.checkStatus().pipe(timeout(5000)));
       this.authenticated.set(status.authenticated);
     } catch {
       this.authenticated.set(false);

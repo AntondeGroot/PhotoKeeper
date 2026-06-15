@@ -181,6 +181,12 @@
                 </executions>
             </plugin>
 
+            <!-- Spring Boot fat JAR with embedded launcher -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
             <!-- JaCoCo: 90% line and branch coverage -->
             <plugin>
                 <groupId>org.jacoco</groupId>
@@ -203,6 +209,8 @@
                                 <exclude>com/photokeeper/config/AdobeConfig.class</exclude>
                                 <exclude>com/photokeeper/config/CorsConfig.class</exclude>
                                 <exclude>com/photokeeper/service/LightroomService.class</exclude>
+                                <exclude>com/photokeeper/controller/FrontendRoutingController.class</exclude>
+                                <exclude>com/photokeeper/controller/DownloadController.class</exclude>
                             </excludes>
                             <rules>
                                 <rule>

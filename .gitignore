@@ -14,9 +14,14 @@
 
 # Environment files
 /.env
+.deploy.env
+DS_Store
 
 # Maven build output
 backend/target/
+
+# Angular build output bundled into backend by deploy.sh (generated, not committed)
+backend/src/main/resources/static/
 
 # Local config with secrets — copy application.properties.template and fill in values
 backend/src/main/resources/application.properties
