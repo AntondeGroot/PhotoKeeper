@@ -1,4 +1,13 @@
-import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom, timeout } from 'rxjs';
 import { LightroomService, PhotoAsset } from './lightroom.service';
@@ -25,6 +34,7 @@ import { StereoCardComponent } from './stereo-card/stereo-card';
     StereoCardComponent,
   ],
   templateUrl: './app.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './app.scss',
 })
 export class AppComponent implements OnInit, OnDestroy {

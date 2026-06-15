@@ -1,9 +1,10 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
   selector: 'app-session-done',
   templateUrl: './session-done.html',
   imports: [],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './session-done.scss',
 })
 export class SessionDoneComponent {

@@ -1,10 +1,18 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Burst } from '../photo';
 
 @Component({
   selector: 'app-burst-card',
   templateUrl: './burst-card.html',
   styleUrl: './burst-card.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [],
 })
 export class BurstCardComponent {

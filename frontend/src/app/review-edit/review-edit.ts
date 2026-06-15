@@ -1,10 +1,11 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { Photo } from '../photo';
 
 @Component({
   selector: 'app-review-edit',
   templateUrl: './review-edit.html',
   imports: [],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './review-edit.scss',
 })
 export class ReviewEditComponent {

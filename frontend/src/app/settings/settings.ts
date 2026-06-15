@@ -1,8 +1,9 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
   selector: 'app-settings',
   templateUrl: './settings.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './settings.scss',
 })
 export class SettingsComponent {

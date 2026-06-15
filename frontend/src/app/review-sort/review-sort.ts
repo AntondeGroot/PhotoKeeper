@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { Photo } from '../photo';
 import { PhotoCardComponent } from '../photo-card/photo-card';
 
@@ -6,6 +6,7 @@ import { PhotoCardComponent } from '../photo-card/photo-card';
   selector: 'app-review-sort',
   templateUrl: './review-sort.html',
   imports: [PhotoCardComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './review-sort.scss',
 })
 export class ReviewSortComponent {
