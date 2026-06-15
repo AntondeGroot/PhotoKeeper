@@ -43,6 +43,19 @@ export class LightroomService {
     });
   }
 
+  getAlbums(): Observable<Album[]> {
+    return this.http.get<Album[]>('api/albums', {
+      headers: this.headers(),
+    });
+  }
+
+  getFeed(vacationAlbumIds: string[], limit = 20): Observable<{ resources: PhotoAsset[] }> {
+    return this.http.get<{ resources: PhotoAsset[] }>('api/feed', {
+      headers: this.headers(),
+      params: { vacationAlbums: vacationAlbumIds.join(','), limit },
+    });
+  }
+
   getPhotoBlob(assetId: string, size = '640'): Observable<Blob> {
     return this.http.get(`api/photos/${assetId}/rendition`, {
       headers: this.headers(),
@@ -66,9 +79,15 @@ export class LightroomService {
 export interface PhotoAsset {
   id: string;
   subtype: string;
+  album?: string;
   payload?: {
     captureDate?: string;
     userCreated?: string;
     importSource?: { fileName?: string };
   };
+}
+
+export interface Album {
+  id: string;
+  name: string;
 }

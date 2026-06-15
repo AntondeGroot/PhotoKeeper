@@ -17,6 +17,7 @@ export class SettingsComponent {
   @Output() reminderTimeChange = new EventEmitter<string>();
   @Output() silentTimeChange = new EventEmitter<string>();
   @Output() silentEveningChange = new EventEmitter<boolean>();
+  @Output() manageAlbums = new EventEmitter<void>();
 
   onDailyGoalChange(event: Event): void {
     this.dailyGoalChange.emit(Number((event.target as HTMLInputElement).value));

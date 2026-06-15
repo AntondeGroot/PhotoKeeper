@@ -98,6 +98,31 @@ describe('LightroomService', () => {
     });
   });
 
+  describe('getAlbums', () => {
+    it('GETs api/albums with the auth header', () => {
+      service.setAuthToken('tok-1');
+
+      service.getAlbums().subscribe();
+
+      const req = httpMock.expectOne('api/albums');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.headers.get('X-Auth-Token')).toBe('tok-1');
+      req.flush([{ id: 'a1', name: 'Lisbon' }]);
+    });
+  });
+
+  describe('getFeed', () => {
+    it('GETs api/feed with the vacation ids joined and a limit', () => {
+      service.getFeed(['a1', 'a2'], 10).subscribe();
+
+      const req = httpMock.expectOne((r) => r.url === 'api/feed');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('vacationAlbums')).toBe('a1,a2');
+      expect(req.request.params.get('limit')).toBe('10');
+      req.flush({ resources: [] });
+    });
+  });
+
   describe('getPhotoBlob', () => {
     it('GETs the rendition URL with the size param and a blob responseType', () => {
       service.getPhotoBlob('asset-1', '640').subscribe();

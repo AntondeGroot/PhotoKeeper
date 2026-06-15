@@ -69,7 +69,10 @@
     <exclude name="AvoidDuplicateLiterals"/>
   </rule>
 
-  <rule ref="category/java/multithreading.xml"/>
+  <rule ref="category/java/multithreading.xml">
+    <!-- local, single-threaded maps don't need ConcurrentHashMap -->
+    <exclude name="UseConcurrentHashMap"/>
+  </rule>
 
   <rule ref="category/java/performance.xml">
     <!-- factory/builder code must construct objects in loops -->

@@ -1,0 +1,44 @@
+<div class="album-manager">
+  <div class="manager-header">
+    <button class="back-btn" (click)="back.emit()" aria-label="Back to settings">&#8592;</button>
+    <h2 class="manager-title">Manage albums</h2>
+  </div>
+
+  <input
+    class="album-search"
+    type="text"
+    placeholder="Search albums"
+    [value]="query()"
+    (input)="onQuery($event)"
+  />
+
+  <div class="filter-row">
+    <button class="filter-pill" [class.active]="untaggedOnly()" (click)="toggleUntagged()">
+      {{ untaggedOnly() ? '✓ ' : '' }}Untagged only
+    </button>
+    <span class="album-count">{{ filteredAlbums().length }} of {{ albums.length }}</span>
+  </div>
+
+  <div class="album-list">
+    @for (album of filteredAlbums(); track album.id) {
+      <div class="album-row">
+        <span class="album-name">{{ album.name }}</span>
+        <button
+          class="vacation-pill"
+          [class.on]="isVacation(album.id)"
+          (click)="toggleVacation.emit(album.id)"
+        >
+          <span class="pill-dot"></span>Vacation
+        </button>
+      </div>
+    } @empty {
+      <div class="album-empty">
+        {{ untaggedOnly() ? 'Every matching album is tagged.' : 'No albums match.' }}
+      </div>
+    }
+  </div>
+
+  <p class="manager-hint">
+    Tag the albums that are vacations — they’re favoured when picking photos to review.
+  </p>
+</div>
