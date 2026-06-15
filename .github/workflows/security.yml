@@ -1,10 +1,9 @@
 name: Security
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: '0 6 * * 1' # every Monday at 06:00 UTC
+  workflow_dispatch: # allow manual on-demand runs
 
 jobs:
   owasp:
