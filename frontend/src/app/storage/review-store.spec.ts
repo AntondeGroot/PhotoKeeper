@@ -2,6 +2,20 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { ReviewStore } from './review-store';
+import { Photo } from '../photo';
+
+function photo(id: string): Photo {
+  return {
+    id,
+    name: id,
+    album: null,
+    taken: '2026-01-01',
+    status: 'backlog',
+    kind: 'photo',
+    starred: false,
+    keepsake: false,
+  };
+}
 
 describe('ReviewStore', () => {
   let store: ReviewStore;
@@ -36,9 +50,14 @@ describe('ReviewStore', () => {
 
   describe('daily feed', () => {
     it('stores and reads the ordered selection for a date', async () => {
-      await store.setDailyFeed('2026-06-16', ['a3', 'a1', 'a2']);
+      const selection = [photo('a3'), photo('a1'), photo('a2')];
+      await store.setDailyFeed('2026-06-16', selection);
 
-      expect(await store.getDailyFeed('2026-06-16')).toEqual(['a3', 'a1', 'a2']);
+      expect((await store.getDailyFeed('2026-06-16'))?.map((p) => p.id)).toEqual([
+        'a3',
+        'a1',
+        'a2',
+      ]);
     });
 
     it('returns undefined for a date with no selection', async () => {

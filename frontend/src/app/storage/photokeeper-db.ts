@@ -18,13 +18,13 @@ export type AlbumTag = 'vacation';
  * On-device IndexedDB schema. Object stores use out-of-line keys (the key is passed explicitly):
  * - renditions: `${assetId}:${size}` → image blob
  * - verdicts:   assetId → review outcome
- * - dailyFeed:  'YYYY-MM-DD' → ordered asset ids chosen for that day
+ * - dailyFeed:  'YYYY-MM-DD' → the ordered photos chosen for that day (verdicts overlay on load)
  * - albumTags:  albumId → tag
  */
 export interface PhotoKeeperSchema extends DBSchema {
   renditions: { key: string; value: Blob };
   verdicts: { key: string; value: StoredVerdict };
-  dailyFeed: { key: string; value: string[] };
+  dailyFeed: { key: string; value: Photo[] };
   albumTags: { key: string; value: AlbumTag };
 }
 

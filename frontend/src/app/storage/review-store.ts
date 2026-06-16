@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { Photo } from '../photo';
 import { AlbumTag, PhotoKeeperDb, StoredVerdict } from './photokeeper-db';
 
 /** Device-local structured review state: verdicts, the per-day selection, and album tags. */
@@ -21,12 +22,12 @@ export class ReviewStore {
   }
 
   // ── Daily selection ───────────────────────────────────────────────────────
-  async getDailyFeed(date: string): Promise<string[] | undefined> {
+  async getDailyFeed(date: string): Promise<Photo[] | undefined> {
     return (await this.db.open()).get('dailyFeed', date);
   }
 
-  async setDailyFeed(date: string, assetIds: string[]): Promise<void> {
-    await (await this.db.open()).put('dailyFeed', assetIds, date);
+  async setDailyFeed(date: string, photos: Photo[]): Promise<void> {
+    await (await this.db.open()).put('dailyFeed', photos, date);
   }
 
   // ── Album tags ────────────────────────────────────────────────────────────

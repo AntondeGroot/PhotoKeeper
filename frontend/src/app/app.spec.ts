@@ -142,6 +142,8 @@ describe('App', () => {
         useValue: {
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(stored),
+          getDailyFeed: () => Promise.resolve(undefined), // no stored selection → sample fresh
+          setDailyFeed: () => Promise.resolve(),
         },
       });
       const fixture = TestBed.createComponent(App);
@@ -169,6 +171,69 @@ describe('App', () => {
       expect(app.reviewPhotos().find((p) => p.id === 'p2')?.status).toBe('backlog');
 
       // Drain any rendition prefetch the load kicked off.
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.verify();
+    });
+  });
+
+  describe('stable daily selection', () => {
+    it("reuses today's stored selection instead of re-sampling the feed", async () => {
+      const selection = [photo('p1'), photo('p2')];
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          getDailyFeed: () => Promise.resolve(selection), // already chosen today
+          setDailyFeed: () => Promise.resolve(),
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+      const app = fixture.componentInstance;
+
+      fixture.detectChanges();
+      httpMock.expectOne('api/auth/status').flush({ authenticated: true });
+      await tick();
+
+      // No feed request — the stored selection is reused.
+      httpMock.expectNone((r) => r.url === 'api/feed');
+      httpMock.expectOne('api/albums').flush([]);
+      await tick();
+
+      expect(app.reviewPhotos().map((p) => p.id)).toEqual(['p1', 'p2']);
+
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.verify();
+    });
+
+    it('resumes at the first un-reviewed photo, skipping ones already done', async () => {
+      const selection = [photo('p1'), photo('p2'), photo('p3')];
+      const verdicts = new Map<string, StoredVerdict>([
+        ['p1', { status: 'kept', starred: false, keepsake: false }],
+        ['p2', { status: 'rejected', starred: false, keepsake: false }],
+      ]);
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(verdicts),
+          getDailyFeed: () => Promise.resolve(selection),
+          setDailyFeed: () => Promise.resolve(),
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+      const app = fixture.componentInstance;
+
+      fixture.detectChanges();
+      httpMock.expectOne('api/auth/status').flush({ authenticated: true });
+      await tick();
+      httpMock.expectOne('api/albums').flush([]);
+      await tick();
+
+      // p1 and p2 are already decided → the cursor resumes on p3, and the count still reflects 2 done.
+      expect(app.currentReviewPhoto().id).toBe('p3');
+      expect(app.doneToday()).toBe(2);
+
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
       httpMock.verify();
     });
