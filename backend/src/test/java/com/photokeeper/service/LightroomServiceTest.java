@@ -14,6 +14,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photokeeper.config.AdobeConfig;
 import com.photokeeper.model.AlbumSummary;
+import com.photokeeper.model.TokenResponse;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,16 +47,22 @@ class LightroomServiceTest {
     }
 
     @Test
-    void exchangeCodePostsFormAndReturnsAccessToken() {
+    void exchangeCodePostsFormAndReturnsTokenSet() {
         server.expect(requestTo(IMS_TOKEN_URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_FORM_URLENCODED))
                 .andExpect(content().string(containsString("grant_type=authorization_code")))
                 .andExpect(content().string(containsString("client_id=test-api-key")))
                 .andExpect(content().string(containsString("code=my-code")))
-                .andRespond(withSuccess("{\"access_token\":\"the-token\"}", MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(
+                        "{\"access_token\":\"acc\",\"refresh_token\":\"ref\",\"expires_in\":3599}",
+                        MediaType.APPLICATION_JSON));
 
-        assertThat(service.exchangeCode("my-code")).isEqualTo("the-token");
+        TokenResponse tokens = service.exchangeCode("my-code");
+
+        assertThat(tokens.accessToken()).isEqualTo("acc");
+        assertThat(tokens.refreshToken()).isEqualTo("ref");
+        assertThat(tokens.expiresIn()).isEqualTo(3599L);
         server.verify();
     }
 
@@ -70,11 +77,49 @@ class LightroomServiceTest {
     }
 
     @Test
+    void exchangeCodeThrowsWhenRefreshTokenMissing() {
+        server.expect(requestTo(IMS_TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"acc\"}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.exchangeCode("code"))
+                .isInstanceOf(LightroomApiException.class)
+                .hasMessageContaining("no refresh_token");
+    }
+
+    @Test
     void exchangeCodeThrowsWhenResponseEmpty() {
         server.expect(requestTo(IMS_TOKEN_URL)).andRespond(withStatus(HttpStatus.OK));
 
         assertThatThrownBy(() -> service.exchangeCode("any-code"))
                 .isInstanceOf(LightroomApiException.class);
+    }
+
+    @Test
+    void refreshAccessTokenPostsRefreshGrantAndReturnsNewTokens() {
+        server.expect(requestTo(IMS_TOKEN_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(containsString("grant_type=refresh_token")))
+                .andExpect(content().string(containsString("refresh_token=old-ref")))
+                .andRespond(withSuccess(
+                        "{\"access_token\":\"new-acc\",\"refresh_token\":\"new-ref\",\"expires_in\":3599}",
+                        MediaType.APPLICATION_JSON));
+
+        TokenResponse tokens = service.refreshAccessToken("old-ref");
+
+        assertThat(tokens.accessToken()).isEqualTo("new-acc");
+        assertThat(tokens.refreshToken()).isEqualTo("new-ref");
+        server.verify();
+    }
+
+    @Test
+    void refreshAccessTokenCarriesOverRefreshTokenWhenNotRotated() {
+        server.expect(requestTo(IMS_TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"new-acc\"}", MediaType.APPLICATION_JSON));
+
+        TokenResponse tokens = service.refreshAccessToken("old-ref");
+
+        assertThat(tokens.accessToken()).isEqualTo("new-acc");
+        assertThat(tokens.refreshToken()).isEqualTo("old-ref"); // reused — Adobe didn't rotate
     }
 
     @Test

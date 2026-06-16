@@ -10,7 +10,7 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
-import { firstValueFrom, timeout } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService, PhotoAsset } from './lightroom.service';
 import { ReviewStore } from './storage/review-store';
 import { PreviewStore } from './storage/preview-store';
@@ -190,25 +190,29 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const token = params.get('token');
-    if (token) {
-      this.svc.setAuthToken(token);
+    // After login the backend redirects with the tokens in the URL fragment; capture and store them.
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const accessToken = hash.get('access_token');
+    const refreshToken = hash.get('refresh_token');
+    if (accessToken && refreshToken) {
+      this.svc.setTokens(accessToken, refreshToken);
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    try {
-      const status = await firstValueFrom(this.svc.checkStatus().pipe(timeout(5000)));
-      this.authenticated.set(status.authenticated);
-    } catch {
-      this.authenticated.set(false);
-    } finally {
-      this.loading.set(false);
+    if (this.svc.getAccessToken()) {
+      try {
+        // Fetching the catalog id both caches it and validates the token (refreshing if expired).
+        await firstValueFrom(this.svc.loadCatalogId());
+        this.authenticated.set(true);
+        await this.loadPhotos();
+        await this.loadAlbums();
+      } catch {
+        // Token couldn't be validated/refreshed — fall back to the login screen.
+        this.svc.clearTokens();
+        this.authenticated.set(false);
+      }
     }
-
-    if (this.authenticated()) {
-      await this.loadPhotos();
-      await this.loadAlbums();
-    }
+    this.loading.set(false);
   }
 
   private async loadAlbums(): Promise<void> {
@@ -452,7 +456,7 @@ export class AppComponent implements OnInit, OnDestroy {
     } catch {
       /* ignore */
     }
-    this.svc.clearAuthToken();
+    this.svc.clearTokens();
     this.authenticated.set(false);
     this.photosLoaded.set(false);
     this.revokeAllPreviews();

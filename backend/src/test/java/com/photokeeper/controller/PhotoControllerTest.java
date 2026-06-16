@@ -1,23 +1,18 @@
 package com.photokeeper.controller;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.photokeeper.model.AlbumSummary;
-import com.photokeeper.model.TokenData;
 import com.photokeeper.service.LightroomService;
 import com.photokeeper.service.PhotoFeedService;
-import com.photokeeper.service.TokenStore;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -42,105 +37,58 @@ class PhotoControllerTest {
     @MockitoBean
     private PhotoFeedService photoFeedService;
 
-    @MockitoBean
-    private TokenStore tokenStore;
-
-    private TokenData tokenData;
-
-    @BeforeEach
-    void setUp() {
-        tokenData = new TokenData("access-token");
-        tokenData.setCatalogId("cat-123");
-        when(tokenStore.get("valid-token")).thenReturn(Optional.of(tokenData));
-    }
-
     @Test
-    void catalogWithValidTokenReturnsCatalog() throws Exception {
-        Map<String, Object> catalog = Map.of("id", "cat-123", "name", "My Catalog");
-        when(lightroomService.getCatalog("access-token")).thenReturn(catalog);
+    void catalogReturnsCatalogForTheAccessToken() throws Exception {
+        when(lightroomService.getCatalog("acc")).thenReturn(Map.of("id", "cat-123", "name", "My Catalog"));
 
-        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "valid-token"))
+        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "acc"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("cat-123"));
     }
 
     @Test
-    void catalogWithInvalidTokenReturnsUnauthorized() throws Exception {
-        when(tokenStore.get("bad-token")).thenReturn(Optional.empty());
+    void photosUsesTheTokenAndCatalogHeaders() throws Exception {
+        when(lightroomService.getAssets("acc", "cat-123", 20)).thenReturn(Map.of("resources", List.of()));
 
-        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "bad-token"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void catalogWhenNullCatalogIdFetchesCatalogAndSetsId() throws Exception {
-        TokenData tdNoCatalog = new TokenData("access-token");
-        when(tokenStore.get("token-no-cat")).thenReturn(Optional.of(tdNoCatalog));
-        when(lightroomService.getCatalog("access-token")).thenReturn(Map.of("id", "fetched-cat"));
-
-        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "token-no-cat"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("fetched-cat"));
-    }
-
-    @Test
-    void photosWithValidTokenReturnsAssets() throws Exception {
-        Map<String, Object> assets = Map.of("resources", List.of());
-        when(lightroomService.getAssets("access-token", "cat-123", 20)).thenReturn(assets);
-
-        mockMvc.perform(get("/api/photos").header("X-Auth-Token", "valid-token"))
+        mockMvc.perform(get("/api/photos")
+                        .header("X-Auth-Token", "acc")
+                        .header("X-Catalog-Id", "cat-123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resources").isArray());
     }
 
     @Test
-    void photosWithNullCatalogIdFetchesCatalogFirst() throws Exception {
-        TokenData tdNoCatalog = new TokenData("access-token");
-        when(tokenStore.get("token-no-cat")).thenReturn(Optional.of(tdNoCatalog));
-        when(lightroomService.getCatalog("access-token")).thenReturn(Map.of("id", "fetched-cat"));
-        when(lightroomService.getAssets("access-token", "fetched-cat", 20)).thenReturn(Map.of());
+    void albumsReturnsAlbumList() throws Exception {
+        when(lightroomService.getAlbums("acc", "cat-123"))
+                .thenReturn(List.of(new AlbumSummary("alb-1", "Lisbon, May")));
 
-        mockMvc.perform(get("/api/photos").header("X-Auth-Token", "token-no-cat"))
-                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/albums")
+                        .header("X-Auth-Token", "acc")
+                        .header("X-Catalog-Id", "cat-123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("alb-1"));
     }
 
     @Test
     void albumsWithoutTokenHeaderReturnsUnauthorized() throws Exception {
-        mockMvc.perform(get("/api/albums"))
+        mockMvc.perform(get("/api/albums").header("X-Catalog-Id", "cat-123"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void albumsWithValidTokenReturnsAlbumList() throws Exception {
-        when(lightroomService.getAlbums("access-token", "cat-123"))
-                .thenReturn(List.of(new AlbumSummary("alb-1", "Lisbon, May")));
-
-        mockMvc.perform(get("/api/albums").header("X-Auth-Token", "valid-token"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value("alb-1"))
-                .andExpect(jsonPath("$[0].name").value("Lisbon, May"));
-    }
-
-    @Test
-    void albumsWithNullCatalogIdFetchesCatalogFirst() throws Exception {
-        TokenData tdNoCatalog = new TokenData("access-token");
-        when(tokenStore.get("token-no-cat")).thenReturn(Optional.of(tdNoCatalog));
-        when(lightroomService.getCatalog("access-token")).thenReturn(Map.of("id", "fetched-cat"));
-        when(lightroomService.getAlbums("access-token", "fetched-cat")).thenReturn(List.of());
-
-        mockMvc.perform(get("/api/albums").header("X-Auth-Token", "token-no-cat"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+    void albumsWithoutCatalogHeaderReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/albums").header("X-Auth-Token", "acc"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void feedPassesVacationIdsAndReturnsResources() throws Exception {
-        when(photoFeedService.buildFeed(
-                        eq("access-token"), eq("cat-123"), eq(Set.of("alb-1", "alb-2")), eq(20)))
+        when(photoFeedService.buildFeed("acc", "cat-123", Set.of("alb-1", "alb-2"), 20))
                 .thenReturn(List.of(Map.of("id", "asset-1")));
 
         mockMvc.perform(get("/api/feed")
-                        .header("X-Auth-Token", "valid-token")
+                        .header("X-Auth-Token", "acc")
+                        .header("X-Catalog-Id", "cat-123")
                         .param("vacationAlbums", "alb-1,alb-2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resources[0].id").value("asset-1"));
@@ -148,72 +96,74 @@ class PhotoControllerTest {
 
     @Test
     void feedWithNoVacationAlbumsPassesEmptySet() throws Exception {
-        when(photoFeedService.buildFeed("access-token", "cat-123", Set.of(), 20))
-                .thenReturn(List.of());
+        when(photoFeedService.buildFeed("acc", "cat-123", Set.of(), 20)).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/feed").header("X-Auth-Token", "valid-token"))
+        mockMvc.perform(get("/api/feed")
+                        .header("X-Auth-Token", "acc")
+                        .header("X-Catalog-Id", "cat-123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resources").isArray());
     }
 
     @Test
-    void renditionWithValidTokenReturnsBytes() throws Exception {
-        when(lightroomService.getRendition("access-token", "cat-123", "asset-1", "640"))
+    void renditionReturnsBytes() throws Exception {
+        when(lightroomService.getRendition("acc", "cat-123", "asset-1", "640"))
                 .thenReturn(ResponseEntity.ok(new byte[]{1, 2, 3}));
 
-        mockMvc.perform(get("/api/photos/asset-1/rendition").header("X-Auth-Token", "valid-token"))
+        mockMvc.perform(get("/api/photos/asset-1/rendition")
+                        .header("X-Auth-Token", "acc")
+                        .header("X-Catalog-Id", "cat-123"))
                 .andExpect(status().isOk());
-    }
-
-    @Test
-    void catalogWhenUpstreamThrowsHttpErrorReturnsBadGateway() throws Exception {
-        when(lightroomService.getCatalog(any())).thenThrow(
-                HttpClientErrorException.create(
-                        HttpStatus.NOT_FOUND,
-                        "Not Found",
-                        HttpHeaders.EMPTY,
-                        new byte[0],
-                        StandardCharsets.UTF_8));
-
-        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "valid-token"))
-                .andExpect(status().isBadGateway());
-    }
-
-    @Test
-    void catalogWhenGenericExceptionThrownReturnsInternalServerError() throws Exception {
-        when(lightroomService.getCatalog(any())).thenThrow(new RuntimeException("unexpected error"));
-
-        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "valid-token"))
-                .andExpect(status().isInternalServerError());
-    }
-
-    @Test
-    void catalogWhenExceptionHasNullMessageReturnsInternalServerError() throws Exception {
-        when(lightroomService.getCatalog(any())).thenThrow(new RuntimeException());
-
-        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "valid-token"))
-                .andExpect(status().isInternalServerError());
-    }
-
-    @Test
-    void catalogWhenResponseStatusHasNullReasonReturnsStatus() throws Exception {
-        when(lightroomService.getCatalog(any())).thenThrow(
-                new ResponseStatusException(HttpStatus.FORBIDDEN));
-
-        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "valid-token"))
-                .andExpect(status().isForbidden());
     }
 
     @Test
     void renditionPreservesUpstreamContentType() throws Exception {
         HttpHeaders upstreamHeaders = new HttpHeaders();
         upstreamHeaders.setContentType(MediaType.IMAGE_PNG);
-        when(lightroomService.getRendition("access-token", "cat-123", "asset-1", "1280"))
+        when(lightroomService.getRendition("acc", "cat-123", "asset-1", "1280"))
                 .thenReturn(new ResponseEntity<>(new byte[]{1, 2, 3}, upstreamHeaders, HttpStatus.OK));
 
         mockMvc.perform(get("/api/photos/asset-1/rendition")
-                        .header("X-Auth-Token", "valid-token")
+                        .header("X-Auth-Token", "acc")
+                        .header("X-Catalog-Id", "cat-123")
                         .param("size", "1280"))
                 .andExpect(status().isOk());
+    }
+
+    // ── Error mapping via GlobalExceptionHandler (exercised through /catalog) ──
+
+    @Test
+    void upstreamHttpErrorReturnsBadGateway() throws Exception {
+        when(lightroomService.getCatalog(any())).thenThrow(
+                HttpClientErrorException.create(
+                        HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY, new byte[0],
+                        StandardCharsets.UTF_8));
+
+        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "acc"))
+                .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    void genericExceptionReturnsInternalServerError() throws Exception {
+        when(lightroomService.getCatalog(any())).thenThrow(new RuntimeException("unexpected error"));
+
+        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "acc"))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    void exceptionWithNullMessageReturnsInternalServerError() throws Exception {
+        when(lightroomService.getCatalog(any())).thenThrow(new RuntimeException());
+
+        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "acc"))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    void responseStatusExceptionWithNullReasonReturnsStatus() throws Exception {
+        when(lightroomService.getCatalog(any())).thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN));
+
+        mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "acc"))
+                .andExpect(status().isForbidden());
     }
 }
