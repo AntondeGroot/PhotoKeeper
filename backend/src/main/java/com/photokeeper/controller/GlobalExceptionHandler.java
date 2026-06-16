@@ -32,6 +32,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RestClientResponseException.class)
     public ResponseEntity<Map<String, String>> handleUpstreamError(RestClientResponseException e) {
         log.error("Upstream API error {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
+        // An upstream 401 means the access token expired/was revoked. Surface it as a 401 so the
+        // device's interceptor can refresh and retry; any other upstream failure is a 502.
+        if (e.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Upstream rejected the access token"));
+        }
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
                 "error", "Upstream API error",
                 "status", e.getStatusCode().toString(),
