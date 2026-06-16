@@ -12,6 +12,8 @@ import {
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom, timeout } from 'rxjs';
 import { Album, LightroomService, PhotoAsset } from './lightroom.service';
+import { ReviewStore } from './storage/review-store';
+import { StoredVerdict } from './storage/photokeeper-db';
 import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
@@ -53,6 +55,7 @@ interface CachedRendition {
 export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly reviewStore = inject(ReviewStore);
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
@@ -216,7 +219,9 @@ export class AppComponent implements OnInit, OnDestroy {
         .filter((a) => a.subtype === 'image')
         .map((a) => this.assetToPhoto(a));
       if (photos.length > 0) {
-        this.reviewPhotos.set(photos);
+        // Re-apply any previously stored verdicts so swipes survive a reload.
+        const verdicts = await this.reviewStore.getVerdicts();
+        this.reviewPhotos.set(photos.map((p) => this.applyVerdict(p, verdicts.get(p.id))));
         this.reviewIndex.set(0);
         this.photosLoaded.set(true);
       }
@@ -225,6 +230,12 @@ export class AppComponent implements OnInit, OnDestroy {
         'Could not load photos: ' + (e instanceof Error ? e.message : 'unknown error'),
       );
     }
+  }
+
+  private applyVerdict(photo: Photo, verdict: StoredVerdict | undefined): Photo {
+    return verdict
+      ? { ...photo, status: verdict.status, starred: verdict.starred, keepsake: verdict.keepsake }
+      : photo;
   }
 
   private assetToPhoto(asset: PhotoAsset): Photo {
@@ -312,6 +323,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.reviewPhotos.update((list) =>
       list.map((item) => (item.id === current.id ? { ...item, status: verdict } : item)),
     );
+    void this.persistVerdict(current.id);
     this.nextReviewPhoto();
   }
 
@@ -325,6 +337,7 @@ export class AppComponent implements OnInit, OnDestroy {
           : item,
       ),
     );
+    void this.persistVerdict(current.id);
   }
 
   toggleKeepsake(): void {
@@ -337,6 +350,7 @@ export class AppComponent implements OnInit, OnDestroy {
           : item,
       ),
     );
+    void this.persistVerdict(current.id);
   }
 
   setReviewMode(mode: 'sort' | 'edit'): void {
@@ -349,6 +363,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.reviewPhotos.update((list) =>
       list.map((item) => (item.id === current.id ? { ...item, status: 'kept' as const } : item)),
     );
+    void this.persistVerdict(current.id);
     this.nextReviewPhoto();
   }
 
@@ -360,6 +375,7 @@ export class AppComponent implements OnInit, OnDestroy {
         item.id === current.id ? { ...item, status: 'rejected' as const } : item,
       ),
     );
+    void this.persistVerdict(current.id);
     this.nextReviewPhoto();
   }
 
@@ -367,7 +383,25 @@ export class AppComponent implements OnInit, OnDestroy {
     this.reviewPhotos.update((list) =>
       list.map((item) => (item.id === id ? { ...item, status: 'toPrint' as const } : item)),
     );
+    void this.persistVerdict(id);
     this.editedToday.update((n) => n + 1);
+  }
+
+  // Saves the (already-updated) review item's verdict to IndexedDB so it survives a reload.
+  // Best-effort: a storage failure must not break the review flow.
+  private async persistVerdict(id: string): Promise<void> {
+    const item = this.reviewPhotos().find((p) => p.id === id);
+    if (!item) return;
+    const verdict: StoredVerdict = {
+      status: item.status,
+      starred: item.kind === 'photo' ? item.starred : false,
+      keepsake: item.kind === 'photo' ? item.keepsake : false,
+    };
+    try {
+      await this.reviewStore.setVerdict(id, verdict);
+    } catch {
+      /* ignore */
+    }
   }
 
   private groupByAlbum(photos: Photo[]): { album: string; photos: Photo[] }[] {
