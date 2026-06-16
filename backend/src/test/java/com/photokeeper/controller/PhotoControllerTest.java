@@ -105,6 +105,12 @@ class PhotoControllerTest {
     }
 
     @Test
+    void albumsWithoutTokenHeaderReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/albums"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void albumsWithValidTokenReturnsAlbumList() throws Exception {
         when(lightroomService.getAlbums("access-token", "cat-123"))
                 .thenReturn(List.of(new AlbumSummary("alb-1", "Lisbon, May")));
