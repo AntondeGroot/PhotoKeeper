@@ -4,6 +4,16 @@ Object.defineProperty(HTMLMediaElement.prototype, 'play', {
   value: () => Promise.resolve(),
 });
 
+// jsdom does not implement object URLs; the rendition cache (AppComponent) creates/revokes them.
+Object.defineProperty(URL, 'createObjectURL', {
+  configurable: true,
+  value: () => 'blob:mock',
+});
+Object.defineProperty(URL, 'revokeObjectURL', {
+  configurable: true,
+  value: () => undefined,
+});
+
 // The test environment does not provide localStorage; supply a minimal in-memory shim so code
 // that persists to localStorage (LightroomService auth token, AppComponent settings) can run.
 class LocalStorageMock implements Storage {

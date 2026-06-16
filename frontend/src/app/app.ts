@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
@@ -21,6 +22,16 @@ import { BurstCardComponent } from './burst-card/burst-card';
 import { PanoCardComponent } from './pano-card/pano-card';
 import { StereoCardComponent } from './stereo-card/stereo-card';
 import { AlbumManagerComponent } from './album-manager/album-manager';
+
+// How many photos ahead of the current one to preload, so swiping never waits for an image.
+const PREFETCH_AHEAD = 5;
+
+// A cached rendition keeps both the raw object URL (so it can be revoked on eviction) and the
+// sanitized SafeUrl (stable reference, so re-reads don't re-trigger the <img> binding).
+interface CachedRendition {
+  objectUrl: string;
+  safeUrl: SafeUrl;
+}
 
 @Component({
   selector: 'app-root',
@@ -67,8 +78,16 @@ export class AppComponent implements OnInit, OnDestroy {
   reviewPhotos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO]);
   photosLoaded = signal(false);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
-  // 2048px rendition of the photo currently under review, fetched as a blob object URL.
-  currentReviewPhotoUrl = signal<SafeUrl | null>(null);
+  // Cache of fetched 2048px renditions (assetId → rendition), filled ahead of the cursor so
+  // navigating never waits, and evicted once a photo falls behind the window. currentReviewPhotoUrl
+  // simply reads the current photo's entry.
+  private readonly renditionCache = signal<Map<string, CachedRendition>>(new Map());
+  currentReviewPhotoUrl = computed(() => {
+    const current = this.currentReviewPhoto();
+    return current?.kind === 'photo'
+      ? (this.renditionCache().get(current.id)?.safeUrl ?? null)
+      : null;
+  });
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
   sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
@@ -90,8 +109,8 @@ export class AppComponent implements OnInit, OnDestroy {
   );
   toEditByAlbum = computed(() => this.groupByAlbum(this.toEditQueue()));
   toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
-  private readonly objectUrls: string[] = [];
-  private lastLoadedReviewId: string | null = null;
+  // Asset ids whose rendition is mid-flight, so we never fire a duplicate request.
+  private readonly inFlight = new Set<string>();
 
   constructor() {
     effect(() => {
@@ -103,15 +122,22 @@ export class AppComponent implements OnInit, OnDestroy {
       localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
     });
 
-    // Whenever the photo under review changes, fetch its 2048 rendition. Guarded by photosLoaded so
-    // the mock fallback (whose ids aren't real assets) never triggers a request, and deduped by id
-    // so a status change on the same photo doesn't refetch.
+    // Keep the current photo's rendition plus the next PREFETCH_AHEAD ones loaded, so swiping never
+    // waits, and evict anything outside that window (we only ever move forward). Guarded by
+    // photosLoaded so the mock fallback (whose ids aren't real assets) is skipped.
     effect(() => {
-      const photo = this.currentReviewPhoto();
-      if (!this.photosLoaded() || !photo || photo.kind !== 'photo') return;
-      if (photo.id === this.lastLoadedReviewId) return;
-      this.lastLoadedReviewId = photo.id;
-      this.loadReviewImage(photo.id);
+      if (!this.photosLoaded()) return;
+      const photos = this.reviewPhotos();
+      const start = this.reviewIndex();
+      const windowIds = new Set<string>();
+      for (let i = 0; i <= PREFETCH_AHEAD; i++) {
+        const item = photos[start + i];
+        if (item?.kind === 'photo') {
+          windowIds.add(item.id);
+          this.ensureRendition(item.id);
+        }
+      }
+      this.evictOutsideWindow(windowIds);
     });
   }
 
@@ -215,19 +241,52 @@ export class AppComponent implements OnInit, OnDestroy {
     };
   }
 
-  private loadReviewImage(assetId: string): void {
-    this.currentReviewPhotoUrl.set(null);
+  // Fetches a photo's 2048px rendition into the cache once. Idempotent: skips ids already cached or
+  // in flight. The cache read is untracked so the prefetch effect doesn't re-run on every load.
+  private ensureRendition(assetId: string): void {
+    const alreadyHave = untracked(
+      () => this.renditionCache().has(assetId) || this.inFlight.has(assetId),
+    );
+    if (alreadyHave) return;
+
+    this.inFlight.add(assetId);
     this.svc.getPhotoBlob(assetId, '2048').subscribe({
       next: (blob) => {
-        const url = URL.createObjectURL(blob);
-        this.objectUrls.push(url);
-        this.currentReviewPhotoUrl.set(this.sanitizer.bypassSecurityTrustUrl(url));
+        const objectUrl = URL.createObjectURL(blob);
+        const safeUrl = this.sanitizer.bypassSecurityTrustUrl(objectUrl);
+        this.renditionCache.update((cache) => new Map(cache).set(assetId, { objectUrl, safeUrl }));
+        this.inFlight.delete(assetId);
       },
       error: () => {
         // Leave the gradient placeholder if the rendition can't be fetched.
-        this.currentReviewPhotoUrl.set(null);
+        this.inFlight.delete(assetId);
       },
     });
+  }
+
+  // Drops cached renditions outside the current window, revoking their object URLs so memory doesn't
+  // grow without bound. (Read untracked so this never re-triggers the prefetch effect.)
+  private evictOutsideWindow(keep: Set<string>): void {
+    const cache = untracked(() => this.renditionCache());
+    const next = new Map(cache);
+    let changed = false;
+    for (const [id, rendition] of cache) {
+      if (!keep.has(id)) {
+        URL.revokeObjectURL(rendition.objectUrl);
+        next.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.renditionCache.set(next);
+    }
+  }
+
+  private revokeAllRenditions(): void {
+    for (const rendition of this.renditionCache().values()) {
+      URL.revokeObjectURL(rendition.objectUrl);
+    }
+    this.renditionCache.set(new Map());
   }
 
   prevReviewPhoto(): void {
@@ -330,11 +389,11 @@ export class AppComponent implements OnInit, OnDestroy {
     this.svc.clearAuthToken();
     this.authenticated.set(false);
     this.photosLoaded.set(false);
-    this.currentReviewPhotoUrl.set(null);
-    this.lastLoadedReviewId = null;
+    this.revokeAllRenditions();
+    this.inFlight.clear();
   }
 
   ngOnDestroy(): void {
-    this.objectUrls.forEach((u) => URL.revokeObjectURL(u));
+    this.revokeAllRenditions();
   }
 }
