@@ -21,6 +21,7 @@
     "@angular/forms": "^22.0.1",
     "@angular/platform-browser": "^22.0.1",
     "@angular/router": "^22.0.1",
+    "idb": "^8.0.3",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -32,6 +33,7 @@
     "@vitest/coverage-v8": "^4.0.8",
     "angular-eslint": "^22.0.0",
     "eslint": "^10.5.0",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
     "typescript": "~6.0.3",
