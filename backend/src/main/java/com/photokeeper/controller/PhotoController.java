@@ -1,14 +1,11 @@
 package com.photokeeper.controller;
 
 import com.photokeeper.model.AlbumSummary;
-import com.photokeeper.model.TokenData;
 import com.photokeeper.service.LightroomService;
 import com.photokeeper.service.PhotoFeedService;
-import com.photokeeper.service.TokenStore;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpHeaders;
@@ -21,102 +18,74 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Stateless Lightroom proxy. The device holds its own tokens and catalog id and passes them on every
+ * request: the access token as {@code X-Auth-Token}, the catalog id as {@code X-Catalog-Id} (which
+ * it fetches once via {@code /catalog}). A missing header is rejected as 401 by GlobalExceptionHandler.
+ */
 @RestController
 @RequestMapping("/api")
 public class PhotoController {
 
     private final LightroomService lightroomService;
     private final PhotoFeedService photoFeedService;
-    private final TokenStore tokenStore;
 
-    public PhotoController(
-            LightroomService lightroomService,
-            PhotoFeedService photoFeedService,
-            TokenStore tokenStore) {
+    public PhotoController(LightroomService lightroomService, PhotoFeedService photoFeedService) {
         this.lightroomService = lightroomService;
         this.photoFeedService = photoFeedService;
-        this.tokenStore = tokenStore;
     }
 
     @GetMapping("/catalog")
     public ResponseEntity<Map<String, Object>> catalog(
             @RequestHeader("X-Auth-Token") String authToken) {
-        TokenData td = resolveToken(authToken);
-        Map<String, Object> catalog = lightroomService.getCatalog(td.getAccessToken());
-        if (td.getCatalogId() == null) {
-            String id = Objects.requireNonNull((String) catalog.get("id"), "Lightroom catalog id missing");
-            td.setCatalogId(id);
-        }
-        return ResponseEntity.ok(catalog);
+        return ResponseEntity.ok(lightroomService.getCatalog(authToken));
     }
 
     @GetMapping("/photos")
     public ResponseEntity<Map<String, Object>> photos(
             @RequestHeader("X-Auth-Token") String authToken,
+            @RequestHeader("X-Catalog-Id") String catalogId,
             @RequestParam(defaultValue = "20") int limit) {
-        TokenData td = resolveToken(authToken);
-        String catalogId = ensureCatalog(td);
-        Map<String, Object> assets = lightroomService.getAssets(td.getAccessToken(), catalogId, limit);
-        return ResponseEntity.ok(assets);
+        return ResponseEntity.ok(lightroomService.getAssets(authToken, catalogId, limit));
     }
 
     @GetMapping("/albums")
     public ResponseEntity<List<AlbumSummary>> albums(
-            @RequestHeader("X-Auth-Token") String authToken) {
-        TokenData td = resolveToken(authToken);
-        String catalogId = ensureCatalog(td);
-        return ResponseEntity.ok(lightroomService.getAlbums(td.getAccessToken(), catalogId));
+            @RequestHeader("X-Auth-Token") String authToken,
+            @RequestHeader("X-Catalog-Id") String catalogId) {
+        return ResponseEntity.ok(lightroomService.getAlbums(authToken, catalogId));
     }
 
     @GetMapping("/feed")
     public ResponseEntity<Map<String, Object>> feed(
             @RequestHeader("X-Auth-Token") String authToken,
+            @RequestHeader("X-Catalog-Id") String catalogId,
             @RequestParam(name = "vacationAlbums", defaultValue = "") String vacationAlbums,
             @RequestParam(defaultValue = "20") int limit) {
-        TokenData td = resolveToken(authToken);
-        String catalogId = ensureCatalog(td);
         Set<String> vacationIds = vacationAlbums.isBlank()
                 ? Set.of()
                 : Arrays.stream(vacationAlbums.split(","))
                         .map(String::trim)
                         .filter(s -> !s.isEmpty())
                         .collect(Collectors.toSet());
-        List<Object> assets = photoFeedService.buildFeed(td.getAccessToken(), catalogId, vacationIds, limit);
+        List<Object> assets = photoFeedService.buildFeed(authToken, catalogId, vacationIds, limit);
         return ResponseEntity.ok(Map.of("resources", assets));
     }
 
     @GetMapping("/photos/{assetId}/rendition")
     public ResponseEntity<byte[]> rendition(
             @RequestHeader("X-Auth-Token") String authToken,
+            @RequestHeader("X-Catalog-Id") String catalogId,
             @PathVariable String assetId,
             @RequestParam(defaultValue = "640") String size) {
-        TokenData td = resolveToken(authToken);
-        String catalogId = ensureCatalog(td);
-
-        ResponseEntity<byte[]> upstream = lightroomService.getRendition(
-                td.getAccessToken(), catalogId, assetId, size);
+        ResponseEntity<byte[]> upstream =
+                lightroomService.getRendition(authToken, catalogId, assetId, size);
 
         HttpHeaders headers = new HttpHeaders();
         MediaType contentType = upstream.getHeaders().getContentType();
         headers.setContentType(contentType != null ? contentType : MediaType.IMAGE_JPEG);
 
         return new ResponseEntity<>(upstream.getBody(), headers, HttpStatus.OK);
-    }
-
-    private TokenData resolveToken(String authToken) {
-        return tokenStore.get(authToken)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token"));
-    }
-
-    private String ensureCatalog(TokenData td) {
-        String catalogId = td.getCatalogId();
-        if (catalogId == null) {
-            Map<String, Object> catalog = lightroomService.getCatalog(td.getAccessToken());
-            catalogId = Objects.requireNonNull((String) catalog.get("id"), "Lightroom catalog id missing");
-            td.setCatalogId(catalogId);
-        }
-        return catalogId;
     }
 }

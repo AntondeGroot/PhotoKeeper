@@ -33,6 +33,7 @@ const isRendition = (url: string) => url.endsWith('/rendition');
 
 describe('App', () => {
   beforeEach(async () => {
+    localStorage.clear(); // isolate stored tokens/settings between tests
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [
@@ -57,9 +58,6 @@ describe('App', () => {
       app.reviewPhotos.set(Array.from({ length: 10 }, (_, i) => photo('p' + i)));
       app.photosLoaded.set(true);
       fixture.detectChanges();
-
-      // ngOnInit's auth check fires on first change detection; settle it so it isn't left dangling.
-      httpMock.expectOne('api/auth/status').flush({ authenticated: false });
       await tick(); // ensurePreview checks the durable store (async) before fetching
 
       const requests = httpMock.match((r) => isRendition(r.url));
@@ -83,7 +81,6 @@ describe('App', () => {
       app.reviewPhotos.set(Array.from({ length: 8 }, (_, i) => photo('p' + i)));
       app.photosLoaded.set(true);
       fixture.detectChanges();
-      httpMock.expectOne('api/auth/status').flush({ authenticated: false });
       await tick();
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob())); // p0..p5
       await tick();
@@ -114,7 +111,6 @@ describe('App', () => {
       app.reviewPhotos.set([photo('p0'), photo('p1')]);
       app.photosLoaded.set(true);
       fixture.detectChanges();
-      httpMock.expectOne('api/auth/status').flush({ authenticated: false });
       await tick();
 
       // current + 1 ahead = both photos.
@@ -150,7 +146,6 @@ describe('App', () => {
       app.reviewPhotos.set([photo('p0'), photo('p1')]);
       app.photosLoaded.set(true);
       fixture.detectChanges();
-      httpMock.expectOne('api/auth/status').flush({ authenticated: false });
       await tick();
 
       // p0 is on disk → no fetch; p1 is not → fetched.
@@ -200,12 +195,13 @@ describe('App', () => {
           setDailyFeed: () => Promise.resolve(),
         },
       });
+      localStorage.setItem('lr-access-token', 'acc'); // init enters the load path
       const fixture = TestBed.createComponent(App);
       const httpMock = TestBed.inject(HttpTestingController);
       const app = fixture.componentInstance;
 
       fixture.detectChanges(); // ngOnInit → init()
-      httpMock.expectOne('api/auth/status').flush({ authenticated: true });
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
       await tick();
 
       httpMock
@@ -241,12 +237,13 @@ describe('App', () => {
           setDailyFeed: () => Promise.resolve(),
         },
       });
+      localStorage.setItem('lr-access-token', 'acc'); // init enters the load path
       const fixture = TestBed.createComponent(App);
       const httpMock = TestBed.inject(HttpTestingController);
       const app = fixture.componentInstance;
 
       fixture.detectChanges();
-      httpMock.expectOne('api/auth/status').flush({ authenticated: true });
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
       await tick();
 
       // No feed request — the stored selection is reused.
@@ -274,12 +271,13 @@ describe('App', () => {
           setDailyFeed: () => Promise.resolve(),
         },
       });
+      localStorage.setItem('lr-access-token', 'acc'); // init enters the load path
       const fixture = TestBed.createComponent(App);
       const httpMock = TestBed.inject(HttpTestingController);
       const app = fixture.componentInstance;
 
       fixture.detectChanges();
-      httpMock.expectOne('api/auth/status').flush({ authenticated: true });
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
       await tick();
       httpMock.expectOne('api/albums').flush([]);
       await tick();

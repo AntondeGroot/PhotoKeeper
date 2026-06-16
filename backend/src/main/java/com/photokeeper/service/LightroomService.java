@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photokeeper.config.AdobeConfig;
 import com.photokeeper.model.AlbumSummary;
+import com.photokeeper.model.TokenResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,8 @@ public class LightroomService {
         this.objectMapper = objectMapper;
     }
 
-    public String exchangeCode(String code) {
+    /** Exchanges an authorization code for the access + refresh token set (offline_access scope). */
+    public TokenResponse exchangeCode(String code) {
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "authorization_code");
         body.add("client_id", config.getClientId());
@@ -46,17 +48,53 @@ public class LightroomService {
         body.add("redirect_uri", config.getRedirectUri());
         body.add("code", code);
 
+        Map<String, Object> response = postToken(body);
+        String accessToken = accessTokenOf(response);
+        if (!(response.get("refresh_token") instanceof String refreshToken)) {
+            throw new LightroomApiException("Token exchange failed: no refresh_token in response");
+        }
+        return new TokenResponse(accessToken, refreshToken, expiresInOf(response));
+    }
+
+    /**
+     * Exchanges a refresh token for a fresh access token. Adobe may rotate the refresh token; if it
+     * doesn't return a new one, the caller's existing refresh token is carried over.
+     */
+    public TokenResponse refreshAccessToken(String refreshToken) {
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "refresh_token");
+        body.add("client_id", config.getClientId());
+        body.add("client_secret", config.getClientSecret());
+        body.add("refresh_token", refreshToken);
+
+        Map<String, Object> response = postToken(body);
+        String newRefresh =
+                response.get("refresh_token") instanceof String s ? s : refreshToken;
+        return new TokenResponse(accessTokenOf(response), newRefresh, expiresInOf(response));
+    }
+
+    private Map<String, Object> postToken(MultiValueMap<String, String> body) {
         Map<String, Object> response = restClient.post()
                 .uri(IMS_TOKEN_URL)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(body)
                 .retrieve()
                 .body(MAP_TYPE);
-
-        if (response == null || !response.containsKey("access_token")) {
-            throw new LightroomApiException("Token exchange failed: no access_token in response");
+        if (response == null) {
+            throw new LightroomApiException("Adobe token endpoint returned an empty response");
         }
-        return (String) response.get("access_token");
+        return response;
+    }
+
+    private static String accessTokenOf(Map<String, Object> response) {
+        if (!(response.get("access_token") instanceof String accessToken)) {
+            throw new LightroomApiException("Token response has no access_token");
+        }
+        return accessToken;
+    }
+
+    private static long expiresInOf(Map<String, Object> response) {
+        return response.get("expires_in") instanceof Number n ? n.longValue() : 0L;
     }
 
     public Map<String, Object> getCatalog(String accessToken) {
