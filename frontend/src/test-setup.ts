@@ -4,7 +4,7 @@ Object.defineProperty(HTMLMediaElement.prototype, 'play', {
   value: () => Promise.resolve(),
 });
 
-// jsdom does not implement object URLs; the rendition cache (AppComponent) creates/revokes them.
+// jsdom does not implement object URLs; the preview cache (AppComponent) creates/revokes them.
 Object.defineProperty(URL, 'createObjectURL', {
   configurable: true,
   value: () => 'blob:mock',

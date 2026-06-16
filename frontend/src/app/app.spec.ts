@@ -4,9 +4,17 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { AppComponent as App } from './app';
 import { Photo } from './photo';
 import { ReviewStore } from './storage/review-store';
+import { PreviewStore } from './storage/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+// Default no-op preview store: nothing cached on disk, so previews are fetched over HTTP.
+const previewStoreStub = {
+  get: () => Promise.resolve(undefined),
+  put: () => Promise.resolve(),
+  evictExcept: () => Promise.resolve(),
+};
 
 function photo(id: string): Photo {
   return {
@@ -27,7 +35,11 @@ describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: PreviewStore, useValue: previewStoreStub },
+      ],
     }).compileComponents();
   });
 
@@ -36,8 +48,8 @@ describe('App', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  describe('rendition prefetch', () => {
-    it('preloads the current photo plus the next 5 at 2048px when photos load', () => {
+  describe('preview prefetch', () => {
+    it('preloads the current photo plus the next 5 at 2048px when photos load', async () => {
       const fixture = TestBed.createComponent(App);
       const httpMock = TestBed.inject(HttpTestingController);
       const app = fixture.componentInstance;
@@ -48,6 +60,7 @@ describe('App', () => {
 
       // ngOnInit's auth check fires on first change detection; settle it so it isn't left dangling.
       httpMock.expectOne('api/auth/status').flush({ authenticated: false });
+      await tick(); // ensurePreview checks the durable store (async) before fetching
 
       const requests = httpMock.match((r) => isRendition(r.url));
       expect(requests.length).toBe(6); // current + PREFETCH_AHEAD (5)
@@ -55,13 +68,14 @@ describe('App', () => {
         expect(r.request.params.get('size')).toBe('2048');
         r.flush(new Blob());
       });
+      await tick();
 
-      // Once the current photo's rendition lands, the computed URL exposes it.
+      // Once the current photo's preview lands, the computed URL exposes it.
       expect(app.currentReviewPhotoUrl()).not.toBeNull();
       httpMock.verify();
     });
 
-    it('evicts renditions that fall behind the window so revisiting refetches', () => {
+    it('evicts previews that fall behind the window so revisiting refetches', async () => {
       const fixture = TestBed.createComponent(App);
       const httpMock = TestBed.inject(HttpTestingController);
       const app = fixture.componentInstance;
@@ -70,16 +84,21 @@ describe('App', () => {
       app.photosLoaded.set(true);
       fixture.detectChanges();
       httpMock.expectOne('api/auth/status').flush({ authenticated: false });
+      await tick();
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob())); // p0..p5
+      await tick();
 
       // Advance one: p6 enters the window, p0 falls behind and is evicted.
       app.reviewIndex.set(1);
       fixture.detectChanges();
+      await tick();
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob())); // just p6
+      await tick();
 
       // Returning to p0 refetches it (only it — p1..p5 are still cached).
       app.reviewIndex.set(0);
       fixture.detectChanges();
+      await tick();
       const refetch = httpMock.match((r) => isRendition(r.url));
       expect(refetch.length).toBe(1);
       expect(refetch[0].request.url).toContain('p0');
@@ -87,7 +106,7 @@ describe('App', () => {
       httpMock.verify();
     });
 
-    it('does not refetch a rendition that is already cached', () => {
+    it('does not refetch a preview that is already cached', async () => {
       const fixture = TestBed.createComponent(App);
       const httpMock = TestBed.inject(HttpTestingController);
       const app = fixture.componentInstance;
@@ -96,17 +115,52 @@ describe('App', () => {
       app.photosLoaded.set(true);
       fixture.detectChanges();
       httpMock.expectOne('api/auth/status').flush({ authenticated: false });
+      await tick();
 
       // current + 1 ahead = both photos.
       const initial = httpMock.match((r) => isRendition(r.url));
       expect(initial.length).toBe(2);
       initial.forEach((r) => r.flush(new Blob()));
+      await tick();
 
       // Advancing onto the already-cached p1 issues no new request.
       app.reviewIndex.set(1);
       fixture.detectChanges();
+      await tick();
 
       httpMock.expectNone((r) => isRendition(r.url));
+      httpMock.verify();
+    });
+  });
+
+  describe('durable preview cache', () => {
+    it('uses a preview already on disk instead of re-fetching it', async () => {
+      TestBed.overrideProvider(PreviewStore, {
+        useValue: {
+          get: (assetId: string) =>
+            Promise.resolve(assetId === 'p0' ? new Blob(['cached']) : undefined),
+          put: () => Promise.resolve(),
+          evictExcept: () => Promise.resolve(),
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+      const app = fixture.componentInstance;
+
+      app.reviewPhotos.set([photo('p0'), photo('p1')]);
+      app.photosLoaded.set(true);
+      fixture.detectChanges();
+      httpMock.expectOne('api/auth/status').flush({ authenticated: false });
+      await tick();
+
+      // p0 is on disk → no fetch; p1 is not → fetched.
+      const requests = httpMock.match((r) => isRendition(r.url));
+      expect(requests.map((r) => r.request.url)).toEqual(['api/photos/p1/rendition']);
+      requests.forEach((r) => r.flush(new Blob()));
+      await tick();
+
+      // p0's cached blob is exposed as the current image with no network.
+      expect(app.currentReviewPhotoUrl()).not.toBeNull();
       httpMock.verify();
     });
   });
@@ -170,7 +224,7 @@ describe('App', () => {
       expect(app.reviewPhotos().find((p) => p.id === 'p1')?.status).toBe('kept');
       expect(app.reviewPhotos().find((p) => p.id === 'p2')?.status).toBe('backlog');
 
-      // Drain any rendition prefetch the load kicked off.
+      // Drain any preview prefetch the load kicked off.
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
       httpMock.verify();
     });
