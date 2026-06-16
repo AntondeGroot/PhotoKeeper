@@ -35,6 +35,15 @@ interface CachedRendition {
   safeUrl: SafeUrl;
 }
 
+// Local-date key (YYYY-MM-DD) used to scope the daily selection — local so it doesn't flip a day
+// early/late at UTC midnight.
+function todayKey(): string {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
 @Component({
   selector: 'app-root',
   imports: [
@@ -213,16 +222,28 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private async loadPhotos(): Promise<void> {
     try {
-      const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), 20));
-      const resources = data?.resources ?? [];
-      const photos = resources
-        .filter((a) => a.subtype === 'image')
-        .map((a) => this.assetToPhoto(a));
+      // Reuse today's already-chosen selection if we have one; otherwise sample a fresh feed and
+      // store it, so the same photos come back across reloads instead of re-randomizing.
+      const today = todayKey();
+      let photos = await this.reviewStore.getDailyFeed(today);
+      if (!photos) {
+        const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), 20));
+        photos = (data?.resources ?? [])
+          .filter((a) => a.subtype === 'image')
+          .map((a) => this.assetToPhoto(a));
+        if (photos.length > 0) {
+          await this.reviewStore.setDailyFeed(today, photos);
+        }
+      }
       if (photos.length > 0) {
-        // Re-apply any previously stored verdicts so swipes survive a reload.
+        // Overlay stored verdicts so in-progress swipes survive a reload.
         const verdicts = await this.reviewStore.getVerdicts();
-        this.reviewPhotos.set(photos.map((p) => this.applyVerdict(p, verdicts.get(p.id))));
-        this.reviewIndex.set(0);
+        const withVerdicts = photos.map((p) => this.applyVerdict(p, verdicts.get(p.id)));
+        this.reviewPhotos.set(withVerdicts);
+        // Resume at the first un-reviewed photo, so a reload continues where you left off instead of
+        // re-showing photos you already decided. (Done ones stay in the set for the progress count.)
+        const firstUndone = withVerdicts.findIndex((p) => p.status === 'backlog');
+        this.reviewIndex.set(firstUndone === -1 ? 0 : firstUndone);
         this.photosLoaded.set(true);
       }
     } catch (e: unknown) {
