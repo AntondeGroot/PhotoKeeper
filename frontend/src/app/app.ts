@@ -13,6 +13,7 @@ import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom, timeout } from 'rxjs';
 import { Album, LightroomService, PhotoAsset } from './lightroom.service';
 import { ReviewStore } from './storage/review-store';
+import { PreviewStore } from './storage/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
 import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
@@ -28,9 +29,12 @@ import { AlbumManagerComponent } from './album-manager/album-manager';
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
 
-// A cached rendition keeps both the raw object URL (so it can be revoked on eviction) and the
+// Preview size requested + cached (Lightroom 2048px preview).
+const PREVIEW_SIZE = '2048';
+
+// A cached preview keeps both the raw object URL (so it can be revoked on eviction) and the
 // sanitized SafeUrl (stable reference, so re-reads don't re-trigger the <img> binding).
-interface CachedRendition {
+interface CachedPreview {
   objectUrl: string;
   safeUrl: SafeUrl;
 }
@@ -65,6 +69,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly reviewStore = inject(ReviewStore);
+  private readonly previewStore = inject(PreviewStore);
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
@@ -90,14 +95,14 @@ export class AppComponent implements OnInit, OnDestroy {
   reviewPhotos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO]);
   photosLoaded = signal(false);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
-  // Cache of fetched 2048px renditions (assetId → rendition), filled ahead of the cursor so
+  // Cache of fetched 2048px previews (assetId → preview), filled ahead of the cursor so
   // navigating never waits, and evicted once a photo falls behind the window. currentReviewPhotoUrl
   // simply reads the current photo's entry.
-  private readonly renditionCache = signal<Map<string, CachedRendition>>(new Map());
+  private readonly previewCache = signal<Map<string, CachedPreview>>(new Map());
   currentReviewPhotoUrl = computed(() => {
     const current = this.currentReviewPhoto();
     return current?.kind === 'photo'
-      ? (this.renditionCache().get(current.id)?.safeUrl ?? null)
+      ? (this.previewCache().get(current.id)?.safeUrl ?? null)
       : null;
   });
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
@@ -121,7 +126,7 @@ export class AppComponent implements OnInit, OnDestroy {
   );
   toEditByAlbum = computed(() => this.groupByAlbum(this.toEditQueue()));
   toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
-  // Asset ids whose rendition is mid-flight, so we never fire a duplicate request.
+  // Asset ids whose preview is mid-flight, so we never fire a duplicate request.
   private readonly inFlight = new Set<string>();
 
   constructor() {
@@ -134,7 +139,7 @@ export class AppComponent implements OnInit, OnDestroy {
       localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
     });
 
-    // Keep the current photo's rendition plus the next PREFETCH_AHEAD ones loaded, so swiping never
+    // Keep the current photo's preview plus the next PREFETCH_AHEAD ones loaded, so swiping never
     // waits, and evict anything outside that window (we only ever move forward). Guarded by
     // photosLoaded so the mock fallback (whose ids aren't real assets) is skipped.
     effect(() => {
@@ -146,7 +151,7 @@ export class AppComponent implements OnInit, OnDestroy {
         const item = photos[start + i];
         if (item?.kind === 'photo') {
           windowIds.add(item.id);
-          this.ensureRendition(item.id);
+          void this.ensurePreview(item.id);
         }
       }
       this.evictOutsideWindow(windowIds);
@@ -245,6 +250,8 @@ export class AppComponent implements OnInit, OnDestroy {
         const firstUndone = withVerdicts.findIndex((p) => p.status === 'backlog');
         this.reviewIndex.set(firstUndone === -1 ? 0 : firstUndone);
         this.photosLoaded.set(true);
+        // Drop cached previews from earlier days; keep only today's selection on disk.
+        void this.previewStore.evictExcept(new Set(withVerdicts.map((p) => p.id)));
       }
     } catch (e: unknown) {
       this.error.set(
@@ -273,52 +280,56 @@ export class AppComponent implements OnInit, OnDestroy {
     };
   }
 
-  // Fetches a photo's 2048px rendition into the cache once. Idempotent: skips ids already cached or
-  // in flight. The cache read is untracked so the prefetch effect doesn't re-run on every load.
-  private ensureRendition(assetId: string): void {
+  // Makes a photo's preview available in the in-memory window cache. Idempotent (skips ids already
+  // cached or in flight). Reads the durable IndexedDB store first — so on a reload the image is
+  // already there with no network — and only fetches + stores it when it's genuinely missing. The
+  // cache read is untracked so the prefetch effect doesn't re-run on every load.
+  private async ensurePreview(assetId: string): Promise<void> {
     const alreadyHave = untracked(
-      () => this.renditionCache().has(assetId) || this.inFlight.has(assetId),
+      () => this.previewCache().has(assetId) || this.inFlight.has(assetId),
     );
     if (alreadyHave) return;
 
     this.inFlight.add(assetId);
-    this.svc.getPhotoBlob(assetId, '2048').subscribe({
-      next: (blob) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const safeUrl = this.sanitizer.bypassSecurityTrustUrl(objectUrl);
-        this.renditionCache.update((cache) => new Map(cache).set(assetId, { objectUrl, safeUrl }));
-        this.inFlight.delete(assetId);
-      },
-      error: () => {
-        // Leave the gradient placeholder if the rendition can't be fetched.
-        this.inFlight.delete(assetId);
-      },
-    });
+    try {
+      let blob = await this.previewStore.get(assetId, PREVIEW_SIZE);
+      if (!blob) {
+        blob = await firstValueFrom(this.svc.getPhotoBlob(assetId, PREVIEW_SIZE));
+        await this.previewStore.put(assetId, PREVIEW_SIZE, blob);
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      const safeUrl = this.sanitizer.bypassSecurityTrustUrl(objectUrl);
+      this.previewCache.update((cache) => new Map(cache).set(assetId, { objectUrl, safeUrl }));
+    } catch {
+      // Leave the gradient placeholder if the preview can't be fetched.
+    } finally {
+      this.inFlight.delete(assetId);
+    }
   }
 
-  // Drops cached renditions outside the current window, revoking their object URLs so memory doesn't
+  // Drops cached previews outside the current window, revoking their object URLs so memory doesn't
   // grow without bound. (Read untracked so this never re-triggers the prefetch effect.)
   private evictOutsideWindow(keep: Set<string>): void {
-    const cache = untracked(() => this.renditionCache());
+    const cache = untracked(() => this.previewCache());
     const next = new Map(cache);
     let changed = false;
-    for (const [id, rendition] of cache) {
+    for (const [id, preview] of cache) {
       if (!keep.has(id)) {
-        URL.revokeObjectURL(rendition.objectUrl);
+        URL.revokeObjectURL(preview.objectUrl);
         next.delete(id);
         changed = true;
       }
     }
     if (changed) {
-      this.renditionCache.set(next);
+      this.previewCache.set(next);
     }
   }
 
-  private revokeAllRenditions(): void {
-    for (const rendition of this.renditionCache().values()) {
-      URL.revokeObjectURL(rendition.objectUrl);
+  private revokeAllPreviews(): void {
+    for (const preview of this.previewCache().values()) {
+      URL.revokeObjectURL(preview.objectUrl);
     }
-    this.renditionCache.set(new Map());
+    this.previewCache.set(new Map());
   }
 
   prevReviewPhoto(): void {
@@ -444,11 +455,11 @@ export class AppComponent implements OnInit, OnDestroy {
     this.svc.clearAuthToken();
     this.authenticated.set(false);
     this.photosLoaded.set(false);
-    this.revokeAllRenditions();
+    this.revokeAllPreviews();
     this.inFlight.clear();
   }
 
   ngOnDestroy(): void {
-    this.revokeAllRenditions();
+    this.revokeAllPreviews();
   }
 }

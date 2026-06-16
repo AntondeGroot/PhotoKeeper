@@ -16,13 +16,13 @@ export type AlbumTag = 'vacation';
 
 /**
  * On-device IndexedDB schema. Object stores use out-of-line keys (the key is passed explicitly):
- * - renditions: `${assetId}:${size}` → image blob
- * - verdicts:   assetId → review outcome
- * - dailyFeed:  'YYYY-MM-DD' → the ordered photos chosen for that day (verdicts overlay on load)
- * - albumTags:  albumId → tag
+ * - previews:  `${assetId}:${size}` → preview image blob
+ * - verdicts:  assetId → review outcome
+ * - dailyFeed: 'YYYY-MM-DD' → the ordered photos chosen for that day (verdicts overlay on load)
+ * - albumTags: albumId → tag
  */
 export interface PhotoKeeperSchema extends DBSchema {
-  renditions: { key: string; value: Blob };
+  previews: { key: string; value: Blob };
   verdicts: { key: string; value: StoredVerdict };
   dailyFeed: { key: string; value: Photo[] };
   albumTags: { key: string; value: AlbumTag };
@@ -34,12 +34,15 @@ export class PhotoKeeperDb {
   private dbPromise: Promise<IDBPDatabase<PhotoKeeperSchema>> | null = null;
 
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 1, {
+    // v2 renamed the 'renditions' store to 'previews'. Create-if-missing so existing dev databases
+    // keep their verdicts/dailyFeed/albumTags while the (cache-only) preview store is swapped in.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 2, {
       upgrade(db) {
-        db.createObjectStore('renditions');
-        db.createObjectStore('verdicts');
-        db.createObjectStore('dailyFeed');
-        db.createObjectStore('albumTags');
+        for (const store of ['previews', 'verdicts', 'dailyFeed', 'albumTags'] as const) {
+          if (!db.objectStoreNames.contains(store)) {
+            db.createObjectStore(store);
+          }
+        }
       },
     });
     return this.dbPromise;
