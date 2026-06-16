@@ -3,6 +3,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AppComponent as App } from './app';
 import { Photo } from './photo';
+import { ReviewStore } from './storage/review-store';
+import { StoredVerdict } from './storage/photokeeper-db';
+
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function photo(id: string): Photo {
   return {
@@ -103,6 +107,69 @@ describe('App', () => {
       fixture.detectChanges();
 
       httpMock.expectNone((r) => isRendition(r.url));
+      httpMock.verify();
+    });
+  });
+
+  describe('verdict persistence', () => {
+    it('saves the verdict to the review store when a photo is decided', () => {
+      const saved: { id: string; verdict: StoredVerdict }[] = [];
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: (id: string, verdict: StoredVerdict) => {
+            saved.push({ id, verdict });
+            return Promise.resolve();
+          },
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.reviewPhotos.set([photo('p0')]);
+
+      app.decide('kept');
+
+      expect(saved).toEqual([
+        { id: 'p0', verdict: { status: 'kept', starred: false, keepsake: false } },
+      ]);
+    });
+
+    it('re-applies stored verdicts onto freshly loaded photos', async () => {
+      const stored = new Map<string, StoredVerdict>([
+        ['p1', { status: 'kept', starred: true, keepsake: false }],
+      ]);
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(stored),
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+      const app = fixture.componentInstance;
+
+      fixture.detectChanges(); // ngOnInit → init()
+      httpMock.expectOne('api/auth/status').flush({ authenticated: true });
+      await tick();
+
+      httpMock
+        .expectOne((r) => r.url === 'api/feed')
+        .flush({
+          resources: [
+            { id: 'p1', subtype: 'image' },
+            { id: 'p2', subtype: 'image' },
+          ],
+        });
+      await tick();
+
+      httpMock.expectOne('api/albums').flush([]);
+      await tick();
+
+      expect(app.reviewPhotos().find((p) => p.id === 'p1')?.status).toBe('kept');
+      expect(app.reviewPhotos().find((p) => p.id === 'p2')?.status).toBe('backlog');
+
+      // Drain any rendition prefetch the load kicked off.
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
       httpMock.verify();
     });
   });
