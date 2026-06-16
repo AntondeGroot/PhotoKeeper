@@ -45,6 +45,18 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void upstream401MapsToUnauthorizedSoTheDeviceRefreshes() {
+        RestClientResponseException upstream = new RestClientResponseException(
+                "expired", HttpStatus.UNAUTHORIZED, "Unauthorized", null,
+                "token expired".getBytes(StandardCharsets.UTF_8), null);
+
+        ResponseEntity<?> response = handler.handleUpstreamError(upstream);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).isEqualTo(Map.of("error", "Upstream rejected the access token"));
+    }
+
+    @Test
     void genericExceptionMapsToInternalServerError() {
         ResponseEntity<?> response = handler.handleGeneric(new IllegalStateException("boom"));
 
