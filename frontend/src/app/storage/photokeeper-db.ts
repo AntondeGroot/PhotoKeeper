@@ -20,6 +20,16 @@ export interface AssetFingerprint {
   updated: string;
 }
 
+/** Kinds of detected group. Only `burst` is produced today; pano/stereo await their detectors. */
+export type GroupType = 'burst' | 'pano' | 'stereo';
+
+/** A detected cluster of assets, ready to hydrate into a `ReviewItem` for group-aware selection. */
+export interface DetectedGroup {
+  type: GroupType;
+  sourceAlbumId: string;
+  memberIds: string[];
+}
+
 /**
  * A snapshot of an album's asset population, written after each detection scan. The change-gate
  * hashes the current population and compares it against this; on a mismatch it diffs the fingerprint
@@ -39,6 +49,7 @@ export interface AlbumManifest {
  * - albumTags: albumId → tag
  * - assetHash: assetId → perceptual hash (hex), for burst/near-duplicate detection
  * - albumManifest: albumId → population fingerprint, the detection change-gate
+ * - groups: groupId → a detected cluster (burst/pano/stereo) for group-aware selection
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -47,6 +58,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   albumTags: { key: string; value: AlbumTag };
   assetHash: { key: string; value: string };
   albumManifest: { key: string; value: AlbumManifest };
+  groups: { key: string; value: DetectedGroup };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -56,8 +68,8 @@ export class PhotoKeeperDb {
 
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
     // v2 renamed the 'renditions' store to 'previews'; v3 added 'assetHash'; v4 added
-    // 'albumManifest'. Create-if-missing so existing dev databases keep their data as stores are added.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 4, {
+    // 'albumManifest'; v5 added 'groups'. Create-if-missing so existing dev databases keep their data.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 5, {
       upgrade(db) {
         for (const store of [
           'previews',
@@ -66,6 +78,7 @@ export class PhotoKeeperDb {
           'albumTags',
           'assetHash',
           'albumManifest',
+          'groups',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);
