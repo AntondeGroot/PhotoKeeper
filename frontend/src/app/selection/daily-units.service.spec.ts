@@ -1,0 +1,77 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
+import { DailyUnitsService } from './daily-units.service';
+import { AssetMetaStore } from '../storage/asset-meta-store';
+import { GroupStore } from '../storage/group-store';
+import { Album, LightroomService } from '../lightroom.service';
+import { Burst, ReviewItem } from '../photo';
+
+const fixedRng = () => 0;
+
+const idsOf = (unit: ReviewItem): string[] =>
+  unit.kind === 'burst' ? unit.photos.map((p) => p.id) : [unit.id];
+
+describe('DailyUnitsService', () => {
+  let service: DailyUnitsService;
+  let metaStore: AssetMetaStore;
+  let groupStore: GroupStore;
+  let albums: Album[];
+
+  beforeEach(() => {
+    indexedDB = new IDBFactory(); // fresh, empty database per test
+    albums = [];
+    TestBed.configureTestingModule({
+      providers: [{ provide: LightroomService, useValue: { getAlbums: () => of(albums) } }],
+    });
+    service = TestBed.inject(DailyUnitsService);
+    metaStore = TestBed.inject(AssetMetaStore);
+    groupStore = TestBed.inject(GroupStore);
+  });
+
+  it('builds an empty queue when nothing has been scanned', async () => {
+    expect(await service.buildUnits([], 10, fixedRng)).toEqual([]);
+  });
+
+  it('assembles a detected burst and a single from stored metadata, with album names', async () => {
+    albums = [{ id: 'alb-1', name: 'Lisbon' }];
+    await metaStore.put('a1', { albumId: 'alb-1', name: 'IMG_1', taken: '2026-05-01T10:00:00Z' });
+    await metaStore.put('a2', { albumId: 'alb-1', name: 'IMG_2', taken: '2026-05-01T10:00:02Z' });
+    await metaStore.put('a3', { albumId: 'alb-1', name: 'IMG_3', taken: '2026-05-01T12:00:00Z' });
+    await groupStore.replaceForAlbum('alb-1', [
+      { type: 'burst', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] },
+    ]);
+
+    const units = await service.buildUnits([], 10, fixedRng);
+
+    expect(units).toHaveLength(2);
+    const burst = units.find((u): u is Burst => u.kind === 'burst');
+    expect(burst?.photos.map((p) => p.id)).toEqual(['a1', 'a2']);
+    expect(burst?.album).toBe('Lisbon');
+    expect(burst?.name).toBe('Burst · 2 frames');
+    const single = units.find((u) => u.kind === 'photo');
+    expect(single).toMatchObject({ id: 'a3', name: 'IMG_3', album: 'Lisbon' });
+  });
+
+  it('marks vacation albums and tolerates an album missing from the album list', async () => {
+    albums = []; // 'alb-x' is not in the (empty) album list → album name resolves to null
+    await metaStore.put('a1', { albumId: 'alb-x', name: 'IMG_1', taken: '2026-05-01T10:00:00Z' });
+
+    const [single] = await service.buildUnits(['alb-x'], 10, fixedRng);
+
+    expect(single).toMatchObject({ id: 'a1', album: null });
+  });
+
+  it('respects the limit', async () => {
+    albums = [{ id: 'alb-1', name: 'A' }];
+    for (let i = 0; i < 6; i++) {
+      await metaStore.put(`a${i}`, { albumId: 'alb-1', name: `IMG_${i}`, taken: '2026-05-01' });
+    }
+
+    const units = await service.buildUnits([], 3, fixedRng);
+
+    expect(units).toHaveLength(3);
+    expect(new Set(units.flatMap(idsOf)).size).toBe(3);
+  });
+});
