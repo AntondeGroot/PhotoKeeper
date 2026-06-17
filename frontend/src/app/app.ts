@@ -15,6 +15,8 @@ import { Album, LightroomService, PhotoAsset } from './lightroom.service';
 import { ReviewStore } from './storage/review-store';
 import { PreviewStore } from './storage/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
+import { DailyUnitsService } from './selection/daily-units.service';
+import { CatalogScanService } from './detection/catalog-scan.service';
 import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
@@ -79,6 +81,8 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly reviewStore = inject(ReviewStore);
   private readonly previewStore = inject(PreviewStore);
+  private readonly dailyUnits = inject(DailyUnitsService);
+  private readonly catalogScan = inject(CatalogScanService);
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
@@ -216,6 +220,7 @@ export class AppComponent implements OnInit, OnDestroy {
         await this.loadPhotos();
         await this.loadAlbums();
         void this.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
+        void this.runBackgroundScan(); // populate detection stores for future sessions
       } catch {
         // Token couldn't be validated/refreshed — fall back to the login screen.
         this.svc.clearTokens();
@@ -242,14 +247,11 @@ export class AppComponent implements OnInit, OnDestroy {
   private async loadPhotos(): Promise<void> {
     try {
       // Reuse today's already-chosen selection if we have one; otherwise sample a fresh feed and
-      // store it, so the same photos come back across reloads instead of re-randomizing.
+      // store it, so the same units come back across reloads instead of re-randomizing.
       const today = todayKey();
       let photos = await this.reviewStore.getDailyFeed(today);
       if (!photos) {
-        const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), 20));
-        photos = (data?.resources ?? [])
-          .filter((a) => a.subtype === 'image')
-          .map((a) => this.assetToPhoto(a));
+        photos = await this.selectDailyUnits();
         if (photos.length > 0) {
           await this.reviewStore.setDailyFeed(today, photos);
         }
@@ -280,27 +282,38 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Warm-ahead: sample tomorrow's selection and fetch its previews into the durable store now, so
+  // Chooses today's/tomorrow's review queue on-device from the scanned metadata + detected groups,
+  // so a burst arrives as one unit. Falls back to the server sample on cold start, before the first
+  // background scan has populated storage.
+  private async selectDailyUnits(): Promise<ReviewItem[]> {
+    const units = await this.dailyUnits.buildUnits(this.vacationAlbumIds(), 20);
+    if (units.length > 0) return units;
+    const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), 20));
+    return (data?.resources ?? [])
+      .filter((a) => a.subtype === 'image')
+      .map((a) => this.assetToPhoto(a));
+  }
+
+  // Warm-ahead: pick tomorrow's selection and fetch its previews into the durable store now, so
   // opening the app tomorrow needs no feed sample and no image downloads. Idempotent (skips if
   // tomorrow is already chosen) and best-effort (a failure just means tomorrow fetches live).
   private async precomputeTomorrow(): Promise<void> {
     try {
       const tomorrow = tomorrowKey();
-      let photos = await this.reviewStore.getDailyFeed(tomorrow);
-      if (!photos) {
-        const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), 20));
-        photos = (data?.resources ?? [])
-          .filter((a) => a.subtype === 'image')
-          .map((a) => this.assetToPhoto(a));
-        if (photos.length === 0) return;
-        await this.reviewStore.setDailyFeed(tomorrow, photos);
+      let units = await this.reviewStore.getDailyFeed(tomorrow);
+      if (!units) {
+        units = await this.selectDailyUnits();
+        if (units.length === 0) return;
+        await this.reviewStore.setDailyFeed(tomorrow, units);
       }
-      // Fetch previews one at a time — this is background work, no need to flood the network.
-      for (const p of photos) {
-        if (await this.previewStore.get(p.id, PREVIEW_SIZE)) continue;
+      // Fetch previews one at a time — background work, no need to flood the network. Only single
+      // photos need a warmed preview; burst cards render from their member data.
+      for (const unit of units) {
+        if (unit.kind !== 'photo') continue;
+        if (await this.previewStore.get(unit.id, PREVIEW_SIZE)) continue;
         try {
-          const blob = await firstValueFrom(this.svc.getPhotoBlob(p.id, PREVIEW_SIZE));
-          await this.previewStore.put(p.id, PREVIEW_SIZE, blob);
+          const blob = await firstValueFrom(this.svc.getPhotoBlob(unit.id, PREVIEW_SIZE));
+          await this.previewStore.put(unit.id, PREVIEW_SIZE, blob);
         } catch {
           // Leave it; tomorrow's session will fetch this preview on demand.
         }
@@ -310,10 +323,22 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  private applyVerdict(photo: Photo, verdict: StoredVerdict | undefined): Photo {
-    return verdict
-      ? { ...photo, status: verdict.status, starred: verdict.starred, keepsake: verdict.keepsake }
-      : photo;
+  // Background detection pass: scans albums for bursts (gated + budgeted), populating the metadata
+  // and group stores that selectDailyUnits reads next session. Best-effort; never blocks the UI.
+  private async runBackgroundScan(): Promise<void> {
+    try {
+      await this.catalogScan.scanAllAlbums();
+    } catch {
+      // Background work; a failure just means the next session falls back to the server sample.
+    }
+  }
+
+  private applyVerdict(item: ReviewItem, verdict: StoredVerdict | undefined): ReviewItem {
+    if (!verdict) return item;
+    // starred/keepsake only exist on single photos; groups carry just a status.
+    return item.kind === 'photo'
+      ? { ...item, status: verdict.status, starred: verdict.starred, keepsake: verdict.keepsake }
+      : { ...item, status: verdict.status };
   }
 
   private assetToPhoto(asset: PhotoAsset): Photo {

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { DBSchema, IDBPDatabase, openDB } from 'idb';
-import { Photo } from '../photo';
+import { Photo, ReviewItem } from '../photo';
 
 export type ReviewStatus = Photo['status'];
 
@@ -56,7 +56,7 @@ export interface AlbumManifest {
  * On-device IndexedDB schema. Object stores use out-of-line keys (the key is passed explicitly):
  * - previews:  `${assetId}:${size}` → preview image blob
  * - verdicts:  assetId → review outcome
- * - dailyFeed: 'YYYY-MM-DD' → the ordered photos chosen for that day (verdicts overlay on load)
+ * - dailyFeed: 'YYYY-MM-DD' → the ordered review units chosen for that day (verdicts overlay on load)
  * - albumTags: albumId → tag
  * - assetHash: assetId → perceptual hash (hex), for burst/near-duplicate detection
  * - albumManifest: albumId → population fingerprint, the detection change-gate
@@ -66,7 +66,7 @@ export interface AlbumManifest {
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
   verdicts: { key: string; value: StoredVerdict };
-  dailyFeed: { key: string; value: Photo[] };
+  dailyFeed: { key: string; value: ReviewItem[] };
   albumTags: { key: string; value: AlbumTag };
   assetHash: { key: string; value: string };
   albumManifest: { key: string; value: AlbumManifest };

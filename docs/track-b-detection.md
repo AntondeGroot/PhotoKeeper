@@ -168,9 +168,11 @@ Pi-nightly. Where *selection* runs is now settled: on-device.)
     (`selection/daily-units.service.ts`) reads `assetMeta` + `groups` from IndexedDB, buckets them by
     album (names from the cheap `getAlbums`, vacation flags passed in), and runs `selectUnits` — a
     pure on-device read, no album-list re-fetch.
-  - Still to wire: `app.ts` — swap server `getFeed` for `buildUnits`, persist a `ReviewItem[]` daily
-    feed, overlay verdicts on units, and fall back to `getFeed` for cold start before the first scan
-    has populated storage.
+  - `app.ts` wiring ✅ done — `loadPhotos`/`precomputeTomorrow` now build the queue via
+    `DailyUnitsService.buildUnits` (server `getFeed` only as the cold-start fallback before the first
+    scan); the `dailyFeed` store holds `ReviewItem[]`; the verdict overlay is unit-aware; and an
+    opportunistic `CatalogScanService.scanAllAlbums()` runs in the background after load to populate
+    detection storage for next session. **Slice 4 complete** for the burst path.
 
 The earlier "hash today's queue" idea is dropped.
 
