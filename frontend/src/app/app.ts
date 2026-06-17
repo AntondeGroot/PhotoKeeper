@@ -41,11 +41,20 @@ interface CachedPreview {
 
 // Local-date key (YYYY-MM-DD) used to scope the daily selection — local so it doesn't flip a day
 // early/late at UTC midnight.
-function todayKey(): string {
-  const d = new Date();
+function dateKey(d: Date): string {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${d.getFullYear()}-${month}-${day}`;
+}
+
+function todayKey(): string {
+  return dateKey(new Date());
+}
+
+function tomorrowKey(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return dateKey(d);
 }
 
 @Component({
@@ -206,6 +215,7 @@ export class AppComponent implements OnInit, OnDestroy {
         this.authenticated.set(true);
         await this.loadPhotos();
         await this.loadAlbums();
+        void this.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
       } catch {
         // Token couldn't be validated/refreshed — fall back to the login screen.
         this.svc.clearTokens();
@@ -254,13 +264,47 @@ export class AppComponent implements OnInit, OnDestroy {
         const firstUndone = withVerdicts.findIndex((p) => p.status === 'backlog');
         this.reviewIndex.set(firstUndone === -1 ? 0 : firstUndone);
         this.photosLoaded.set(true);
-        // Drop cached previews from earlier days; keep only today's selection on disk.
-        void this.previewStore.evictExcept(new Set(withVerdicts.map((p) => p.id)));
+        // Drop cached previews from earlier days, but keep today's selection AND tomorrow's
+        // precomputed selection — otherwise we'd evict the previews precomputeTomorrow warmed ahead.
+        const keep = new Set(withVerdicts.map((p) => p.id));
+        const tomorrow = await this.reviewStore.getDailyFeed(tomorrowKey());
+        tomorrow?.forEach((p) => keep.add(p.id));
+        void this.previewStore.evictExcept(keep);
       }
     } catch (e: unknown) {
       this.error.set(
         'Could not load photos: ' + (e instanceof Error ? e.message : 'unknown error'),
       );
+    }
+  }
+
+  // Warm-ahead: sample tomorrow's selection and fetch its previews into the durable store now, so
+  // opening the app tomorrow needs no feed sample and no image downloads. Idempotent (skips if
+  // tomorrow is already chosen) and best-effort (a failure just means tomorrow fetches live).
+  private async precomputeTomorrow(): Promise<void> {
+    try {
+      const tomorrow = tomorrowKey();
+      let photos = await this.reviewStore.getDailyFeed(tomorrow);
+      if (!photos) {
+        const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), 20));
+        photos = (data?.resources ?? [])
+          .filter((a) => a.subtype === 'image')
+          .map((a) => this.assetToPhoto(a));
+        if (photos.length === 0) return;
+        await this.reviewStore.setDailyFeed(tomorrow, photos);
+      }
+      // Fetch previews one at a time — this is background work, no need to flood the network.
+      for (const p of photos) {
+        if (await this.previewStore.get(p.id, PREVIEW_SIZE)) continue;
+        try {
+          const blob = await firstValueFrom(this.svc.getPhotoBlob(p.id, PREVIEW_SIZE));
+          await this.previewStore.put(p.id, PREVIEW_SIZE, blob);
+        } catch {
+          // Leave it; tomorrow's session will fetch this preview on demand.
+        }
+      }
+    } catch {
+      // Precompute is best-effort; never surface an error to the user.
     }
   }
 
