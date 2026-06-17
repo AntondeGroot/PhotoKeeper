@@ -5,6 +5,8 @@ import angular from 'angular-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
 
 export default tseslint.config(
+  // Build/report output — ESLint flat config doesn't read .gitignore, so ignore these explicitly.
+  { ignores: ['dist/', 'coverage/'] },
   {
     files: ['**/*.ts'],
     extends: [

@@ -14,6 +14,23 @@ export interface StoredVerdict {
 /** How an album is classified. Room to grow (e.g. 'stereo') alongside 'vacation'. */
 export type AlbumTag = 'vacation';
 
+/** One asset's identity for change detection: its id plus the Lightroom `updated` revision stamp. */
+export interface AssetFingerprint {
+  id: string;
+  updated: string;
+}
+
+/**
+ * A snapshot of an album's asset population, written after each detection scan. The change-gate
+ * hashes the current population and compares it against this; on a mismatch it diffs the fingerprint
+ * lists to find exactly which assets were added/removed/changed, so only those get re-hashed.
+ */
+export interface AlbumManifest {
+  hash: string; // hash over the sorted id+updated fingerprints; a quick "did anything change?" check
+  fingerprints: AssetFingerprint[]; // sorted by id, for diffing when the hash differs
+  computedAt: number; // epoch ms of the scan that produced this manifest
+}
+
 /**
  * On-device IndexedDB schema. Object stores use out-of-line keys (the key is passed explicitly):
  * - previews:  `${assetId}:${size}` → preview image blob
@@ -21,6 +38,7 @@ export type AlbumTag = 'vacation';
  * - dailyFeed: 'YYYY-MM-DD' → the ordered photos chosen for that day (verdicts overlay on load)
  * - albumTags: albumId → tag
  * - assetHash: assetId → perceptual hash (hex), for burst/near-duplicate detection
+ * - albumManifest: albumId → population fingerprint, the detection change-gate
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -28,6 +46,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   dailyFeed: { key: string; value: Photo[] };
   albumTags: { key: string; value: AlbumTag };
   assetHash: { key: string; value: string };
+  albumManifest: { key: string; value: AlbumManifest };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -36,9 +55,9 @@ export class PhotoKeeperDb {
   private dbPromise: Promise<IDBPDatabase<PhotoKeeperSchema>> | null = null;
 
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
-    // v2 renamed the 'renditions' store to 'previews'; v3 added 'assetHash'. Create-if-missing so
-    // existing dev databases keep their verdicts/dailyFeed/albumTags as new stores are added.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 3, {
+    // v2 renamed the 'renditions' store to 'previews'; v3 added 'assetHash'; v4 added
+    // 'albumManifest'. Create-if-missing so existing dev databases keep their data as stores are added.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 4, {
       upgrade(db) {
         for (const store of [
           'previews',
@@ -46,6 +65,7 @@ export class PhotoKeeperDb {
           'dailyFeed',
           'albumTags',
           'assetHash',
+          'albumManifest',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);
