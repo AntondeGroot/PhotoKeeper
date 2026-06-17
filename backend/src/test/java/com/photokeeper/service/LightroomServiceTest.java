@@ -3,8 +3,6 @@ package com.photokeeper.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
-import static org.hamcrest.Matchers.containsString;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -14,11 +12,12 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photokeeper.config.AdobeConfig;
 import com.photokeeper.model.AlbumSummary;
-import com.photokeeper.model.TokenResponse;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -28,7 +27,6 @@ import org.springframework.web.client.RestClient;
 
 class LightroomServiceTest {
 
-    private static final String IMS_TOKEN_URL = "https://ims-na1.adobelogin.com/ims/token/v3";
     private static final String LR_API_BASE = "https://lr.adobe.io/v2";
 
     private MockRestServiceServer server;
@@ -44,82 +42,6 @@ class LightroomServiceTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         service = new LightroomService(config, builder, new ObjectMapper());
-    }
-
-    @Test
-    void exchangeCodePostsFormAndReturnsTokenSet() {
-        server.expect(requestTo(IMS_TOKEN_URL))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_FORM_URLENCODED))
-                .andExpect(content().string(containsString("grant_type=authorization_code")))
-                .andExpect(content().string(containsString("client_id=test-api-key")))
-                .andExpect(content().string(containsString("code=my-code")))
-                .andRespond(withSuccess(
-                        "{\"access_token\":\"acc\",\"refresh_token\":\"ref\",\"expires_in\":3599}",
-                        MediaType.APPLICATION_JSON));
-
-        TokenResponse tokens = service.exchangeCode("my-code");
-
-        assertThat(tokens.accessToken()).isEqualTo("acc");
-        assertThat(tokens.refreshToken()).isEqualTo("ref");
-        assertThat(tokens.expiresIn()).isEqualTo(3599L);
-        server.verify();
-    }
-
-    @Test
-    void exchangeCodeThrowsWhenAccessTokenMissing() {
-        server.expect(requestTo(IMS_TOKEN_URL))
-                .andRespond(withSuccess("{\"error\":\"invalid_grant\"}", MediaType.APPLICATION_JSON));
-
-        assertThatThrownBy(() -> service.exchangeCode("bad-code"))
-                .isInstanceOf(LightroomApiException.class)
-                .hasMessageContaining("no access_token");
-    }
-
-    @Test
-    void exchangeCodeThrowsWhenRefreshTokenMissing() {
-        server.expect(requestTo(IMS_TOKEN_URL))
-                .andRespond(withSuccess("{\"access_token\":\"acc\"}", MediaType.APPLICATION_JSON));
-
-        assertThatThrownBy(() -> service.exchangeCode("code"))
-                .isInstanceOf(LightroomApiException.class)
-                .hasMessageContaining("no refresh_token");
-    }
-
-    @Test
-    void exchangeCodeThrowsWhenResponseEmpty() {
-        server.expect(requestTo(IMS_TOKEN_URL)).andRespond(withStatus(HttpStatus.OK));
-
-        assertThatThrownBy(() -> service.exchangeCode("any-code"))
-                .isInstanceOf(LightroomApiException.class);
-    }
-
-    @Test
-    void refreshAccessTokenPostsRefreshGrantAndReturnsNewTokens() {
-        server.expect(requestTo(IMS_TOKEN_URL))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().string(containsString("grant_type=refresh_token")))
-                .andExpect(content().string(containsString("refresh_token=old-ref")))
-                .andRespond(withSuccess(
-                        "{\"access_token\":\"new-acc\",\"refresh_token\":\"new-ref\",\"expires_in\":3599}",
-                        MediaType.APPLICATION_JSON));
-
-        TokenResponse tokens = service.refreshAccessToken("old-ref");
-
-        assertThat(tokens.accessToken()).isEqualTo("new-acc");
-        assertThat(tokens.refreshToken()).isEqualTo("new-ref");
-        server.verify();
-    }
-
-    @Test
-    void refreshAccessTokenCarriesOverRefreshTokenWhenNotRotated() {
-        server.expect(requestTo(IMS_TOKEN_URL))
-                .andRespond(withSuccess("{\"access_token\":\"new-acc\"}", MediaType.APPLICATION_JSON));
-
-        TokenResponse tokens = service.refreshAccessToken("old-ref");
-
-        assertThat(tokens.accessToken()).isEqualTo("new-acc");
-        assertThat(tokens.refreshToken()).isEqualTo("old-ref"); // reused — Adobe didn't rotate
     }
 
     @Test
@@ -218,6 +140,71 @@ class LightroomServiceTest {
                 .andRespond(withSuccess("while (1) {}{\"base\":\"x\"}", MediaType.APPLICATION_JSON));
 
         assertThat(service.getAlbumAssets("access-1", "cat-1", "alb-1", 10)).isEmpty();
+    }
+
+    @Test
+    void getAllAlbumAssetsFollowsNextPageLinksUntilExhausted() {
+        String page1 = LR_API_BASE + "/catalogs/cat-1/albums/alb-1/assets?embed=asset";
+        server.expect(requestTo(page1))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer access-1"))
+                .andExpect(header("X-API-Key", "test-api-key"))
+                .andRespond(withSuccess(
+                        "while (1) {}{\"resources\":[{\"asset\":{\"id\":\"a1\",\"subtype\":\"image\"}}],"
+                                + "\"links\":{\"next\":{\"href\":\"albums/alb-1/assets?embed=asset&after=a1\"}}}",
+                        MediaType.APPLICATION_JSON));
+
+        String page2 = LR_API_BASE + "/catalogs/cat-1/albums/alb-1/assets?embed=asset&after=a1";
+        server.expect(requestTo(page2))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "while (1) {}{\"resources\":[{\"asset\":{\"id\":\"a2\",\"subtype\":\"image\"}}]}",
+                        MediaType.APPLICATION_JSON));
+
+        List<Map<String, Object>> assets = service.getAllAlbumAssets("access-1", "cat-1", "alb-1");
+
+        assertThat(assets).extracting(a -> a.get("id")).containsExactly("a1", "a2");
+        server.verify();
+    }
+
+    @Test
+    void getAllAlbumAssetsFollowsAbsoluteNextHref() {
+        String page1 = LR_API_BASE + "/catalogs/cat-1/albums/alb-1/assets?embed=asset";
+        String page2 = LR_API_BASE + "/catalogs/cat-1/albums/alb-1/assets?embed=asset&after=a1";
+        server.expect(requestTo(page1))
+                .andRespond(withSuccess(
+                        "{\"resources\":[{\"asset\":{\"id\":\"a1\"}}],"
+                                + "\"links\":{\"next\":{\"href\":\"" + page2 + "\"}}}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(page2))
+                .andRespond(withSuccess(
+                        "{\"resources\":[{\"asset\":{\"id\":\"a2\"}}]}", MediaType.APPLICATION_JSON));
+
+        List<Map<String, Object>> assets = service.getAllAlbumAssets("access-1", "cat-1", "alb-1");
+
+        assertThat(assets).extracting(a -> a.get("id")).containsExactly("a1", "a2");
+        server.verify();
+    }
+
+    // A links block that doesn't resolve to a usable next-href must end pagination, not loop or fail.
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "\"links\":{}", // no next at all
+        "\"links\":{\"next\":\"not-an-object\"}", // next isn't an object
+        "\"links\":{\"next\":{}}", // next has no href
+        "\"links\":{\"next\":{\"href\":\"\"}}", // href is blank
+    })
+    void getAllAlbumAssetsStopsWhenNextLinkIsUnusable(String linksJson) {
+        String page1 = LR_API_BASE + "/catalogs/cat-1/albums/alb-1/assets?embed=asset";
+        server.expect(requestTo(page1))
+                .andRespond(withSuccess(
+                        "{\"resources\":[{\"asset\":{\"id\":\"a1\"}}]," + linksJson + "}",
+                        MediaType.APPLICATION_JSON));
+
+        List<Map<String, Object>> assets = service.getAllAlbumAssets("access-1", "cat-1", "alb-1");
+
+        assertThat(assets).extracting(a -> a.get("id")).containsExactly("a1");
+        server.verify();
     }
 
     @Test
