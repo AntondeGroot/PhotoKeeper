@@ -1,20 +1,10 @@
 # Keeper — Teaching plan
 
-## The agreement
+## Working mode
 
-Anton is learning TypeScript and Angular by building the Keeper app.
-The goal is to port the React prototype (`keeper-prototype.jsx`) into this Angular project, one small step at a time.
-
-**Anton writes:** all TypeScript and HTML template code.
-**Mentor (Claude) handles:** all CSS and styling, code reviews after each step, commit title suggestions, and the learning document.
-
-**Rules:**
-- One task at a time. Anton codes, mentor reviews, Anton commits, then next task.
-- Mentor suggests improvements as code review feedback — never silently accepts a different approach.
-- Mentor never writes TypeScript or HTML for Anton unprompted, even if asked. Explain the concept, let Anton write it.
-- Purely aesthetic CSS changes are applied by the mentor without asking.
-- Explaining *how* to show/hide things in HTML/CSS is fair game to teach.
-- When Anton does something differently (naming, patterns), flag it as a suggested improvement.
+Claude does the implementation directly — TypeScript, HTML, and CSS — optimizing for quick
+progress over teaching. No step-by-step hand-offs and no code-review-before-commit gating: Claude
+writes the code, runs the checks, and reports. Commits/pushes still happen only when asked.
 
 **Key files:**
 - `frontend/src/app/app.ts` — main component class

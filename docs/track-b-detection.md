@@ -144,9 +144,10 @@ Pi-nightly. Where *selection* runs is now settled: on-device.)
 
 - **Slice 1 — detection core** ✅ done: `assetHash` store, pure `dhash` + `hammingDistance`
   (`detection/phash.ts`), pure `clusterBursts` (`detection/burst.ts`), thin canvas `hashImageBlob`.
-- **Slice 2 — album-asset listing + manifest change-gate**: a way to list a full album's assets
-  (likely a new backend endpoint / frontend method; today we have only `getAlbums` + the sampling
-  `getFeed`) plus the `albumManifest` store and diff.
+- **Slice 2 — album-asset listing + manifest change-gate** ✅ done: backend `GET
+  /api/albums/{id}/assets` (full `links.next` pagination) + `LightroomService.getAllAlbumAssets`
+  frontend method; `albumManifest` store with `id+updated` fingerprints, hash gate, and
+  added/removed/changed `diffManifest` (`storage/album-manifest-store.ts`).
 - **Slice 3 — background scan**: hash + cluster a full album, store `groups` (reuse an already-warmed
   2048 blob when present, else fetch a small rendition).
 - **Slice 4 — group-aware on-device selection**: sample over `units = singles + groups` so the queue

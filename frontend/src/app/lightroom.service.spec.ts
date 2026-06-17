@@ -118,6 +118,29 @@ describe('LightroomService', () => {
     });
   });
 
+  describe('getAllAlbumAssets', () => {
+    it('GETs the album assets endpoint and unwraps resources to a flat array', () => {
+      service.setTokens('acc', 'ref');
+      localStorage.setItem(CATALOG_KEY, 'cat-123');
+      let result: { id: string }[] | undefined;
+
+      service.getAllAlbumAssets('alb-1').subscribe((assets) => (result = assets));
+
+      const req = httpMock.expectOne('api/albums/alb-1/assets');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.headers.get('X-Auth-Token')).toBe('acc');
+      expect(req.request.headers.get('X-Catalog-Id')).toBe('cat-123');
+      req.flush({
+        resources: [
+          { id: 'a1', subtype: 'image' },
+          { id: 'a2', subtype: 'image' },
+        ],
+      });
+
+      expect(result?.map((a) => a.id)).toEqual(['a1', 'a2']);
+    });
+  });
+
   describe('getPhotoBlob', () => {
     it('GETs the rendition URL with size, blob responseType, and auth headers', () => {
       service.setTokens('acc', 'ref');

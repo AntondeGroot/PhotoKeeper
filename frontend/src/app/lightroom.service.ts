@@ -72,6 +72,19 @@ export class LightroomService {
     });
   }
 
+  /**
+   * Fetches the *full* asset list of one album (backend follows Lightroom's pagination), unwrapped to
+   * a flat array. Used by the background detection scan, which needs the complete population to find
+   * bursts — unlike {@link getFeed}, which samples.
+   */
+  getAllAlbumAssets(albumId: string): Observable<PhotoAsset[]> {
+    return this.http
+      .get<{ resources: PhotoAsset[] }>(`api/albums/${albumId}/assets`, {
+        headers: this.authHeaders(),
+      })
+      .pipe(map((res) => res.resources));
+  }
+
   getPhotoBlob(assetId: string, size = '640'): Observable<Blob> {
     return this.http.get(`api/photos/${assetId}/rendition`, {
       headers: this.authHeaders(),
@@ -102,6 +115,7 @@ export class LightroomService {
 export interface PhotoAsset {
   id: string;
   subtype: string;
+  updated?: string; // Lightroom revision stamp; drives the detection change-gate (album-manifest-store)
   album?: string;
   payload?: {
     captureDate?: string;
