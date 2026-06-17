@@ -30,6 +30,13 @@ export class ReviewStore {
     await (await this.db.open()).put('dailyFeed', photos, date);
   }
 
+  /** Drops stored selections for days outside `keep` (date keys), so old days don't accumulate. */
+  async pruneDailyFeedExcept(keep: Set<string>): Promise<void> {
+    const db = await this.db.open();
+    const keys = await db.getAllKeys('dailyFeed');
+    await Promise.all(keys.filter((k) => !keep.has(k)).map((k) => db.delete('dailyFeed', k)));
+  }
+
   // ── Album tags ────────────────────────────────────────────────────────────
   async getAlbumTags(): Promise<Map<string, AlbumTag>> {
     const db = await this.db.open();

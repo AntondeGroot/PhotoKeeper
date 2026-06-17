@@ -270,6 +270,8 @@ export class AppComponent implements OnInit, OnDestroy {
         const tomorrow = await this.reviewStore.getDailyFeed(tomorrowKey());
         tomorrow?.forEach((p) => keep.add(p.id));
         void this.previewStore.evictExcept(keep);
+        // Likewise drop stored selections for days other than today/tomorrow so they don't pile up.
+        void this.reviewStore.pruneDailyFeedExcept(new Set([today, tomorrowKey()]));
       }
     } catch (e: unknown) {
       this.error.set(
