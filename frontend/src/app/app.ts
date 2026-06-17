@@ -141,6 +141,8 @@ export class AppComponent implements OnInit, OnDestroy {
   toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
   // Asset ids whose preview is mid-flight, so we never fire a duplicate request.
   private readonly inFlight = new Set<string>();
+  // Debounce handle: the goal slider emits continuously, so we resample once it settles.
+  private goalResampleTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     effect(() => {
@@ -285,10 +287,30 @@ export class AppComponent implements OnInit, OnDestroy {
   // Chooses today's/tomorrow's review queue on-device from the scanned metadata + detected groups,
   // so a burst arrives as one unit. Falls back to the server sample on cold start, before the first
   // background scan has populated storage.
+  // Updates the daily goal and rebuilds today's + tomorrow's selection to the new size. Debounced,
+  // since the slider emits on every drag tick; only the settled value triggers a resample.
+  setDailyGoal(goal: number): void {
+    if (goal === this.dailyGoal()) return;
+    this.dailyGoal.set(goal);
+    if (!this.authenticated()) return;
+    if (this.goalResampleTimer) clearTimeout(this.goalResampleTimer);
+    this.goalResampleTimer = setTimeout(() => void this.resampleDailyFeed(), 500);
+  }
+
+  // Discards the cached today/tomorrow selections and rebuilds them at the current goal. Stored
+  // verdicts are re-applied on reload, so decisions for photos that survive the new sample persist.
+  private async resampleDailyFeed(): Promise<void> {
+    await this.reviewStore.pruneDailyFeedExcept(new Set());
+    await this.loadPhotos();
+    void this.precomputeTomorrow();
+  }
+
   private async selectDailyUnits(): Promise<ReviewItem[]> {
-    const units = await this.dailyUnits.buildUnits(this.vacationAlbumIds(), 20);
+    // Size the queue to the user's daily goal, not a fixed number.
+    const limit = this.dailyGoal();
+    const units = await this.dailyUnits.buildUnits(this.vacationAlbumIds(), limit);
     if (units.length > 0) return units;
-    const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), 20));
+    const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), limit));
     return (data?.resources ?? [])
       .filter((a) => a.subtype === 'image')
       .map((a) => this.assetToPhoto(a));
@@ -538,5 +560,6 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.revokeAllPreviews();
+    if (this.goalResampleTimer) clearTimeout(this.goalResampleTimer);
   }
 }

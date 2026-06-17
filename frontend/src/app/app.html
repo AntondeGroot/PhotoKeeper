@@ -144,7 +144,7 @@
             [reminderTime]="reminderTime()"
             [silentTime]="silentTime()"
             [silentEvening]="silentEvening()"
-            (dailyGoalChange)="dailyGoal.set($event)"
+            (dailyGoalChange)="setDailyGoal($event)"
             (editGoalChange)="editGoal.set($event)"
             (reminderTimeChange)="reminderTime.set($event)"
             (silentTimeChange)="silentTime.set($event)"
