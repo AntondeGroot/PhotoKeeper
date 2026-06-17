@@ -8,6 +8,7 @@ import { LightroomService, PhotoAsset } from '../lightroom.service';
 import { HashStore } from '../storage/hash-store';
 import { GroupStore } from '../storage/group-store';
 import { PreviewStore } from '../storage/preview-store';
+import { AssetMetaStore } from '../storage/asset-meta-store';
 
 const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => ({
   id,
@@ -32,6 +33,7 @@ describe('DetectionScanService', () => {
   let hashStore: HashStore;
   let groupStore: GroupStore;
   let previewStore: PreviewStore;
+  let metaStore: AssetMetaStore;
   let fetched: string[];
   let albumAssets: PhotoAsset[];
 
@@ -63,6 +65,7 @@ describe('DetectionScanService', () => {
     hashStore = TestBed.inject(HashStore);
     groupStore = TestBed.inject(GroupStore);
     previewStore = TestBed.inject(PreviewStore);
+    metaStore = TestBed.inject(AssetMetaStore);
   });
 
   it('hashes every asset and stores the detected burst on the first scan', async () => {
@@ -73,6 +76,11 @@ describe('DetectionScanService', () => {
     expect(await groupStore.getByAlbum('alb-1')).toEqual([
       { type: 'burst', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] },
     ]);
+    expect(await metaStore.get('a1')).toEqual({
+      albumId: 'alb-1',
+      name: 'a1',
+      taken: '2026-05-01T10:00:00Z',
+    });
   });
 
   it('skips an unchanged album on the second scan — no fetch, no re-hash', async () => {
@@ -109,5 +117,11 @@ describe('DetectionScanService', () => {
     expect([...fetched].sort((x, y) => x.localeCompare(y))).toEqual(['a2', 'a4']); // a1 keeps its hash
     expect(report.removed).toBe(1);
     expect((await hashStore.getAll()).has('a3')).toBe(false);
+    expect(await metaStore.get('a3')).toBeUndefined(); // removed asset's metadata dropped too
+    expect(await metaStore.get('a4')).toEqual({
+      albumId: 'alb-1',
+      name: 'a4',
+      taken: '2026-05-01T10:00:03Z',
+    });
   });
 });

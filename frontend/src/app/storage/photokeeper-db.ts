@@ -31,6 +31,17 @@ export interface DetectedGroup {
 }
 
 /**
+ * The lightweight per-asset metadata on-device selection needs to hydrate units without re-fetching
+ * the album. Written by the background scan (which already holds the full asset list), so the
+ * foreground feed build is a pure IndexedDB read.
+ */
+export interface AssetMeta {
+  albumId: string;
+  name: string; // display name without extension
+  taken: string; // ISO 8601 capture time, '' if unknown
+}
+
+/**
  * A snapshot of an album's asset population, written after each detection scan. The change-gate
  * hashes the current population and compares it against this; on a mismatch it diffs the fingerprint
  * lists to find exactly which assets were added/removed/changed, so only those get re-hashed.
@@ -50,6 +61,7 @@ export interface AlbumManifest {
  * - assetHash: assetId → perceptual hash (hex), for burst/near-duplicate detection
  * - albumManifest: albumId → population fingerprint, the detection change-gate
  * - groups: groupId → a detected cluster (burst/pano/stereo) for group-aware selection
+ * - assetMeta: assetId → lightweight metadata for on-device selection (album, name, taken)
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -59,6 +71,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   assetHash: { key: string; value: string };
   albumManifest: { key: string; value: AlbumManifest };
   groups: { key: string; value: DetectedGroup };
+  assetMeta: { key: string; value: AssetMeta };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -68,8 +81,9 @@ export class PhotoKeeperDb {
 
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
     // v2 renamed the 'renditions' store to 'previews'; v3 added 'assetHash'; v4 added
-    // 'albumManifest'; v5 added 'groups'. Create-if-missing so existing dev databases keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 5, {
+    // 'albumManifest'; v5 added 'groups'; v6 added 'assetMeta'. Create-if-missing so existing dev
+    // databases keep their data.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 6, {
       upgrade(db) {
         for (const store of [
           'previews',
@@ -79,6 +93,7 @@ export class PhotoKeeperDb {
           'assetHash',
           'albumManifest',
           'groups',
+          'assetMeta',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

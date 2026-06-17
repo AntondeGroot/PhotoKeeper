@@ -2,10 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from '../lightroom.service';
 import { AlbumManifestStore } from '../storage/album-manifest-store';
+import { AssetMetaStore } from '../storage/asset-meta-store';
 import { GroupStore } from '../storage/group-store';
 import { HashStore } from '../storage/hash-store';
 import { PreviewStore } from '../storage/preview-store';
-import { DetectedGroup } from '../storage/photokeeper-db';
+import { AssetMeta, DetectedGroup } from '../storage/photokeeper-db';
 import { BurstOptions, DetectAsset, clusterBursts } from './burst';
 import { ImageHasher } from './image-hasher';
 
@@ -44,6 +45,7 @@ export class DetectionScanService {
   private readonly hashes = inject(HashStore);
   private readonly groups = inject(GroupStore);
   private readonly manifests = inject(AlbumManifestStore);
+  private readonly meta = inject(AssetMetaStore);
 
   async scanAlbum(albumId: string): Promise<ScanReport> {
     const assets = (await firstValueFrom(this.svc.getAllAlbumAssets(albumId))).filter(
@@ -55,14 +57,20 @@ export class DetectionScanService {
       return { albumId, skipped: true, hashed: 0, removed: 0, groups: 0 };
     }
 
-    // Assets that left the album: drop their hash (their group is rebuilt below from current assets).
-    for (const id of diff.removed) await this.hashes.delete(id);
+    // Assets that left the album: drop their hash + metadata (their group is rebuilt below).
+    for (const id of diff.removed) {
+      await this.hashes.delete(id);
+      await this.meta.delete(id);
+    }
 
-    // New + edited assets need a (re)hash; everything else keeps its cached hash.
+    // New + edited assets need a (re)hash and fresh metadata; everything else keeps its cached entries.
     const toHash = [...diff.added, ...diff.changed];
     for (const id of toHash) {
       const asset = assets.find((a) => a.id === id);
-      if (asset) await this.hashes.put(id, await this.hashAsset(asset));
+      if (asset) {
+        await this.hashes.put(id, await this.hashAsset(asset));
+        await this.meta.put(id, toAssetMeta(asset, albumId));
+      }
     }
 
     const hashes = await this.hashes.getAll();
@@ -94,4 +102,9 @@ export class DetectionScanService {
 
 function toDetectAsset(asset: PhotoAsset): DetectAsset {
   return { id: asset.id, taken: asset.payload?.captureDate ?? '' };
+}
+
+function toAssetMeta(asset: PhotoAsset, albumId: string): AssetMeta {
+  const name = (asset.payload?.importSource?.fileName ?? asset.id).replace(/\.[^.]+$/, '');
+  return { albumId, name, taken: asset.payload?.captureDate ?? '' };
 }
