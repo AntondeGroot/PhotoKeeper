@@ -2,10 +2,12 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AppComponent as App } from './app';
-import { Photo } from './photo';
+import { Photo, ReviewItem } from './photo';
 import { ReviewStore } from './storage/review-store';
 import { PreviewStore } from './storage/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
+import { DailyUnitsService } from './selection/daily-units.service';
+import { CatalogScanService } from './detection/catalog-scan.service';
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -58,6 +60,10 @@ describe('App', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: PreviewStore, useValue: previewStoreStub },
+        // On-device selection returns nothing by default → loadPhotos falls back to the server getFeed
+        // path these tests already drive. The background scan is made inert.
+        { provide: DailyUnitsService, useValue: { buildUnits: () => Promise.resolve([]) } },
+        { provide: CatalogScanService, useValue: { scanAllAlbums: () => Promise.resolve() } },
       ],
     }).compileComponents();
   });
@@ -244,6 +250,55 @@ describe('App', () => {
       expect(app.reviewPhotos().find((p) => p.id === 'p2')?.status).toBe('backlog');
 
       // Drain any preview prefetch the load kicked off.
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.verify();
+    });
+  });
+
+  describe('group-aware on-device selection', () => {
+    it('loads detected units (including a burst) without sampling the server feed', async () => {
+      const burst: ReviewItem = {
+        id: 'burst:alb-1:b1',
+        name: 'Burst · 2 frames',
+        album: 'A',
+        taken: '2026-01-01',
+        status: 'backlog',
+        kind: 'burst',
+        photos: [
+          { id: 'b1', name: 'b1' },
+          { id: 'b2', name: 'b2' },
+        ],
+      };
+      TestBed.overrideProvider(DailyUnitsService, {
+        useValue: { buildUnits: () => Promise.resolve([burst, photo('s1')]) },
+      });
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          getDailyFeed: () => Promise.resolve(undefined), // nothing stored → build on-device
+          setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
+        },
+      });
+      localStorage.setItem('lr-access-token', 'acc');
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+      const app = fixture.componentInstance;
+
+      fixture.detectChanges();
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
+      await tick();
+
+      // The queue holds the detected units, and no api/feed sample was needed.
+      expect(app.reviewPhotos().map((u) => u.id)).toEqual(['burst:alb-1:b1', 's1']);
+      expect(app.reviewPhotos().some((u) => u.kind === 'burst')).toBe(true);
+
+      httpMock.expectOne('api/albums').flush([]);
+      await tick();
+      await tick(); // let precomputeTomorrow run
+
+      expect(httpMock.match((r) => r.url === 'api/feed')).toHaveLength(0);
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
       httpMock.verify();
     });

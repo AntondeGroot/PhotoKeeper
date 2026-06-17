@@ -3,6 +3,7 @@ package com.photokeeper.service;
 import com.photokeeper.config.RateLimitConfig;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongSupplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,6 +24,9 @@ public class AdobeRateLimiter {
     private final ReentrantLock lock = new ReentrantLock();
     private long nextFreeNanos;
 
+    // @Autowired marks this as the constructor Spring uses; the 3-arg one is for tests (injectable
+    // clock), and without this Spring can't choose between the two and fails to instantiate the bean.
+    @Autowired
     public AdobeRateLimiter(RateLimitConfig config, Sleeper sleeper) {
         this(config, sleeper, System::nanoTime);
     }
