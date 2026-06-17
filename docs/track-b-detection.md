@@ -160,10 +160,13 @@ Pi-nightly. Where *selection* runs is now settled: on-device.)
   - Asset-metadata persistence ✅ done — the scan writes each asset's `{albumId, name, taken}` to the
     `assetMeta` store (`storage/asset-meta-store.ts`) and drops it on removal, so selection reads from
     IndexedDB instead of re-fetching album lists on load (avoids the cold-load fetch cost).
-  - Still to wire: `scanAllAlbums` driver (with a per-pass budget, gentle on Adobe's RPS limit); a
-    `buildDailyUnits` assembler (`assetMeta` + `groups` → `selectUnits`); and `app.ts` — swap server
-    `getFeed` for on-device selection, persist a `ReviewItem[]` daily feed, with `getFeed` as the
-    cold-start fallback before the first scan.
+  - Catalog scan driver ✅ done — `CatalogScanService.scanAllAlbums`
+    (`detection/catalog-scan.service.ts`) runs `scanAlbum` across every album, best-effort
+    (one failing album doesn't stall the rest), with a per-pass hash budget so a first-time backfill
+    spreads over runs and stays gentle on Adobe's RPS limit (atomic per album → safe to resume).
+  - Still to wire: a `buildDailyUnits` assembler (`assetMeta` + `groups` → `selectUnits`); and
+    `app.ts` — swap server `getFeed` for on-device selection, persist a `ReviewItem[]` daily feed,
+    with `getFeed` as the cold-start fallback before the first scan.
 
 The earlier "hash today's queue" idea is dropped.
 
