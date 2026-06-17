@@ -651,3 +651,26 @@ Declare a local variable with `let i = $index` in the `@for` expression:
 `$index` is a built-in `@for` variable that starts at `0`. Other built-ins include `$first`, `$last`, `$even`, and `$odd`.
 
 ===END PAGE===
+
+---
+
+## Backend — Spring Boot
+
+===PAGE 1===
+How do you bind a group of external config values to a typed Java object in Spring Boot?
+?
+Put `@ConfigurationProperties(prefix = "some.prefix")` on a class with plain getter/setter fields. Spring binds matching properties (e.g. `some.prefix.permits-per-second` → `permitsPerSecond`) from `application.properties`/env vars into the object, which you then inject like any bean. Kebab-case in properties maps to camelCase fields (relaxed binding).
+
+---
+
+How does Spring discover a `@ConfigurationProperties` class so it becomes a bean?
+?
+Either annotate it with `@Component`/`@ConfigurationPropertiesScan` on the app class (PhotoKeeper uses `@ConfigurationPropertiesScan` on `PhotoKeeperApplication`), or register it explicitly with `@EnableConfigurationProperties(MyConfig.class)`. Then inject it via the constructor like any other bean.
+
+---
+
+Why give `@ConfigurationProperties` fields default values in Java?
+?
+Binding only overwrites a field when the matching property is present. A field initialized to a sane default (e.g. `private int permitsPerSecond = 10;`) means the config works with zero properties set, and operators only override what they need.
+
+===END PAGE===

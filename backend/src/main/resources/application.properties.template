@@ -9,6 +9,13 @@ adobe.redirect-uri=https://localhost:8080/api/auth/callback
 # Where to send the browser after successful login
 adobe.frontend-url=http://localhost:4200
 
+# Outbound Lightroom API throttling + 429 retry (optional; shown with defaults).
+# Adobe limits each client id to ~20 req/s shared across all users — keep permits-per-second under it.
+#adobe.rate-limit.permits-per-second=10
+#adobe.rate-limit.max-retries=3
+#adobe.rate-limit.base-backoff-millis=500
+#adobe.rate-limit.max-backoff-millis=30000
+
 server.port=8080
 server.ssl.key-store=classpath:keystore.p12
 server.ssl.key-store-password=photokeeper

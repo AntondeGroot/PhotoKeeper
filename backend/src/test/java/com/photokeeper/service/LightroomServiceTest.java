@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photokeeper.config.AdobeConfig;
+import com.photokeeper.config.RateLimitConfig;
 import com.photokeeper.model.AlbumSummary;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,12 @@ class LightroomServiceTest {
 
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        service = new LightroomService(config, builder, new ObjectMapper());
+        // Real interceptor wiring, but a no-op sleeper so retries/backoff don't actually wait in tests.
+        Sleeper noWait = millis -> {};
+        RateLimitConfig rateLimitConfig = new RateLimitConfig();
+        LightroomRateLimitInterceptor interceptor = new LightroomRateLimitInterceptor(
+                new AdobeRateLimiter(rateLimitConfig, noWait), noWait, rateLimitConfig);
+        service = new LightroomService(config, builder, new ObjectMapper(), interceptor);
     }
 
     @Test
@@ -204,6 +210,17 @@ class LightroomServiceTest {
         List<Map<String, Object>> assets = service.getAllAlbumAssets("access-1", "cat-1", "alb-1");
 
         assertThat(assets).extracting(a -> a.get("id")).containsExactly("a1");
+        server.verify();
+    }
+
+    @Test
+    void retriesOnTooManyRequestsThenSucceeds() {
+        server.expect(requestTo(LR_API_BASE + "/catalog"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        server.expect(requestTo(LR_API_BASE + "/catalog"))
+                .andRespond(withSuccess("{\"id\":\"cat-1\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(service.getCatalog("access-1")).containsEntry("id", "cat-1");
         server.verify();
     }
 
