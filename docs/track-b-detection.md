@@ -153,11 +153,17 @@ Pi-nightly. Where *selection* runs is now settled: on-device.)
   fetching the 640 rendition via injectable `ImageHasher`), re-clusters bursts over the whole album,
   and stores them in the new `groups` store (`GroupStore`). Pano/stereo group types await their
   classifiers (only `clusterBursts` exists today); thresholds are provisional pending the corpus.
-- **Slice 4 — group-aware on-device selection**: pure core ✅ done — `selectUnits`
-  (`selection/unit-selection.ts`) samples album-weighted over `units = singles + groups`, hydrating
-  burst groups into `Burst` review items (pano/stereo ignored until their hydrators exist). Still to
-  wire: replace `app.ts`'s server `getFeed` load with on-device `selectUnits` over fetched album
-  asset lists + `GroupStore`, and persist the resulting `ReviewItem[]` daily feed.
+- **Slice 4 — group-aware on-device selection** (in progress):
+  - Pure core ✅ done — `selectUnits` (`selection/unit-selection.ts`) samples album-weighted over
+    `units = singles + groups`, hydrating burst groups into `Burst` review items (pano/stereo ignored
+    until their hydrators exist).
+  - Asset-metadata persistence ✅ done — the scan writes each asset's `{albumId, name, taken}` to the
+    `assetMeta` store (`storage/asset-meta-store.ts`) and drops it on removal, so selection reads from
+    IndexedDB instead of re-fetching album lists on load (avoids the cold-load fetch cost).
+  - Still to wire: `scanAllAlbums` driver (with a per-pass budget, gentle on Adobe's RPS limit); a
+    `buildDailyUnits` assembler (`assetMeta` + `groups` → `selectUnits`); and `app.ts` — swap server
+    `getFeed` for on-device selection, persist a `ReviewItem[]` daily feed, with `getFeed` as the
+    cold-start fallback before the first scan.
 
 The earlier "hash today's queue" idea is dropped.
 
