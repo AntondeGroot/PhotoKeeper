@@ -63,6 +63,18 @@ describe('ReviewStore', () => {
     it('returns undefined for a date with no selection', async () => {
       expect(await store.getDailyFeed('2099-01-01')).toBeUndefined();
     });
+
+    it('prunes selections for days outside the keep set', async () => {
+      await store.setDailyFeed('2026-06-16', [photo('a1')]); // yesterday
+      await store.setDailyFeed('2026-06-17', [photo('a2')]); // today
+      await store.setDailyFeed('2026-06-18', [photo('a3')]); // tomorrow
+
+      await store.pruneDailyFeedExcept(new Set(['2026-06-17', '2026-06-18']));
+
+      expect(await store.getDailyFeed('2026-06-16')).toBeUndefined();
+      expect((await store.getDailyFeed('2026-06-17'))?.map((p) => p.id)).toEqual(['a2']);
+      expect((await store.getDailyFeed('2026-06-18'))?.map((p) => p.id)).toEqual(['a3']);
+    });
   });
 
   describe('album tags', () => {

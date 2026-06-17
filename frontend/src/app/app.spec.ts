@@ -204,6 +204,7 @@ describe('App', () => {
           getVerdicts: () => Promise.resolve(stored),
           getDailyFeed: () => Promise.resolve(undefined), // no stored selection → sample fresh
           setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
         },
       });
       localStorage.setItem('lr-access-token', 'acc'); // init enters the load path
@@ -250,6 +251,7 @@ describe('App', () => {
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
           getDailyFeed: () => Promise.resolve(selection), // already chosen today
           setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
         },
       });
       localStorage.setItem('lr-access-token', 'acc'); // init enters the load path
@@ -284,6 +286,7 @@ describe('App', () => {
           getVerdicts: () => Promise.resolve(verdicts),
           getDailyFeed: () => Promise.resolve(selection),
           setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
         },
       });
       localStorage.setItem('lr-access-token', 'acc'); // init enters the load path
@@ -321,6 +324,7 @@ describe('App', () => {
             setFeeds.push({ date, ids: photos.map((p) => p.id) });
             return Promise.resolve();
           },
+          pruneDailyFeedExcept: () => Promise.resolve(),
         },
       });
       TestBed.overrideProvider(PreviewStore, {
@@ -371,6 +375,7 @@ describe('App', () => {
               date === TODAY ? [photo('p1')] : date === TOMORROW ? [photo('t1')] : undefined,
             ),
           setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
         },
       });
       TestBed.overrideProvider(PreviewStore, {
@@ -413,6 +418,7 @@ describe('App', () => {
               date === TODAY ? [photo('p1')] : date === TOMORROW ? [photo('t1')] : undefined,
             ),
           setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
         },
       });
       TestBed.overrideProvider(PreviewStore, {
