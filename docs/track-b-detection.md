@@ -153,8 +153,11 @@ Pi-nightly. Where *selection* runs is now settled: on-device.)
   fetching the 640 rendition via injectable `ImageHasher`), re-clusters bursts over the whole album,
   and stores them in the new `groups` store (`GroupStore`). Pano/stereo group types await their
   classifiers (only `clusterBursts` exists today); thresholds are provisional pending the corpus.
-- **Slice 4 — group-aware on-device selection**: sample over `units = singles + groups` so the queue
-  holds units; `BurstCard`/`PanoCard`/`StereoCard` render real detected groups.
+- **Slice 4 — group-aware on-device selection**: pure core ✅ done — `selectUnits`
+  (`selection/unit-selection.ts`) samples album-weighted over `units = singles + groups`, hydrating
+  burst groups into `Burst` review items (pano/stereo ignored until their hydrators exist). Still to
+  wire: replace `app.ts`'s server `getFeed` load with on-device `selectUnits` over fetched album
+  asset lists + `GroupStore`, and persist the resulting `ReviewItem[]` daily feed.
 
 The earlier "hash today's queue" idea is dropped.
 

@@ -28,9 +28,14 @@ public class LightroomService {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
-    public LightroomService(AdobeConfig config, RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
+    public LightroomService(
+            AdobeConfig config,
+            RestClient.Builder restClientBuilder,
+            ObjectMapper objectMapper,
+            LightroomRateLimitInterceptor interceptor) {
         this.config = config;
-        this.restClient = restClientBuilder.build();
+        // The interceptor paces every Lightroom call under Adobe's RPS ceiling and retries 429s.
+        this.restClient = restClientBuilder.requestInterceptor(interceptor).build();
         this.objectMapper = objectMapper;
     }
 
