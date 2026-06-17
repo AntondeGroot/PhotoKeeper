@@ -92,15 +92,29 @@ class PhotoFeedServiceTest {
     void spreadsAcrossAlbumsAndTagsEachAssetWithItsAlbumName() {
         when(lightroom.getAlbums("tok", "cat"))
                 .thenReturn(List.of(new AlbumSummary("alb-1", "Lisbon"), new AlbumSummary("alb-2", "Peaks")));
+        when(lightroom.getAlbumAssets("tok", "cat", "alb-1", 8)).thenReturn(assets("l", 10));
+        when(lightroom.getAlbumAssets("tok", "cat", "alb-2", 8)).thenReturn(assets("p", 10));
+
+        // Limit 8 = ASSETS_PER_ALBUM (4) × 2 albums, so the spread pass fills it: 4 from each album.
+        List<Object> feed = service.buildFeed("tok", "cat", Set.of(), 8);
+
+        assertThat(feed).hasSize(8);
+        assertThat(feed.stream().filter(a -> "Lisbon".equals(((Map<?, ?>) a).get("album")))).hasSize(4);
+        assertThat(feed.stream().filter(a -> "Peaks".equals(((Map<?, ?>) a).get("album")))).hasSize(4);
+    }
+
+    @Test
+    void fillsTheLimitFromLeftoversBeyondThePerAlbumSpreadCap() {
+        when(lightroom.getAlbums("tok", "cat"))
+                .thenReturn(List.of(new AlbumSummary("alb-1", "Lisbon"), new AlbumSummary("alb-2", "Peaks")));
         when(lightroom.getAlbumAssets("tok", "cat", "alb-1", 20)).thenReturn(assets("l", 10));
         when(lightroom.getAlbumAssets("tok", "cat", "alb-2", 20)).thenReturn(assets("p", 10));
 
+        // 20 unique assets, goal 20: the spread pass takes 4+4, the fill pass tops up to the full 20.
         List<Object> feed = service.buildFeed("tok", "cat", Set.of(), 20);
 
-        // At most ASSETS_PER_ALBUM (4) from each of the two albums.
-        assertThat(feed).hasSize(8);
-        assertThat(feed)
-                .allSatisfy(a -> assertThat(((Map<?, ?>) a).get("album")).isIn("Lisbon", "Peaks"));
+        assertThat(feed).hasSize(20);
+        assertThat(feed).extracting(PhotoFeedServiceTest::idOf).doesNotHaveDuplicates();
     }
 
     @Test

@@ -145,6 +145,14 @@ describe('selectUnits', () => {
     expect(new Set(units.map((u) => u.id))).toEqual(new Set(['a1', 'a2']));
   });
 
+  it('fills up to the limit from one album beyond the per-album spread cap', () => {
+    const many = Array.from({ length: 8 }, (_, i) => asset(`a${i}`));
+    const units = selectUnits([album({ albumId: 'alb-1', assets: many })], 6, fixedRng);
+
+    expect(units).toHaveLength(6); // not stuck at UNITS_PER_ALBUM (4)
+    expect(new Set(units.map((u) => u.id)).size).toBe(6);
+  });
+
   it('respects the limit, slicing the picked units', () => {
     const many = (prefix: string) => Array.from({ length: 5 }, (_, i) => asset(`${prefix}${i}`));
     const units = selectUnits(

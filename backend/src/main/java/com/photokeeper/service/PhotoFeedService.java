@@ -1,6 +1,7 @@
 package com.photokeeper.service;
 
 import com.photokeeper.model.AlbumSummary;
+import jakarta.annotation.Nullable;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +29,7 @@ public class PhotoFeedService {
     /** A vacation album is this many times more likely to be drawn than a normal album. */
     private static final int VACATION_WEIGHT = 3;
 
-    /** Max photos taken from any one album, so the feed spreads across several albums. */
+    /** Soft cap per album in the spread pass, so the feed fans across albums before topping up. */
     private static final int ASSETS_PER_ALBUM = 4;
 
     private final LightroomService lightroom;
@@ -86,7 +87,10 @@ public class PhotoFeedService {
             int limit) {
         Map<String, String> albumNames = albumNamesById(albums);
         List<Object> picked = new ArrayList<>();
+        List<Map.Entry<String, Map<String, Object>>> leftovers = new ArrayList<>();
         Set<String> seenAssetIds = new HashSet<>();
+
+        // Pass 1 — spread: up to ASSETS_PER_ALBUM new assets per album, in weighted order.
         for (String albumId : weightedAlbumOrder(albums, vacationAlbumIds)) {
             if (picked.size() >= limit) {
                 break;
@@ -94,20 +98,55 @@ public class PhotoFeedService {
             List<Map<String, Object>> albumAssets =
                     new ArrayList<>(lightroom.getAlbumAssets(accessToken, catalogId, albumId, limit));
             Collections.shuffle(albumAssets, rng);
+            spreadFromAlbum(albumAssets, albumNames.get(albumId), limit, picked, seenAssetIds, leftovers);
+        }
 
-            int takenFromAlbum = 0;
-            for (Map<String, Object> asset : albumAssets) {
-                if (picked.size() >= limit || takenFromAlbum >= ASSETS_PER_ALBUM) {
-                    break;
-                }
-                if (asset.get("id") instanceof String assetId && seenAssetIds.add(assetId)) {
-                    asset.put("album", albumNames.get(albumId));
-                    picked.add(asset);
-                    takenFromAlbum++;
-                }
+        // Pass 2 — fill: top up from the held-back assets until the limit is reached.
+        fillFromLeftovers(leftovers, limit, picked, seenAssetIds);
+        return picked;
+    }
+
+    /** Takes up to {@link #ASSETS_PER_ALBUM} new assets from one album; the rest become leftovers. */
+    private void spreadFromAlbum(
+            List<Map<String, Object>> albumAssets,
+            @Nullable String albumName,
+            int limit,
+            List<Object> picked,
+            Set<String> seenAssetIds,
+            List<Map.Entry<String, Map<String, Object>>> leftovers) {
+        int takenFromAlbum = 0;
+        for (Map<String, Object> asset : albumAssets) {
+            if (picked.size() >= limit) {
+                break;
+            }
+            if (!(asset.get("id") instanceof String assetId)) {
+                continue;
+            }
+            asset.put("album", albumName);
+            if (takenFromAlbum >= ASSETS_PER_ALBUM) {
+                leftovers.add(Map.entry(assetId, asset));
+            } else if (seenAssetIds.add(assetId)) {
+                picked.add(asset);
+                takenFromAlbum++;
             }
         }
-        return picked;
+    }
+
+    /** Fills {@code picked} from the held-back assets (deduped) until {@code limit} is reached. */
+    private void fillFromLeftovers(
+            List<Map.Entry<String, Map<String, Object>>> leftovers,
+            int limit,
+            List<Object> picked,
+            Set<String> seenAssetIds) {
+        Collections.shuffle(leftovers, rng);
+        for (Map.Entry<String, Map<String, Object>> entry : leftovers) {
+            if (picked.size() >= limit) {
+                break;
+            }
+            if (seenAssetIds.add(entry.getKey())) {
+                picked.add(entry.getValue());
+            }
+        }
     }
 
     /**

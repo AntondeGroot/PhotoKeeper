@@ -21,13 +21,15 @@ export interface AlbumUnits {
 
 /** A vacation album is this many times more likely to be drawn than a normal album. */
 const VACATION_WEIGHT = 3;
-/** Max units taken from any one album, so the queue spreads across several albums. */
+/** Soft cap per album in the spread pass, so the queue fans across albums before topping up. */
 const UNITS_PER_ALBUM = 4;
 
 /**
- * Samples up to `limit` review units across the albums. `rng` returns a float in [0, 1) — injectable
- * so tests are deterministic. Each asset appears at most once across the result (an asset shared by
- * two albums, or a burst member, is not also drawn as a single).
+ * Samples up to `limit` review units across the albums. Two passes: first **spread** — at most
+ * {@link UNITS_PER_ALBUM} per album, in weighted order, so the queue fans across albums — then
+ * **fill** from the held-back units until `limit` is reached (so a goal is met even when only a few
+ * albums have photos). `rng` returns a float in [0, 1), injectable for deterministic tests. Each
+ * asset appears at most once (a shared asset, or a burst member, is never also drawn as a single).
  */
 export function selectUnits(
   albums: readonly AlbumUnits[],
@@ -35,21 +37,35 @@ export function selectUnits(
   rng: () => number = Math.random,
 ): ReviewItem[] {
   const unitsByAlbum = new Map(albums.map((a) => [a.albumId, buildAlbumUnits(a)]));
-
   const consumed = new Set<string>();
   const picked: ReviewItem[] = [];
+  const leftovers: ReviewItem[] = [];
+
+  const take = (unit: ReviewItem): boolean => {
+    const ids = unitAssetIds(unit);
+    if (ids.some((id) => consumed.has(id))) return false; // asset already used elsewhere
+    ids.forEach((id) => consumed.add(id));
+    picked.push(unit);
+    return true;
+  };
+
+  // Pass 1 — spread: up to UNITS_PER_ALBUM new units per album; the rest are held back.
   for (const album of weightedAlbumOrder(albums, rng)) {
     if (picked.length >= limit) break;
     let taken = 0;
     for (const unit of shuffle(unitsByAlbum.get(album.albumId) ?? [], rng)) {
-      if (picked.length >= limit || taken >= UNITS_PER_ALBUM) break;
-      const ids = unitAssetIds(unit);
-      if (ids.some((id) => consumed.has(id))) continue;
-      ids.forEach((id) => consumed.add(id));
-      picked.push(unit);
-      taken++;
+      if (picked.length >= limit) break;
+      if (taken >= UNITS_PER_ALBUM) leftovers.push(unit);
+      else if (take(unit)) taken++;
     }
   }
+
+  // Pass 2 — fill: top up from the held-back units until the goal is reached.
+  for (const unit of shuffle(leftovers, rng)) {
+    if (picked.length >= limit) break;
+    take(unit);
+  }
+
   return shuffle(picked, rng).slice(0, limit);
 }
 

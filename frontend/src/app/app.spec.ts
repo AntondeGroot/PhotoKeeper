@@ -302,6 +302,37 @@ describe('App', () => {
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
       httpMock.verify();
     });
+
+    it('sizes the queue to the configured daily goal', async () => {
+      localStorage.setItem('dailyGoal', '8'); // ngOnInit reads this into the dailyGoal signal
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          getDailyFeed: () => Promise.resolve(undefined), // sample fresh (buildUnits stub → [])
+          setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
+        },
+      });
+      localStorage.setItem('lr-access-token', 'acc');
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+
+      fixture.detectChanges();
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
+      await tick();
+
+      const feedReq = httpMock.expectOne((r) => r.url === 'api/feed');
+      expect(feedReq.request.params.get('limit')).toBe('8'); // goal drives the sample size, not a fixed 20
+      feedReq.flush({ resources: [] });
+      await tick();
+
+      httpMock.expectOne('api/albums').flush([]);
+      await tick();
+      httpMock.match((r) => r.url === 'api/feed').forEach((r) => r.flush({ resources: [] }));
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.verify();
+    });
   });
 
   describe('stable daily selection', () => {
