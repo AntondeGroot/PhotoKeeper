@@ -164,9 +164,13 @@ Pi-nightly. Where *selection* runs is now settled: on-device.)
     (`detection/catalog-scan.service.ts`) runs `scanAlbum` across every album, best-effort
     (one failing album doesn't stall the rest), with a per-pass hash budget so a first-time backfill
     spreads over runs and stays gentle on Adobe's RPS limit (atomic per album → safe to resume).
-  - Still to wire: a `buildDailyUnits` assembler (`assetMeta` + `groups` → `selectUnits`); and
-    `app.ts` — swap server `getFeed` for on-device selection, persist a `ReviewItem[]` daily feed,
-    with `getFeed` as the cold-start fallback before the first scan.
+  - Selection assembler ✅ done — `DailyUnitsService.buildUnits`
+    (`selection/daily-units.service.ts`) reads `assetMeta` + `groups` from IndexedDB, buckets them by
+    album (names from the cheap `getAlbums`, vacation flags passed in), and runs `selectUnits` — a
+    pure on-device read, no album-list re-fetch.
+  - Still to wire: `app.ts` — swap server `getFeed` for `buildUnits`, persist a `ReviewItem[]` daily
+    feed, overlay verdicts on units, and fall back to `getFeed` for cold start before the first scan
+    has populated storage.
 
 The earlier "hash today's queue" idea is dropped.
 
