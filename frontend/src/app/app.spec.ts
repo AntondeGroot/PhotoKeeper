@@ -31,6 +31,17 @@ function photo(id: string): Photo {
 
 const isRendition = (url: string) => url.endsWith('/rendition');
 
+// Local-date key matching app.ts's todayKey/tomorrowKey, so tests can drive getDailyFeed by date.
+function dayKey(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+const TODAY = dayKey(0);
+const TOMORROW = dayKey(1);
+
 describe('App', () => {
   beforeEach(async () => {
     localStorage.clear(); // isolate stored tokens/settings between tests
@@ -217,6 +228,10 @@ describe('App', () => {
       httpMock.expectOne('api/albums').flush([]);
       await tick();
 
+      // No stored tomorrow either → precomputeTomorrow samples it (empty, so nothing warmed).
+      httpMock.expectOne((r) => r.url === 'api/feed').flush({ resources: [] });
+      await tick();
+
       expect(app.reviewPhotos().find((p) => p.id === 'p1')?.status).toBe('kept');
       expect(app.reviewPhotos().find((p) => p.id === 'p2')?.status).toBe('backlog');
 
@@ -287,6 +302,141 @@ describe('App', () => {
       expect(app.doneToday()).toBe(2);
 
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.verify();
+    });
+  });
+
+  describe('precompute tomorrow', () => {
+    it("samples tomorrow's feed and warms its previews into the durable store", async () => {
+      const setFeeds: { date: string; ids: string[] }[] = [];
+      const puts: string[] = [];
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          // Today is already chosen; tomorrow is not → precompute samples it.
+          getDailyFeed: (date: string) =>
+            Promise.resolve(date === TODAY ? [photo('p1')] : undefined),
+          setDailyFeed: (date: string, photos: Photo[]) => {
+            setFeeds.push({ date, ids: photos.map((p) => p.id) });
+            return Promise.resolve();
+          },
+        },
+      });
+      TestBed.overrideProvider(PreviewStore, {
+        useValue: {
+          get: () => Promise.resolve(undefined), // nothing on disk → everything fetched
+          put: (id: string) => {
+            puts.push(id);
+            return Promise.resolve();
+          },
+          evictExcept: () => Promise.resolve(),
+        },
+      });
+      localStorage.setItem('lr-access-token', 'acc');
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+      const app = fixture.componentInstance;
+
+      fixture.detectChanges();
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
+      await tick();
+      httpMock.expectOne('api/albums').flush([]); // today's selection reused → no today feed
+      await tick();
+
+      // precomputeTomorrow samples tomorrow's feed...
+      httpMock
+        .expectOne((r) => r.url === 'api/feed')
+        .flush({ resources: [{ id: 't1', subtype: 'image' }] });
+      await tick();
+
+      // ...stores it under tomorrow's key and warms its preview (plus today's p1 prefetch).
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      await tick();
+
+      expect(setFeeds).toEqual([{ date: TOMORROW, ids: ['t1'] }]);
+      expect(puts).toContain('t1');
+      expect(app.reviewPhotos().map((p) => p.id)).toEqual(['p1']); // today's feed untouched
+      httpMock.verify();
+    });
+
+    it('skips sampling and refetching when tomorrow is already chosen and warmed', async () => {
+      const puts: string[] = [];
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          getDailyFeed: (date: string) =>
+            Promise.resolve(
+              date === TODAY ? [photo('p1')] : date === TOMORROW ? [photo('t1')] : undefined,
+            ),
+          setDailyFeed: () => Promise.resolve(),
+        },
+      });
+      TestBed.overrideProvider(PreviewStore, {
+        useValue: {
+          get: (id: string) => Promise.resolve(id === 't1' ? new Blob() : undefined), // t1 warmed
+          put: (id: string) => {
+            puts.push(id);
+            return Promise.resolve();
+          },
+          evictExcept: () => Promise.resolve(),
+        },
+      });
+      localStorage.setItem('lr-access-token', 'acc');
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+
+      fixture.detectChanges();
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
+      await tick();
+      httpMock.expectOne('api/albums').flush([]);
+      await tick();
+
+      // Tomorrow already chosen → no feed sample; already warmed → no t1 refetch.
+      httpMock.expectNone((r) => r.url === 'api/feed');
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob())); // only today's p1
+      await tick();
+
+      expect(puts).not.toContain('t1');
+      httpMock.verify();
+    });
+
+    it("keeps tomorrow's previews when evicting earlier days", async () => {
+      let evictKeep: Set<string> | undefined;
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          getDailyFeed: (date: string) =>
+            Promise.resolve(
+              date === TODAY ? [photo('p1')] : date === TOMORROW ? [photo('t1')] : undefined,
+            ),
+          setDailyFeed: () => Promise.resolve(),
+        },
+      });
+      TestBed.overrideProvider(PreviewStore, {
+        useValue: {
+          get: () => Promise.resolve(new Blob()), // everything warmed → no fetches to drain
+          put: () => Promise.resolve(),
+          evictExcept: (keep: Set<string>) => {
+            evictKeep = keep;
+            return Promise.resolve();
+          },
+        },
+      });
+      localStorage.setItem('lr-access-token', 'acc');
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+
+      fixture.detectChanges();
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
+      await tick();
+      httpMock.expectOne('api/albums').flush([]);
+      await tick();
+
+      expect(evictKeep?.has('p1')).toBe(true); // today's selection
+      expect(evictKeep?.has('t1')).toBe(true); // tomorrow's warm-ahead survives eviction
       httpMock.verify();
     });
   });
