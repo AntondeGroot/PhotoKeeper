@@ -148,8 +148,11 @@ Pi-nightly. Where *selection* runs is now settled: on-device.)
   /api/albums/{id}/assets` (full `links.next` pagination) + `LightroomService.getAllAlbumAssets`
   frontend method; `albumManifest` store with `id+updated` fingerprints, hash gate, and
   added/removed/changed `diffManifest` (`storage/album-manifest-store.ts`).
-- **Slice 3 — background scan**: hash + cluster a full album, store `groups` (reuse an already-warmed
-  2048 blob when present, else fetch a small rendition).
+- **Slice 3 — background scan** ✅ done (burst path): `DetectionScanService.scanAlbum` —
+  manifest-gated, hashes only added/edited assets (reusing a warmed 2048 preview when present, else
+  fetching the 640 rendition via injectable `ImageHasher`), re-clusters bursts over the whole album,
+  and stores them in the new `groups` store (`GroupStore`). Pano/stereo group types await their
+  classifiers (only `clusterBursts` exists today); thresholds are provisional pending the corpus.
 - **Slice 4 — group-aware on-device selection**: sample over `units = singles + groups` so the queue
   holds units; `BurstCard`/`PanoCard`/`StereoCard` render real detected groups.
 
