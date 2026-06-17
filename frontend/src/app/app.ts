@@ -348,6 +348,8 @@ export class AppComponent implements OnInit, OnDestroy {
         await this.previewStore.put(assetId, PREVIEW_SIZE, blob);
       }
       const objectUrl = URL.createObjectURL(blob);
+      // Safe: objectUrl is a blob: URL we just minted from our own fetched blob, not user input.
+      // eslint-disable-next-line sonarjs/no-angular-bypass-sanitization
       const safeUrl = this.sanitizer.bypassSecurityTrustUrl(objectUrl);
       this.previewCache.update((cache) => new Map(cache).set(assetId, { objectUrl, safeUrl }));
     } catch {

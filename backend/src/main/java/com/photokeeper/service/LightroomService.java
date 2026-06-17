@@ -4,30 +4,25 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photokeeper.config.AdobeConfig;
 import com.photokeeper.model.AlbumSummary;
-import com.photokeeper.model.TokenResponse;
+import jakarta.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 @Service
 public class LightroomService {
 
     private static final Logger log = LoggerFactory.getLogger(LightroomService.class);
-    private static final String IMS_TOKEN_URL = "https://ims-na1.adobelogin.com/ims/token/v3";
     private static final String LR_API_BASE = "https://lr.adobe.io/v2";
     private static final String LR_CATALOGS = LR_API_BASE + "/catalogs";
 
-    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
-            new ParameterizedTypeReference<>() {};
+    // Safety cap so a malformed/looping next-link can't page forever.
+    private static final int MAX_ALBUM_PAGES = 50;
 
     private final AdobeConfig config;
     private final RestClient restClient;
@@ -37,64 +32,6 @@ public class LightroomService {
         this.config = config;
         this.restClient = restClientBuilder.build();
         this.objectMapper = objectMapper;
-    }
-
-    /** Exchanges an authorization code for the access + refresh token set (offline_access scope). */
-    public TokenResponse exchangeCode(String code) {
-        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("grant_type", "authorization_code");
-        body.add("client_id", config.getClientId());
-        body.add("client_secret", config.getClientSecret());
-        body.add("redirect_uri", config.getRedirectUri());
-        body.add("code", code);
-
-        Map<String, Object> response = postToken(body);
-        String accessToken = accessTokenOf(response);
-        if (!(response.get("refresh_token") instanceof String refreshToken)) {
-            throw new LightroomApiException("Token exchange failed: no refresh_token in response");
-        }
-        return new TokenResponse(accessToken, refreshToken, expiresInOf(response));
-    }
-
-    /**
-     * Exchanges a refresh token for a fresh access token. Adobe may rotate the refresh token; if it
-     * doesn't return a new one, the caller's existing refresh token is carried over.
-     */
-    public TokenResponse refreshAccessToken(String refreshToken) {
-        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("grant_type", "refresh_token");
-        body.add("client_id", config.getClientId());
-        body.add("client_secret", config.getClientSecret());
-        body.add("refresh_token", refreshToken);
-
-        Map<String, Object> response = postToken(body);
-        String newRefresh =
-                response.get("refresh_token") instanceof String s ? s : refreshToken;
-        return new TokenResponse(accessTokenOf(response), newRefresh, expiresInOf(response));
-    }
-
-    private Map<String, Object> postToken(MultiValueMap<String, String> body) {
-        Map<String, Object> response = restClient.post()
-                .uri(IMS_TOKEN_URL)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(body)
-                .retrieve()
-                .body(MAP_TYPE);
-        if (response == null) {
-            throw new LightroomApiException("Adobe token endpoint returned an empty response");
-        }
-        return response;
-    }
-
-    private static String accessTokenOf(Map<String, Object> response) {
-        if (!(response.get("access_token") instanceof String accessToken)) {
-            throw new LightroomApiException("Token response has no access_token");
-        }
-        return accessToken;
-    }
-
-    private static long expiresInOf(Map<String, Object> response) {
-        return response.get("expires_in") instanceof Number n ? n.longValue() : 0L;
     }
 
     public Map<String, Object> getCatalog(String accessToken) {
@@ -141,25 +78,58 @@ public class LightroomService {
      * under an "asset" field, which is unwrapped here so callers get plain asset objects (the same
      * shape as {@link #getAssets}'s resources).
      */
-    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getAlbumAssets(
             String accessToken, String catalogId, String albumId, int limit) {
         // embed=asset is required, otherwise each resource's "asset" is just a stub (id + links) with
         // no subtype/payload — the catalog's /rels/album_assets link spells this out.
-        String raw = lrGet(
+        Map<String, Object> parsed = parseJson(lrGet(
                 "/catalogs/" + catalogId + "/albums/" + albumId + "/assets?embed=asset&limit=" + limit,
-                accessToken);
-        Map<String, Object> parsed = parseJson(raw);
+                accessToken));
 
         List<Map<String, Object>> assets = new ArrayList<>();
+        unwrapAssets(parsed, assets);
+        return assets;
+    }
+
+    /**
+     * Returns every asset in an album, following Lightroom's {@code links.next} pagination cursor so
+     * large albums come back complete (vs the single page {@link #getAlbumAssets} returns). Used by
+     * the background detection scan, which needs the full population to find bursts.
+     */
+    public List<Map<String, Object>> getAllAlbumAssets(String accessToken, String catalogId, String albumId) {
+        String base = LR_API_BASE + "/catalogs/" + catalogId + "/";
+        String url = base + "albums/" + albumId + "/assets?embed=asset";
+
+        List<Map<String, Object>> assets = new ArrayList<>();
+        for (int page = 0; url != null && page < MAX_ALBUM_PAGES; page++) {
+            Map<String, Object> parsed = parseJson(lrGetUrl(url, accessToken));
+            unwrapAssets(parsed, assets);
+            url = nextPageUrl(parsed, base);
+        }
+        return assets;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void unwrapAssets(Map<String, Object> parsed, List<Map<String, Object>> out) {
         if (parsed.get("resources") instanceof List<?> resources) {
             for (Object item : resources) {
                 if (item instanceof Map<?, ?> res && res.get("asset") instanceof Map<?, ?> asset) {
-                    assets.add((Map<String, Object>) asset);
+                    out.add((Map<String, Object>) asset);
                 }
             }
         }
-        return assets;
+    }
+
+    /** Resolves the next-page URL from a response's {@code links.next.href} (relative to the catalog). */
+    @Nullable
+    private static String nextPageUrl(Map<String, Object> parsed, String base) {
+        if (parsed.get("links") instanceof Map<?, ?> links
+                && links.get("next") instanceof Map<?, ?> next
+                && next.get("href") instanceof String href
+                && !href.isBlank()) {
+            return href.startsWith("http") ? href : base + href;
+        }
+        return null;
     }
 
     public ResponseEntity<byte[]> getRendition(String accessToken, String catalogId, String assetId, String size) {
@@ -173,8 +143,12 @@ public class LightroomService {
     }
 
     private String lrGet(String path, String accessToken) {
+        return lrGetUrl(LR_API_BASE + path, accessToken);
+    }
+
+    private String lrGetUrl(String url, String accessToken) {
         return restClient.get()
-                .uri(LR_API_BASE + path)
+                .uri(url)
                 .header("Authorization", "Bearer " + accessToken)
                 .header("X-API-Key", config.getClientId())
                 .retrieve()

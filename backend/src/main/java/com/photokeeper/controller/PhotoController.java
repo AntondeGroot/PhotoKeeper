@@ -57,6 +57,16 @@ public class PhotoController {
         return ResponseEntity.ok(lightroomService.getAlbums(authToken, catalogId));
     }
 
+    @GetMapping("/albums/{albumId}/assets")
+    public ResponseEntity<Map<String, Object>> albumAssets(
+            @RequestHeader("X-Auth-Token") String authToken,
+            @RequestHeader("X-Catalog-Id") String catalogId,
+            @PathVariable String albumId) {
+        List<Map<String, Object>> assets =
+                lightroomService.getAllAlbumAssets(authToken, catalogId, albumId);
+        return ResponseEntity.ok(Map.of("resources", assets));
+    }
+
     @GetMapping("/feed")
     public ResponseEntity<Map<String, Object>> feed(
             @RequestHeader("X-Auth-Token") String authToken,

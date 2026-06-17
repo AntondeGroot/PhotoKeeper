@@ -3,6 +3,8 @@ export interface AiHint {
   reason: string;
 }
 
+export type ReviewStatus = 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
+
 export type ReviewItem = Photo | Burst | Pano | Stereo;
 
 export interface Burst {
@@ -10,7 +12,7 @@ export interface Burst {
   name: string; // without extension
   album: string | null;
   taken: string; // ISO 8601, e.g. '2026-05-24'
-  status: 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
+  status: ReviewStatus;
   kind: 'burst';
   photos: BurstPhoto[];
 }
@@ -26,7 +28,7 @@ export interface Pano {
   name: string;
   album: string | null;
   taken: string;
-  status: 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
+  status: ReviewStatus;
   kind: 'pano';
   frames: PanoFrame[];
 }
@@ -43,7 +45,7 @@ export interface Photo {
   name: string; // without extension
   album: string | null;
   taken: string; // ISO 8601, e.g. '2026-05-24'
-  status: 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
+  status: ReviewStatus;
   kind: 'photo';
   starred: boolean;
   keepsake: boolean;
@@ -140,7 +142,7 @@ export interface Stereo {
   name: string;
   album: string | null;
   taken: string;
-  status: 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
+  status: ReviewStatus;
   kind: 'stereo';
   left: StereoFrame[];
   baselines: StereoBaseline[];
