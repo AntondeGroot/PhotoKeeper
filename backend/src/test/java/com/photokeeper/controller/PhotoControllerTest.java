@@ -95,6 +95,19 @@ class PhotoControllerTest {
     }
 
     @Test
+    void albumAssetsReturnsTheFullAlbumAsResources() throws Exception {
+        when(lightroomService.getAllAlbumAssets("acc", "cat-123", "alb-1"))
+                .thenReturn(List.of(Map.of("id", "a1"), Map.of("id", "a2")));
+
+        mockMvc.perform(get("/api/albums/alb-1/assets")
+                        .header("X-Auth-Token", "acc")
+                        .header("X-Catalog-Id", "cat-123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resources[0].id").value("a1"))
+                .andExpect(jsonPath("$.resources[1].id").value("a2"));
+    }
+
+    @Test
     void feedWithNoVacationAlbumsPassesEmptySet() throws Exception {
         when(photoFeedService.buildFeed("acc", "cat-123", Set.of(), 20)).thenReturn(List.of());
 

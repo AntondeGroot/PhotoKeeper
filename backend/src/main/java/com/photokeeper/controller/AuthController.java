@@ -3,7 +3,7 @@ package com.photokeeper.controller;
 import com.photokeeper.config.AdobeConfig;
 import com.photokeeper.model.RefreshRequest;
 import com.photokeeper.model.TokenResponse;
-import com.photokeeper.service.LightroomService;
+import com.photokeeper.service.ImsTokenService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -30,11 +30,11 @@ public class AuthController {
     private static final String ADOBE_AUTH_URL = "https://ims-na1.adobelogin.com/ims/authorize/v2";
 
     private final AdobeConfig config;
-    private final LightroomService lightroomService;
+    private final ImsTokenService imsTokenService;
 
-    public AuthController(AdobeConfig config, LightroomService lightroomService) {
+    public AuthController(AdobeConfig config, ImsTokenService imsTokenService) {
         this.config = config;
-        this.lightroomService = lightroomService;
+        this.imsTokenService = imsTokenService;
     }
 
     @GetMapping("/login")
@@ -67,7 +67,7 @@ public class AuthController {
 
         TokenResponse tokens;
         try {
-            tokens = lightroomService.exchangeCode(code);
+            tokens = imsTokenService.exchangeCode(code);
         } catch (Exception e) {
             log.error("Token exchange failed: {}", e.getMessage(), e);
             response.sendRedirect(config.getFrontendUrl() + "?auth_error=token_exchange_failed&detail="
@@ -84,7 +84,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshRequest request) {
-        return ResponseEntity.ok(lightroomService.refreshAccessToken(request.refreshToken()));
+        return ResponseEntity.ok(imsTokenService.refreshAccessToken(request.refreshToken()));
     }
 
     @GetMapping("/status")

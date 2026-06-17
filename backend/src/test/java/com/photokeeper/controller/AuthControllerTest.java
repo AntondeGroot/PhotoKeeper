@@ -12,7 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.photokeeper.config.AdobeConfig;
 import com.photokeeper.model.TokenResponse;
-import com.photokeeper.service.LightroomService;
+import com.photokeeper.service.ImsTokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -30,7 +30,7 @@ class AuthControllerTest {
     private AdobeConfig config;
 
     @MockitoBean
-    private LightroomService lightroomService;
+    private ImsTokenService imsTokenService;
 
     @Test
     void loginRedirectsToAdobeWithOfflineAccessScope() throws Exception {
@@ -54,7 +54,7 @@ class AuthControllerTest {
 
     @Test
     void callbackWithCodeRedirectsWithTokensInFragment() throws Exception {
-        when(lightroomService.exchangeCode("test-code"))
+        when(imsTokenService.exchangeCode("test-code"))
                 .thenReturn(new TokenResponse("acc", "ref", 3599));
         when(config.getFrontendUrl()).thenReturn("http://localhost:4200");
 
@@ -66,7 +66,7 @@ class AuthControllerTest {
 
     @Test
     void callbackWhenExchangeFailsRedirectsWithError() throws Exception {
-        when(lightroomService.exchangeCode(any())).thenThrow(new RuntimeException("exchange failed"));
+        when(imsTokenService.exchangeCode(any())).thenThrow(new RuntimeException("exchange failed"));
         when(config.getFrontendUrl()).thenReturn("http://localhost:4200");
 
         mockMvc.perform(get("/api/auth/callback").param("code", "bad-code"))
@@ -76,7 +76,7 @@ class AuthControllerTest {
 
     @Test
     void refreshReturnsNewTokens() throws Exception {
-        when(lightroomService.refreshAccessToken("old-ref"))
+        when(imsTokenService.refreshAccessToken("old-ref"))
                 .thenReturn(new TokenResponse("new-acc", "new-ref", 3599));
 
         mockMvc.perform(post("/api/auth/refresh")

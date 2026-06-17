@@ -109,9 +109,57 @@ The pipeline is **pure and host-agnostic**; only the *trigger* differs.
 
 Decision deferred. Build and test entirely on-device first; choose scheduling later without rework.
 
-## Suggested first slice
+## Detection runs BEFORE selection (not on today's queue)
 
-`assetHash` + `albumManifest` stores → Stage 0 gate + Stage 1 burst clustering + Stage 2 hashing
-**for already-warmed assets only** → light up `BurstCard` with real bursts from today's feed. No new
-rendition size, no library-wide crawl yet. Proves the gate, the cache, and the burst path
-end-to-end before adding pano/stereo and the small-thumbnail crawl.
+Detection must run over the **full album population, upstream of selection**. The sampler then picks
+**units** — a detected burst enters the queue as *one* `BurstCard`, a single as one photo — so by the
+time anything reaches today's queue it is already classified.
+
+Do **not** hash today's already-sampled queue: that queue is ~20 photos sampled across albums, so a
+burst's frames almost never all land in the sample. Hashing it would "detect" a burst only in the
+rare case the sampler happened to pull every frame — logically backwards. Reusing an
+already-warmed 2048 blob to avoid a thumbnail fetch is a valid optimization *inside* the scan, but it
+is not the trigger for the scan.
+
+Corrected pipeline order:
+
+1. **Background album scan** (per album, gated by `albumManifest`): fetch the album's full asset
+   metadata.
+2. **Hash** new/changed assets from a small rendition (256–512px) → `assetHash`.
+3. **Cluster** → store `groups`.
+4. **Selection samples over `units = singles + groups`**, so the queue receives already-formed groups.
+
+## Selection is group-aware and runs ON-DEVICE (decided)
+
+Group-aware selection lives **on-device**, not on the server. The device already holds the detected
+`groups` (in IndexedDB) and the tokens, so it samples over `units = singles + groups` locally. This
+supersedes the current server-side flat `api/feed` sampling (see the photo-selection memory) for the
+grouped path. The backend's role shrinks to serving album asset lists + renditions; the unit
+sampling moves client-side.
+
+(Note the still-open fork above is only about the *scan's scheduling trigger* — device-when-idle vs
+Pi-nightly. Where *selection* runs is now settled: on-device.)
+
+## Re-sequenced slices
+
+- **Slice 1 — detection core** ✅ done: `assetHash` store, pure `dhash` + `hammingDistance`
+  (`detection/phash.ts`), pure `clusterBursts` (`detection/burst.ts`), thin canvas `hashImageBlob`.
+- **Slice 2 — album-asset listing + manifest change-gate**: a way to list a full album's assets
+  (likely a new backend endpoint / frontend method; today we have only `getAlbums` + the sampling
+  `getFeed`) plus the `albumManifest` store and diff.
+- **Slice 3 — background scan**: hash + cluster a full album, store `groups` (reuse an already-warmed
+  2048 blob when present, else fetch a small rendition).
+- **Slice 4 — group-aware on-device selection**: sample over `units = singles + groups` so the queue
+  holds units; `BurstCard`/`PanoCard`/`StereoCard` render real detected groups.
+
+The earlier "hash today's queue" idea is dropped.
+
+## Benchmark corpus (future, for tuning Slice 3)
+
+The Slice-1 unit tests use synthetic hashes — they prove the *logic*, not that the *thresholds*
+(`windowMs`, `maxHamming`, `minSize`, and the pano/stereo equivalents) match real bursts/panos. Plan
+a labeled corpus of **real photos exported small** (≈256–512px, the hash source size), organized by
+expected grouping (burst / pano / stereo / A-vs-B / single), committed under `fixtures/`. A spec
+hashes them through real `hashImageBlob` and asserts the detected groups match the labels, tracking
+precision/recall so threshold or hash changes don't silently regress. Add this when building Slice 3,
+where real thresholds start to matter.
