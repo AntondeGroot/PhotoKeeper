@@ -23,9 +23,7 @@ export class StereoCardComponent {
   verdicts = signal<Record<string, 'keep' | 'edit' | 'reject'>>({});
   twoD = signal(false);
 
-  allChosen = computed(() =>
-    this.stereo.baselines.every((b) => this.verdicts()[b.key] !== undefined),
-  );
+  allChosen = computed(() => this.stereo.baselines.every((b) => b.key in this.verdicts()));
 
   setVerdict(key: string, verdict: 'keep' | 'edit' | 'reject'): void {
     this.verdicts.update((v) => ({ ...v, [key]: verdict }));

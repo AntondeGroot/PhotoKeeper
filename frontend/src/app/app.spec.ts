@@ -42,6 +42,13 @@ function dayKey(offset: number): string {
 const TODAY = dayKey(0);
 const TOMORROW = dayKey(1);
 
+// Stubs PhotoStore.getDailyFeed: a one-photo feed for today/tomorrow, nothing for other dates.
+function dailyFeedStub(date: string): Photo[] | undefined {
+  if (date === TODAY) return [photo('p1')];
+  if (date === TOMORROW) return [photo('t1')];
+  return undefined;
+}
+
 describe('App', () => {
   beforeEach(async () => {
     localStorage.clear(); // isolate stored tokens/settings between tests
@@ -370,10 +377,7 @@ describe('App', () => {
         useValue: {
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
-          getDailyFeed: (date: string) =>
-            Promise.resolve(
-              date === TODAY ? [photo('p1')] : date === TOMORROW ? [photo('t1')] : undefined,
-            ),
+          getDailyFeed: (date: string) => Promise.resolve(dailyFeedStub(date)),
           setDailyFeed: () => Promise.resolve(),
           pruneDailyFeedExcept: () => Promise.resolve(),
         },
@@ -413,10 +417,7 @@ describe('App', () => {
         useValue: {
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
-          getDailyFeed: (date: string) =>
-            Promise.resolve(
-              date === TODAY ? [photo('p1')] : date === TOMORROW ? [photo('t1')] : undefined,
-            ),
+          getDailyFeed: (date: string) => Promise.resolve(dailyFeedStub(date)),
           setDailyFeed: () => Promise.resolve(),
           pruneDailyFeedExcept: () => Promise.resolve(),
         },

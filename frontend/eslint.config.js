@@ -2,6 +2,7 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import angular from 'angular-eslint';
+import sonarjs from 'eslint-plugin-sonarjs';
 
 export default tseslint.config(
   {
@@ -11,6 +12,7 @@ export default tseslint.config(
       ...tseslint.configs.recommended,
       ...tseslint.configs.recommendedTypeChecked,
       ...angular.configs.tsRecommended,
+      sonarjs.configs.recommended,
     ],
     processor: angular.processInlineTemplates,
     languageOptions: {
@@ -23,6 +25,7 @@ export default tseslint.config(
     },
     rules: {
       'no-console': 'error',
+      'sonarjs/cognitive-complexity': ['error', 15],
       eqeqeq: ['error', 'always'],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': 'error',
