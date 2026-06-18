@@ -29,8 +29,11 @@ export class BurstCardComponent {
   @Output() picked = new EventEmitter<string>();
   @Output() rejectedAll = new EventEmitter<void>();
   @Output() dissolved = new EventEmitter<void>();
-
-  zoomed = signal(false);
+  /**
+   * Open the current duel pair (or lone survivor) full screen to compare, starting on the tapped
+   * frame so it shows first with its tab highlighted.
+   */
+  @Output() compare = new EventEmitter<{ ids: string[]; start: number }>();
 
   private readonly burstSig = signal<Burst | null>(null);
   private readonly championId = signal('');
@@ -63,9 +66,5 @@ export class BurstCardComponent {
   keepChampion(): void {
     const champ = this.champion();
     if (champ) this.picked.emit(champ.id);
-  }
-
-  toggleZoom(): void {
-    this.zoomed.update((z) => !z);
   }
 }

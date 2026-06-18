@@ -2,20 +2,21 @@
   <div>
     <p class="burst-heading">Which is better — A or B?</p>
     <p class="burst-subtitle">
-      Burst of {{ survivors().length }}. Pick the keeper one pair at a time; the rest are dropped.
+      Burst of {{ survivors().length }}. Tap a photo to enlarge; keep A or B below. The rest are
+      dropped.
     </p>
   </div>
 
   @if (duel(); as d) {
     <div class="burst-frames">
-      <button class="burst-frame" (click)="chooseWinner(d.a.id)">
+      <button class="burst-frame" (click)="compare.emit({ ids: [d.a.id, d.b.id], start: 0 })">
         @if (imageUrls.get(d.a.id); as url) {
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
         <div class="frame-label">A</div>
         <div class="frame-name">{{ d.a.name }}</div>
       </button>
-      <button class="burst-frame" (click)="chooseWinner(d.b.id)">
+      <button class="burst-frame" (click)="compare.emit({ ids: [d.a.id, d.b.id], start: 1 })">
         @if (imageUrls.get(d.b.id); as url) {
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
@@ -23,23 +24,26 @@
         <div class="frame-name">{{ d.b.name }}</div>
       </button>
     </div>
+    <div class="burst-pick">
+      <button class="pick-btn" (click)="chooseWinner(d.a.id)">Keep A</button>
+      <button class="pick-btn" (click)="chooseWinner(d.b.id)">Keep B</button>
+    </div>
     <p class="burst-progress">Duel {{ challengerIdx() }} of {{ totalDuels() }}</p>
   } @else if (champion(); as champ) {
     <div class="burst-frames">
-      <button class="burst-frame" (click)="keepChampion()">
+      <button class="burst-frame" (click)="compare.emit({ ids: [champ.id], start: 0 })">
         @if (imageUrls.get(champ.id); as url) {
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
         <div class="frame-name">{{ champ.name }}</div>
       </button>
     </div>
-    <p class="burst-progress">Keep this one?</p>
+    <div class="burst-pick">
+      <button class="pick-btn" (click)="keepChampion()">Keep this one</button>
+    </div>
   }
 
   <div class="burst-footer">
-    <button class="zoom-btn" [class.active]="zoomed()" (click)="toggleZoom()">
-      {{ zoomed() ? 'Zoomed — same spot on both' : 'Zoom detail' }}
-    </button>
     @if (excluded().length > 0) {
       <span class="excluded-chip">{{ excluded().length }} soft frame excluded</span>
     }

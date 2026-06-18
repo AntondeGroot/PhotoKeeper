@@ -69,14 +69,6 @@ describe('BurstCardComponent', () => {
     expect(winner).toBe('s1');
   });
 
-  it('zoomed starts false and toggleZoom flips it back and forth', () => {
-    expect(component.zoomed()).toBe(false);
-    component.toggleZoom();
-    expect(component.zoomed()).toBe(true);
-    component.toggleZoom();
-    expect(component.zoomed()).toBe(false);
-  });
-
   it('renders an image for a duel frame that has a preview URL', () => {
     const fixture = TestBed.createComponent(BurstCardComponent);
     const sanitizer = TestBed.inject(DomSanitizer);
@@ -88,6 +80,58 @@ describe('BurstCardComponent', () => {
 
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelectorAll('img.burst-frame-img').length).toBe(1); // only b1 has a URL
+  });
+
+  const threeFrame = () =>
+    burst([
+      { id: 's1', name: 'A' },
+      { id: 's2', name: 'B' },
+      { id: 's3', name: 'C' },
+    ]);
+
+  it('Keep A keeps the champion and advances to the next challenger', () => {
+    const fixture = TestBed.createComponent(BurstCardComponent);
+    const c = fixture.componentInstance;
+    c.burst = threeFrame();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(c.duel()).toEqual({ a: { id: 's1', name: 'A' }, b: { id: 's2', name: 'B' } });
+    el.querySelectorAll<HTMLButtonElement>('.pick-btn')[0]?.click(); // Keep A
+    fixture.detectChanges();
+    expect(c.duel()).toEqual({ a: { id: 's1', name: 'A' }, b: { id: 's3', name: 'C' } });
+    expect(c.challengerIdx()).toBe(2);
+  });
+
+  it('Keep B promotes the challenger and advances', () => {
+    const fixture = TestBed.createComponent(BurstCardComponent);
+    const c = fixture.componentInstance;
+    c.burst = threeFrame();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    el.querySelectorAll<HTMLButtonElement>('.pick-btn')[1]?.click(); // Keep B
+    fixture.detectChanges();
+    expect(c.duel()).toEqual({ a: { id: 's2', name: 'B' }, b: { id: 's3', name: 'C' } });
+  });
+
+  it('tapping a frame enlarges (compare) the duel pair, starting on the tapped one', () => {
+    const fixture = TestBed.createComponent(BurstCardComponent);
+    const c = fixture.componentInstance;
+    c.burst = threeFrame();
+    let compared: { ids: string[]; start: number } | undefined;
+    let winner: string | undefined;
+    c.compare.subscribe((e) => (compared = e));
+    c.picked.subscribe((id) => (winner = id));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const frames = el.querySelectorAll<HTMLButtonElement>('.burst-frame');
+
+    frames[0]?.click(); // tap A → compare starting at 0
+    expect(compared).toEqual({ ids: ['s1', 's2'], start: 0 });
+    frames[1]?.click(); // tap B → compare starting at 1 (B shown first)
+    expect(compared).toEqual({ ids: ['s1', 's2'], start: 1 });
+    expect(winner).toBeUndefined(); // tapping a frame never picks
   });
 
   it('emits dissolved when "not a burst" is clicked', () => {

@@ -21,6 +21,7 @@ export class PhotoCardComponent {
   @Input() photo!: Photo;
   @Input() imageUrl: SafeUrl | null = null;
   @Output() swiped = new EventEmitter<'kept' | 'rejected' | 'toEdit' | 'maybe'>();
+  @Output() tapped = new EventEmitter<void>();
   private startX = 0;
   private startY = 0;
 
@@ -54,6 +55,8 @@ export class PhotoCardComponent {
       this.swiped.emit('maybe');
     } else if (this.dragY() < -100) {
       this.swiped.emit('toEdit');
+    } else if (Math.abs(this.dragX()) < 8 && Math.abs(this.dragY()) < 8) {
+      this.tapped.emit(); // a tap (no real drag) → open full screen
     }
 
     this.dragging.set(false);
