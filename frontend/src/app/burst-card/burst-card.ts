@@ -6,6 +6,7 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { SafeUrl } from '@angular/platform-browser';
 import { Burst } from '../photo';
 
 @Component({
@@ -17,6 +18,7 @@ import { Burst } from '../photo';
 })
 export class BurstCardComponent {
   @Input() burst!: Burst;
+  @Input() imageUrls = new Map<string, SafeUrl>();
   @Output() picked = new EventEmitter<string>();
   @Output() rejectedAll = new EventEmitter<void>();
 

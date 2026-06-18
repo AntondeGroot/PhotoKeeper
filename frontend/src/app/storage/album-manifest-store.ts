@@ -86,6 +86,14 @@ export class AlbumManifestStore {
   }
 
   /**
+   * Drops every stored manifest, so the next scan re-detects every album. Used when a detection
+   * threshold changes — album *content* is unchanged, so the gate would otherwise skip everything.
+   */
+  async clear(): Promise<void> {
+    await (await this.db.open()).clear('albumManifest');
+  }
+
+  /**
    * The change-gate. Returns `unchanged: true` when the album's population hash matches the stored
    * manifest (skip it); otherwise the diff of added/removed/changed asset ids to act on. Does not
    * persist — call {@link record} after a scan succeeds so a failed scan re-runs next time.

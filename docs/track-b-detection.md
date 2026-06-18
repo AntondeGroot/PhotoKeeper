@@ -149,10 +149,16 @@ Pi-nightly. Where *selection* runs is now settled: on-device.)
   frontend method; `albumManifest` store with `id+updated` fingerprints, hash gate, and
   added/removed/changed `diffManifest` (`storage/album-manifest-store.ts`).
 - **Slice 3 — background scan** ✅ done (burst path): `DetectionScanService.scanAlbum` —
-  manifest-gated, hashes only added/edited assets (reusing a warmed 2048 preview when present, else
-  fetching the 640 rendition via injectable `ImageHasher`), re-clusters bursts over the whole album,
-  and stores them in the new `groups` store (`GroupStore`). Pano/stereo group types await their
-  classifiers (only `clusterBursts` exists today); thresholds are provisional pending the corpus.
+  manifest-gated, then the tiered pipeline: Stage 1 clusters by **timestamp + camera only (no
+  pixels)** to find burst candidates, Stage 2 hashes **only those candidate members** lacking a
+  cached hash (reusing a warmed 2048 preview, else fetching one 640 rendition via `ImageHasher`),
+  Stage 3 re-clusters with the hashes so the Hamming check confirms real bursts. Lone photos are
+  never fetched or hashed. Groups land in the `groups` store (`GroupStore`). Pano/stereo group types
+  await their classifiers (only `clusterBursts` exists today). Thresholds (`windowMs`, `maxHamming`,
+  `minSize`) are now user-tunable and persisted via `DetectionSettingsService` (the scan reads them
+  each run); the defaults are provisional pending the corpus. Note a wider `windowMs` enlarges Stage-1
+  candidate runs, so it trades efficiency (more hashing during active shooting) for catching slower
+  re-shoots.
 - **Slice 4 — group-aware on-device selection** (in progress):
   - Pure core ✅ done — `selectUnits` (`selection/unit-selection.ts`) samples album-weighted over
     `units = singles + groups`, hydrating burst groups into `Burst` review items (pano/stereo ignored

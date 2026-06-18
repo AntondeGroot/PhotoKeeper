@@ -17,6 +17,8 @@ import { PreviewStore } from './storage/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
+import { DetectionSettingsService } from './detection/detection-settings.service';
+import { AlbumManifestStore } from './storage/album-manifest-store';
 import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO } from './photo';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
@@ -59,6 +61,20 @@ function tomorrowKey(): string {
   return dateKey(d);
 }
 
+/** Every real asset id a review unit references — its own, or all the frames of a group. */
+function unitAssetIds(item: ReviewItem): string[] {
+  switch (item.kind) {
+    case 'photo':
+      return [item.id];
+    case 'burst':
+      return item.photos.map((p) => p.id);
+    case 'pano':
+      return item.frames.map((f) => f.id);
+    case 'stereo':
+      return [...item.left, ...item.baselines.flatMap((b) => b.frames)].map((f) => f.id);
+  }
+}
+
 @Component({
   selector: 'app-root',
   imports: [
@@ -83,6 +99,8 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly previewStore = inject(PreviewStore);
   private readonly dailyUnits = inject(DailyUnitsService);
   private readonly catalogScan = inject(CatalogScanService);
+  private readonly detectionSettings = inject(DetectionSettingsService);
+  private readonly albumManifests = inject(AlbumManifestStore);
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
@@ -97,6 +115,8 @@ export class AppComponent implements OnInit, OnDestroy {
   manageAlbumsOpen = signal(false);
   error = signal<string | null>(null);
   dailyGoal = signal(15);
+  // Burst-detection window in seconds (the persisted threshold lives in DetectionSettingsService).
+  burstWindowSeconds = computed(() => this.detectionSettings.burstOptions().windowMs / 1000);
   editGoal = signal(3);
   editedToday = signal(0);
   reminderTime = signal('09:00');
@@ -117,6 +137,17 @@ export class AppComponent implements OnInit, OnDestroy {
     return current?.kind === 'photo'
       ? (this.previewCache().get(current.id)?.safeUrl ?? null)
       : null;
+  });
+  // Frame-id → preview URL for the current unit (e.g. a burst's frames), passed to the group cards.
+  currentUnitImageUrls = computed(() => {
+    const current = this.currentReviewPhoto();
+    const cache = this.previewCache();
+    const urls = new Map<string, SafeUrl>();
+    for (const id of current ? unitAssetIds(current) : []) {
+      const url = cache.get(id)?.safeUrl;
+      if (url) urls.set(id, url);
+    }
+    return urls;
   });
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
   sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
@@ -143,6 +174,8 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly inFlight = new Set<string>();
   // Debounce handle: the goal slider emits continuously, so we resample once it settles.
   private goalResampleTimer: ReturnType<typeof setTimeout> | null = null;
+  // Debounce handle for the burst-window slider, which forces a (heavy) library re-scan on change.
+  private burstRescanTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     effect(() => {
@@ -154,8 +187,9 @@ export class AppComponent implements OnInit, OnDestroy {
       localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
     });
 
-    // Keep the current photo's preview plus the next PREFETCH_AHEAD ones loaded, so swiping never
-    // waits, and evict anything outside that window (we only ever move forward). Guarded by
+    // Keep the current unit's previews plus the next PREFETCH_AHEAD ones loaded, so swiping never
+    // waits, and evict anything outside that window (we only ever move forward). Warms every frame id
+    // of each unit — a single photo, or all the frames of a burst/pano/stereo. Guarded by
     // photosLoaded so the mock fallback (whose ids aren't real assets) is skipped.
     effect(() => {
       if (!this.photosLoaded()) return;
@@ -164,9 +198,10 @@ export class AppComponent implements OnInit, OnDestroy {
       const windowIds = new Set<string>();
       for (let i = 0; i <= PREFETCH_AHEAD; i++) {
         const item = photos[start + i];
-        if (item?.kind === 'photo') {
-          windowIds.add(item.id);
-          void this.ensurePreview(item.id);
+        if (!item) continue;
+        for (const id of unitAssetIds(item)) {
+          windowIds.add(id);
+          void this.ensurePreview(id);
         }
       }
       this.evictOutsideWindow(windowIds);
@@ -303,6 +338,24 @@ export class AppComponent implements OnInit, OnDestroy {
     await this.reviewStore.pruneDailyFeedExcept(new Set());
     await this.loadPhotos();
     void this.precomputeTomorrow();
+  }
+
+  // Updates the burst-detection window (seconds) and, debounced, re-detects the whole library at the
+  // new threshold. Heavy by design — the Settings UI warns about it. The manifest gate keys on album
+  // *content*, so a threshold change alone wouldn't re-detect anything without clearing it.
+  setBurstWindowSeconds(seconds: number): void {
+    const windowMs = Math.round(seconds) * 1000;
+    if (windowMs === this.detectionSettings.burstOptions().windowMs) return;
+    this.detectionSettings.setBurstOptions({ windowMs });
+    if (!this.authenticated()) return;
+    if (this.burstRescanTimer) clearTimeout(this.burstRescanTimer);
+    this.burstRescanTimer = setTimeout(() => void this.rescanForDetectionChange(), 800);
+  }
+
+  private async rescanForDetectionChange(): Promise<void> {
+    await this.albumManifests.clear(); // force every album to re-detect with the new threshold
+    await this.catalogScan.scanAllAlbums();
+    await this.resampleDailyFeed();
   }
 
   private async selectDailyUnits(): Promise<ReviewItem[]> {
@@ -561,5 +614,6 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.revokeAllPreviews();
     if (this.goalResampleTimer) clearTimeout(this.goalResampleTimer);
+    if (this.burstRescanTimer) clearTimeout(this.burstRescanTimer);
   }
 }

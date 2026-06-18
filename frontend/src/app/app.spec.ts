@@ -8,6 +8,7 @@ import { PreviewStore } from './storage/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
+import { DetectionSettingsService } from './detection/detection-settings.service';
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -332,6 +333,19 @@ describe('App', () => {
       httpMock.match((r) => r.url === 'api/feed').forEach((r) => r.flush({ resources: [] }));
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
       httpMock.verify();
+    });
+  });
+
+  describe('burst window setting', () => {
+    it('updates the persisted window (no rescan while unauthenticated)', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      const settings = TestBed.inject(DetectionSettingsService);
+
+      app.setBurstWindowSeconds(12);
+
+      expect(app.burstWindowSeconds()).toBe(12);
+      expect(settings.burstOptions().windowMs).toBe(12_000);
     });
   });
 

@@ -12,7 +12,9 @@ export class SettingsComponent {
   @Input() reminderTime: string = '09:00';
   @Input() silentTime: string = '21:00';
   @Input() silentEvening: boolean = false;
+  @Input() burstWindowSeconds = 3;
   @Output() dailyGoalChange = new EventEmitter<number>();
+  @Output() burstWindowSecondsChange = new EventEmitter<number>();
   @Output() editGoalChange = new EventEmitter<number>();
   @Output() reminderTimeChange = new EventEmitter<string>();
   @Output() silentTimeChange = new EventEmitter<string>();
@@ -33,5 +35,9 @@ export class SettingsComponent {
 
   onSilentTimeChange(event: Event): void {
     this.silentTimeChange.emit((event.target as HTMLInputElement).value);
+  }
+
+  onBurstWindowChange(event: Event): void {
+    this.burstWindowSecondsChange.emit(Number((event.target as HTMLInputElement).value));
   }
 }
