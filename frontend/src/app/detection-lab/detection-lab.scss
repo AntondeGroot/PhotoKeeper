@@ -1,0 +1,118 @@
+.lab {
+  padding: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+  color: var(--c-text);
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.lab-note {
+  font-size: 12.5px;
+  color: var(--c-dim);
+  margin: 0 0 16px;
+}
+
+.lab-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  select,
+  button {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--c-line);
+    background: var(--c-panel);
+    color: var(--c-text);
+  }
+
+  button {
+    background: var(--c-amber);
+    color: #131110;
+    font-weight: 600;
+    cursor: pointer;
+  }
+}
+
+.lab-error {
+  color: #e06c6c;
+  font-size: 13px;
+}
+
+.lab-sliders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 12px;
+  border: 1px solid var(--c-line);
+  border-radius: 10px;
+  margin-bottom: 16px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--c-dim);
+    // Fixed width so the changing value text can't reflow the row and shift the slider under your cursor.
+    flex: 0 0 200px;
+  }
+
+  input[type='range'] {
+    width: 100%;
+  }
+}
+
+.lab-summary {
+  font-size: 13px;
+  color: var(--c-faint);
+}
+
+.lab-cluster {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.lab-members {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px;
+  border-left: 2px solid var(--c-amber);
+  border-right: 2px solid var(--c-amber);
+}
+
+.lab-frame {
+  flex: 0 0 auto;
+  width: 96px;
+  text-align: center;
+
+  &.excluded {
+    opacity: 0.4;
+  }
+}
+
+.lab-thumb {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--c-panel);
+}
+
+.lab-frame-meta {
+  font-size: 10px;
+  color: var(--c-dim);
+  margin-top: 4px;
+  white-space: nowrap;
+}

@@ -39,6 +39,7 @@ import { BurstCardComponent } from './burst-card/burst-card';
 import { PanoCardComponent } from './pano-card/pano-card';
 import { StereoCardComponent } from './stereo-card/stereo-card';
 import { AlbumManagerComponent } from './album-manager/album-manager';
+import { DetectionLabComponent } from './detection-lab/detection-lab';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
@@ -112,6 +113,7 @@ function unitAssetIds(item: ReviewItem): string[] {
     PanoCardComponent,
     StereoCardComponent,
     AlbumManagerComponent,
+    DetectionLabComponent,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -131,6 +133,8 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
   authenticated = signal(false);
+  // Developer detection lab, reached via the ?lab query param. Replaces the review UI when set.
+  labMode = signal(false);
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
   reviewMode = signal<'sort' | 'edit'>('sort');
   reviewIndex = signal(0);
@@ -259,6 +263,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private async init(): Promise<void> {
     const params = new URLSearchParams(window.location.search);
+    this.labMode.set(params.has('lab'));
     const authError = params.get('auth_error');
     if (authError) {
       const detail = params.get('detail');
@@ -282,6 +287,10 @@ export class AppComponent implements OnInit, OnDestroy {
         // Fetching the catalog id both caches it and validates the token (refreshing if expired).
         await firstValueFrom(this.svc.loadCatalogId());
         this.authenticated.set(true);
+        if (this.labMode()) {
+          this.loading.set(false);
+          return; // the lab loads its own data; skip the review pipeline entirely
+        }
         await this.loadPhotos();
         await this.loadAlbums();
         void this.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint

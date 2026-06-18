@@ -15,6 +15,8 @@
         <a [attr.href]="loginHref" class="btn-connect">Connect to Lightroom</a>
       </div>
     </div>
+  } @else if (labMode()) {
+    <app-detection-lab />
   } @else {
     <div class="keeper-shell">
       <header class="keeper-header">

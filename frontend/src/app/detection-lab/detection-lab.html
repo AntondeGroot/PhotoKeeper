@@ -1,0 +1,78 @@
+<div class="lab">
+  <h1>Detection lab</h1>
+  <p class="lab-note">
+    Developer view — tune burst thresholds and inspect what's grouped vs excluded. Sliders
+    re-cluster live; they don't change the app's saved settings.
+  </p>
+
+  <div class="lab-controls">
+    <label>
+      Album
+      <select (change)="onAlbumChange($event)" [disabled]="analyzing()">
+        <option value="">Select an album…</option>
+        @for (a of albums(); track a.id) {
+          <option [value]="a.id">{{ a.name }}</option>
+        }
+      </select>
+    </label>
+    <button (click)="analyze()" [disabled]="!selectedAlbumId() || analyzing()">
+      {{ analyzing() ? 'Analyzing… ' + progressPct() + '%' : 'Analyze' }}
+    </button>
+  </div>
+
+  @if (error(); as e) {
+    <p class="lab-error">{{ e }}</p>
+  }
+
+  <div class="lab-sliders">
+    <label>
+      Window {{ windowSec() }}s
+      <input type="range" min="1" max="120" [value]="windowSec()" (input)="onWindow($event)" />
+    </label>
+    <label>
+      Max Hamming {{ maxHamming() }}
+      <input type="range" min="0" max="64" [value]="maxHamming()" (input)="onMaxHamming($event)" />
+    </label>
+    <label>
+      Min size {{ minSize() }}
+      <input type="range" min="2" max="6" [value]="minSize()" (input)="onMinSize($event)" />
+    </label>
+  </div>
+
+  @if (frames().length > 0) {
+    <p class="lab-summary">{{ frames().length }} frames · {{ clusters().length }} bursts</p>
+
+    @for (c of clusters(); track c.memberIds[0]) {
+      <div class="lab-cluster">
+        @if (c.before; as b) {
+          <div class="lab-frame excluded">
+            <img class="lab-thumb" [src]="thumb(b.id)" alt="" />
+            <div class="lab-frame-meta">
+              before · {{ secs(b.gapMs) }}s · ham {{ b.hamming ?? '—' }}
+            </div>
+          </div>
+        }
+        <div class="lab-members">
+          @for (id of c.memberIds; track id) {
+            <div class="lab-frame">
+              <img class="lab-thumb" [src]="thumb(id)" alt="" />
+              <div class="lab-frame-meta">{{ frameName(id) }}</div>
+            </div>
+          }
+        </div>
+        @if (c.after; as a) {
+          <div class="lab-frame excluded">
+            <img class="lab-thumb" [src]="thumb(a.id)" alt="" />
+            <div class="lab-frame-meta">
+              after · {{ secs(a.gapMs) }}s · ham {{ a.hamming ?? '—' }}
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    @if (clusters().length === 0) {
+      <p class="lab-summary">No bursts at these thresholds.</p>
+    }
+  }
+</div>
