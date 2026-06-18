@@ -29,9 +29,7 @@ import {
   MOCK_PANO,
   MOCK_STEREO,
 } from './photo';
-import { HashStore } from './storage/hash-store';
 import { GroupOverrideStore } from './storage/group-override-store';
-import { hammingDistance } from './detection/phash';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
 import { ReviewEditComponent } from './review-edit/review-edit';
@@ -88,17 +86,6 @@ function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
   };
 }
 
-/** Largest Hamming distance between any two of the given hashes (0 when fewer than two). */
-function maxPairwiseHamming(hashes: readonly string[]): number {
-  let max = 0;
-  for (let i = 0; i < hashes.length; i++) {
-    for (let j = i + 1; j < hashes.length; j++) {
-      max = Math.max(max, hammingDistance(hashes[i], hashes[j]));
-    }
-  }
-  return max;
-}
-
 /** Every real asset id a review unit references — its own, or all the frames of a group. */
 function unitAssetIds(item: ReviewItem): string[] {
   switch (item.kind) {
@@ -139,7 +126,6 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
   private readonly albumManifests = inject(AlbumManifestStore);
-  private readonly hashes = inject(HashStore);
   private readonly groupOverrides = inject(GroupOverrideStore);
 
   readonly loginHref = this.svc.loginHref();
@@ -606,13 +592,19 @@ export class AppComponent implements OnInit, OnDestroy {
     this.reviewMode.set(mode);
   }
 
-  pickFromBurst(): void {
+  // Resolves a burst's duel: the winning frame is kept, every other frame rejected. Marks the burst
+  // unit done (so it leaves the queue and counts toward the goal) and persists per-frame verdicts.
+  resolveBurst(winnerId: string): void {
     const current = this.currentReviewPhoto();
-    if (!current) return;
+    if (current?.kind !== 'burst') return;
     this.reviewPhotos.update((list) =>
       list.map((item) => (item.id === current.id ? { ...item, status: 'kept' as const } : item)),
     );
-    void this.persistVerdict(current.id);
+    void this.persistVerdict(current.id); // burst unit itself: done, survives reload
+    for (const frame of current.photos) {
+      const status = frame.id === winnerId ? ('kept' as const) : ('rejected' as const);
+      void this.reviewStore.setVerdict(frame.id, { status, starred: false, keepsake: false });
+    }
     this.nextReviewPhoto();
   }
 
@@ -642,18 +634,15 @@ export class AppComponent implements OnInit, OnDestroy {
     void this.recordDissolve(current);
   }
 
-  // Persists the "not a group" override, logging the group's max pairwise Hamming distance (from the
-  // cached hashes) so detection can later suggest tightening the threshold. Best-effort.
+  // Persists the "not a group" override so the group stays dissolved across reloads and re-scans.
+  // Deliberately records no threshold-calibration signal: a dissolve can mean "I want both" just as
+  // much as "detection was wrong", so it isn't reliable evidence the threshold is too loose.
   private async recordDissolve(burst: Burst): Promise<void> {
-    const memberIds = burst.photos.map((p) => p.id);
     try {
-      const allHashes = await this.hashes.getAll();
-      const memberHashes = memberIds
-        .map((id) => allHashes.get(id))
-        .filter((h): h is string => h !== undefined);
-      const maxHamming =
-        memberHashes.length === memberIds.length ? maxPairwiseHamming(memberHashes) : undefined;
-      await this.groupOverrides.dissolve({ memberIds, maxHamming, dissolvedAt: Date.now() });
+      await this.groupOverrides.dissolve({
+        memberIds: burst.photos.map((p) => p.id),
+        dissolvedAt: Date.now(),
+      });
     } catch {
       // Best-effort correction; never break the review flow.
     }
