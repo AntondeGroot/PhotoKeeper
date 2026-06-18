@@ -1,0 +1,136 @@
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viewer-img {
+  max-width: 100vw;
+  max-height: 100vh;
+  object-fit: contain; // true orientation — landscape stays landscape
+  touch-action: none; // let the swipe handler own horizontal drags
+  user-select: none;
+}
+
+.swipe-flag {
+  position: fixed;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 3px solid currentColor;
+  pointer-events: none;
+}
+
+.flag-keep {
+  top: 50%;
+  right: 8%;
+  transform: translateY(-50%);
+  color: #57c98b;
+}
+
+.flag-reject {
+  top: 50%;
+  left: 8%;
+  transform: translateY(-50%);
+  color: #e06c6c;
+}
+
+.flag-edit {
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--c-amber);
+}
+
+.flag-maybe {
+  bottom: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #9aa6ff;
+}
+
+.viewer-close {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.viewer-switch {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+
+  button {
+    min-width: 44px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    cursor: pointer;
+
+    &.active {
+      background: var(--c-amber);
+      color: #131110;
+      font-weight: 600;
+    }
+  }
+}
+
+.viewer-actions {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+
+  .va {
+    padding: 12px 18px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .va.keep {
+    background: var(--c-amber);
+    color: #131110;
+    border-color: transparent;
+  }
+
+  .va.reject {
+    background: rgba(224, 108, 108, 0.85);
+    border-color: transparent;
+  }
+}
+
+.viewer-hint {
+  position: fixed;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}

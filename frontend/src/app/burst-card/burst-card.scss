@@ -27,6 +27,28 @@
   color: var(--c-faint);
 }
 
+.burst-pick {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+
+  .pick-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: var(--c-amber);
+    color: #131110;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+
+    &:hover {
+      filter: brightness(1.06);
+    }
+  }
+}
+
 .burst-frames {
   display: flex;
   gap: 10px;

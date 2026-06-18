@@ -16,4 +16,5 @@ export class ReviewSortComponent {
   @Output() swiped = new EventEmitter<'kept' | 'rejected' | 'toEdit' | 'maybe'>();
   @Output() starToggle = new EventEmitter<void>();
   @Output() keepsakeToggle = new EventEmitter<void>();
+  @Output() tapped = new EventEmitter<void>();
 }

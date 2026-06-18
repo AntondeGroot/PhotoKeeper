@@ -3,7 +3,12 @@
     {{ photo.keepsake ? '♥' : '♡' }}
   </button>
 </div>
-<app-photo-card [photo]="photo" [imageUrl]="imageUrl" (swiped)="swiped.emit($event)" />
+<app-photo-card
+  [photo]="photo"
+  [imageUrl]="imageUrl"
+  (swiped)="swiped.emit($event)"
+  (tapped)="tapped.emit()"
+/>
 <div class="action-buttons">
   <button (click)="swiped.emit('rejected')">✕</button>
   <button (click)="swiped.emit('toEdit')">↑</button>

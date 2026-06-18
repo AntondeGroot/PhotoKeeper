@@ -1,0 +1,47 @@
+<div class="viewer">
+  @if (current(); as img) {
+    <img
+      class="viewer-img"
+      [src]="img.url"
+      alt=""
+      draggable="false"
+      [style.transform]="dragTransform()"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp()"
+      (pointercancel)="onPointerUp()"
+    />
+  }
+
+  @if (reviewMode) {
+    <div class="swipe-flag flag-keep" [style.opacity]="dragX() > 0 ? dragX() / 100 : 0">KEEP →</div>
+    <div class="swipe-flag flag-reject" [style.opacity]="dragX() < 0 ? -dragX() / 100 : 0">
+      ← REJECT
+    </div>
+    <div class="swipe-flag flag-edit" [style.opacity]="dragY() < 0 ? -dragY() / 100 : 0">
+      ↑ EDIT
+    </div>
+    <div class="swipe-flag flag-maybe" [style.opacity]="dragY() > 0 ? dragY() / 100 : 0">
+      ↓ MAYBE
+    </div>
+  }
+
+  <button class="viewer-close" (click)="close()" aria-label="close">✕</button>
+
+  @if (reviewMode) {
+    <div class="viewer-actions">
+      <button class="va reject" (click)="chooseVerdict('rejected')">✕ Reject</button>
+      <button class="va maybe" (click)="chooseVerdict('maybe')">Maybe</button>
+      <button class="va edit" (click)="chooseVerdict('toEdit')">Edit</button>
+      <button class="va keep" (click)="chooseVerdict('kept')">✓ Keep</button>
+    </div>
+    <div class="viewer-hint">swipe or use the buttons · tap the photo to close</div>
+  } @else if (multi()) {
+    <div class="viewer-switch">
+      @for (img of images; track $index) {
+        <button [class.active]="$index === index()" (click)="show($index)">{{ img.label }}</button>
+      }
+    </div>
+    <div class="viewer-hint">tap a label or swipe to compare · tap the photo to close</div>
+  }
+</div>
