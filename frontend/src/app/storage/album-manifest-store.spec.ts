@@ -100,4 +100,14 @@ describe('AlbumManifestStore', () => {
     await store.delete('alb-1');
     expect(await store.get('alb-1')).toBeUndefined();
   });
+
+  it('clear() drops every manifest so albums re-detect', async () => {
+    await store.record('alb-1', [asset('a')]);
+    await store.record('alb-2', [asset('b')]);
+
+    await store.clear();
+
+    expect(await store.get('alb-1')).toBeUndefined();
+    expect(await store.scan('alb-2', [asset('b')])).toMatchObject({ unchanged: false });
+  });
 });

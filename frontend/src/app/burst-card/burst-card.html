@@ -9,6 +9,9 @@
   <div class="burst-frames">
     @for (photo of survivors; track photo.id; let i = $index) {
       <button class="burst-frame" (click)="picked.emit(photo.id)">
+        @if (imageUrls.get(photo.id); as url) {
+          <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
+        }
         <div class="frame-label">{{ i === 0 ? 'A' : 'B' }}</div>
         <div class="frame-name">{{ photo.name }}</div>
       </button>

@@ -1,3 +1,5 @@
+import { TestBed } from '@angular/core/testing';
+import { DomSanitizer } from '@angular/platform-browser';
 import { BurstCardComponent } from './burst-card';
 import { Burst } from '../photo';
 
@@ -41,5 +43,19 @@ describe('BurstCardComponent', () => {
 
     component.toggleZoom();
     expect(component.zoomed()).toBe(false);
+  });
+
+  it('renders a frame image only for survivors that have a preview URL', () => {
+    const fixture = TestBed.createComponent(BurstCardComponent);
+    const sanitizer = TestBed.inject(DomSanitizer);
+    fixture.componentInstance.burst = burstFixture();
+    // survivors are b1 and b3; only b1 has a warmed preview.
+    fixture.componentInstance.imageUrls = new Map([
+      ['b1', sanitizer.bypassSecurityTrustUrl('data:image/png;base64,AAAA')],
+    ]);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('img.burst-frame-img').length).toBe(1);
   });
 });

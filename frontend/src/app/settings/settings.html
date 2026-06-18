@@ -127,4 +127,25 @@
       </div>
     </div>
   </div>
+
+  <div class="settings-section-label">Detection</div>
+
+  <div class="settings-card">
+    <h3 class="card-title">Burst window</h3>
+    <div class="goal-row">
+      <span class="goal-label">Group photos taken within</span>
+      <span class="goal-value">{{ burstWindowSeconds }}s</span>
+    </div>
+    <input
+      class="goal-slider"
+      type="range"
+      min="1"
+      max="60"
+      [value]="burstWindowSeconds"
+      (input)="onBurstWindowChange($event)"
+    />
+    <p class="goal-hint">
+      ⚠️ Changing this re-scans your whole library. A wider window also downloads more images.
+    </p>
+  </div>
 </div>

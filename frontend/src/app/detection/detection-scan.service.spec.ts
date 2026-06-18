@@ -39,6 +39,7 @@ describe('DetectionScanService', () => {
 
   beforeEach(() => {
     indexedDB = new IDBFactory(); // fresh, empty database per test
+    localStorage.clear(); // detection settings default; tests assume the 3s window / hamming 10
     fetched = [];
     albumAssets = [
       image('a1', '2026-05-01T10:00:00Z'),
@@ -68,19 +69,25 @@ describe('DetectionScanService', () => {
     metaStore = TestBed.inject(AssetMetaStore);
   });
 
-  it('hashes every asset and stores the detected burst on the first scan', async () => {
+  it('hashes only the burst candidates (not lone photos) and stores the detected burst', async () => {
     const report = await service.scanAlbum('alb-1');
 
-    expect(report).toEqual({ albumId: 'alb-1', skipped: false, hashed: 3, removed: 0, groups: 1 });
-    expect((await hashStore.getAll()).size).toBe(3);
+    // a1+a2 are a time-cluster candidate → hashed; a3 is a lone photo → metadata only, never hashed.
+    expect(report).toEqual({ albumId: 'alb-1', skipped: false, hashed: 2, removed: 0, groups: 1 });
+    expect([...(await hashStore.getAll()).keys()].sort((x, y) => x.localeCompare(y))).toEqual([
+      'a1',
+      'a2',
+    ]);
     expect(await groupStore.getByAlbum('alb-1')).toEqual([
       { type: 'burst', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] },
     ]);
-    expect(await metaStore.get('a1')).toEqual({
+    // Metadata is stored for every image, including the un-hashed lone photo.
+    expect(await metaStore.get('a3')).toEqual({
       albumId: 'alb-1',
-      name: 'a1',
-      taken: '2026-05-01T10:00:00Z',
+      name: 'a3',
+      taken: '2026-05-01T12:00:00Z',
     });
+    expect(await hashStore.get('a3')).toBeUndefined();
   });
 
   it('skips an unchanged album on the second scan — no fetch, no re-hash', async () => {
@@ -98,7 +105,8 @@ describe('DetectionScanService', () => {
 
     await service.scanAlbum('alb-1');
 
-    expect(fetched).toEqual(['a2', 'a3']); // a1 came from the warmed preview
+    // Only burst candidates a1/a2 are hashed; a1 comes from the warmed preview, so only a2 is fetched.
+    expect(fetched).toEqual(['a2']);
   });
 
   it('re-hashes edited assets, fetches added ones, and drops removed hashes', async () => {
