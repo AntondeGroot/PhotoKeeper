@@ -42,6 +42,18 @@ export interface AssetMeta {
 }
 
 /**
+ * A user correction: "this detected group is not actually a group." Keyed by its member set so
+ * selection drops the group (its frames become singles) and it survives re-scans. `maxHamming` (the
+ * group's max pairwise distance at dissolve time) is logged so detection can later suggest tightening
+ * the threshold.
+ */
+export interface GroupOverride {
+  memberIds: string[];
+  maxHamming?: number;
+  dissolvedAt: number; // epoch ms
+}
+
+/**
  * A snapshot of an album's asset population, written after each detection scan. The change-gate
  * hashes the current population and compares it against this; on a mismatch it diffs the fingerprint
  * lists to find exactly which assets were added/removed/changed, so only those get re-hashed.
@@ -62,6 +74,7 @@ export interface AlbumManifest {
  * - albumManifest: albumId → population fingerprint, the detection change-gate
  * - groups: groupId → a detected cluster (burst/pano/stereo) for group-aware selection
  * - assetMeta: assetId → lightweight metadata for on-device selection (album, name, taken)
+ * - groupOverrides: member-set signature → a "not a group" user correction
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -72,6 +85,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   albumManifest: { key: string; value: AlbumManifest };
   groups: { key: string; value: DetectedGroup };
   assetMeta: { key: string; value: AssetMeta };
+  groupOverrides: { key: string; value: GroupOverride };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -81,9 +95,9 @@ export class PhotoKeeperDb {
 
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
     // v2 renamed the 'renditions' store to 'previews'; v3 added 'assetHash'; v4 added
-    // 'albumManifest'; v5 added 'groups'; v6 added 'assetMeta'. Create-if-missing so existing dev
-    // databases keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 6, {
+    // 'albumManifest'; v5 added 'groups'; v6 added 'assetMeta'; v7 added 'groupOverrides'.
+    // Create-if-missing so existing dev databases keep their data.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 7, {
       upgrade(db) {
         for (const store of [
           'previews',
@@ -94,6 +108,7 @@ export class PhotoKeeperDb {
           'albumManifest',
           'groups',
           'assetMeta',
+          'groupOverrides',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

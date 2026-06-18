@@ -58,4 +58,18 @@ describe('BurstCardComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelectorAll('img.burst-frame-img').length).toBe(1);
   });
+
+  it('emits dissolved when "not a burst" is clicked', () => {
+    const fixture = TestBed.createComponent(BurstCardComponent);
+    fixture.componentInstance.burst = burstFixture();
+    let emitted = false;
+    fixture.componentInstance.dissolved.subscribe(() => (emitted = true));
+    fixture.detectChanges();
+
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('.not-a-burst')
+      ?.click();
+
+    expect(emitted).toBe(true);
+  });
 });

@@ -12,5 +12,7 @@ export class SessionDoneComponent {
   @Input() rejectedCount!: number;
   @Input() toEditCount!: number;
   @Input() maybeCount!: number;
+  @Input() canLoadMore = true;
   @Output() pipelineClick = new EventEmitter<void>();
+  @Output() loadMore = new EventEmitter<void>();
 }

@@ -19,7 +19,19 @@ import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { AlbumManifestStore } from './storage/album-manifest-store';
-import { Photo, ReviewItem, MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO } from './photo';
+import {
+  Burst,
+  BurstPhoto,
+  Photo,
+  ReviewItem,
+  MOCK_PHOTOS,
+  MOCK_BURST,
+  MOCK_PANO,
+  MOCK_STEREO,
+} from './photo';
+import { HashStore } from './storage/hash-store';
+import { GroupOverrideStore } from './storage/group-override-store';
+import { hammingDistance } from './detection/phash';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
 import { ReviewEditComponent } from './review-edit/review-edit';
@@ -59,6 +71,32 @@ function tomorrowKey(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return dateKey(d);
+}
+
+/** Turns a dissolved burst's frame into a standalone review photo, carrying over the burst's album. */
+function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
+  return {
+    id: frame.id,
+    name: frame.name,
+    album: burst.album,
+    taken: burst.taken,
+    status: 'backlog',
+    kind: 'photo',
+    starred: false,
+    keepsake: false,
+    ai: frame.ai,
+  };
+}
+
+/** Largest Hamming distance between any two of the given hashes (0 when fewer than two). */
+function maxPairwiseHamming(hashes: readonly string[]): number {
+  let max = 0;
+  for (let i = 0; i < hashes.length; i++) {
+    for (let j = i + 1; j < hashes.length; j++) {
+      max = Math.max(max, hammingDistance(hashes[i], hashes[j]));
+    }
+  }
+  return max;
 }
 
 /** Every real asset id a review unit references — its own, or all the frames of a group. */
@@ -101,6 +139,8 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
   private readonly albumManifests = inject(AlbumManifestStore);
+  private readonly hashes = inject(HashStore);
+  private readonly groupOverrides = inject(GroupOverrideStore);
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
@@ -127,6 +167,8 @@ export class AppComponent implements OnInit, OnDestroy {
   // fallback so the UI still works offline / before auth.
   reviewPhotos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO]);
   photosLoaded = signal(false);
+  // Whether "Review more" can still pull fresh photos; false once the population is exhausted.
+  canLoadMore = signal(true);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
   // Cache of fetched 2048px previews (assetId → preview), filled ahead of the cursor so
   // navigating never waits, and evicted once a photo falls behind the window. currentReviewPhotoUrl
@@ -303,6 +345,7 @@ export class AppComponent implements OnInit, OnDestroy {
         const firstUndone = withVerdicts.findIndex((p) => p.status === 'backlog');
         this.reviewIndex.set(firstUndone === -1 ? 0 : firstUndone);
         this.photosLoaded.set(true);
+        this.canLoadMore.set(true);
         // Drop cached previews from earlier days, but keep today's selection AND tomorrow's
         // precomputed selection — otherwise we'd evict the previews precomputeTomorrow warmed ahead.
         const keep = new Set(withVerdicts.map((p) => p.id));
@@ -358,9 +401,31 @@ export class AppComponent implements OnInit, OnDestroy {
     await this.resampleDailyFeed();
   }
 
-  private async selectDailyUnits(): Promise<ReviewItem[]> {
-    // Size the queue to the user's daily goal, not a fixed number.
-    const limit = this.dailyGoal();
+  // Appends a fresh batch of unseen photos when the user is caught up but wants to keep going. Samples
+  // generously and keeps only units no asset of which is already in the queue or already decided; if
+  // nothing new remains, the population is exhausted and the "Review more" button hides.
+  async loadMore(): Promise<void> {
+    const verdicts = await this.reviewStore.getVerdicts();
+    const inQueue = new Set(this.reviewPhotos().flatMap(unitAssetIds));
+    const isFresh = (unit: ReviewItem): boolean =>
+      unitAssetIds(unit).every(
+        (id) => !inQueue.has(id) && (verdicts.get(id)?.status ?? 'backlog') === 'backlog',
+      );
+
+    const more = (await this.selectDailyUnits(this.dailyGoal() * 3))
+      .filter(isFresh)
+      .slice(0, this.dailyGoal());
+    if (more.length === 0) {
+      this.canLoadMore.set(false);
+      return;
+    }
+    this.reviewPhotos.update((list) => [...list, ...more]);
+    void this.reviewStore.setDailyFeed(todayKey(), this.reviewPhotos());
+    const next = this.reviewPhotos().findIndex((p) => p.status === 'backlog');
+    if (next !== -1) this.reviewIndex.set(next);
+  }
+
+  private async selectDailyUnits(limit: number = this.dailyGoal()): Promise<ReviewItem[]> {
     const units = await this.dailyUnits.buildUnits(this.vacationAlbumIds(), limit);
     if (units.length > 0) return units;
     const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), limit));
@@ -561,6 +626,37 @@ export class AppComponent implements OnInit, OnDestroy {
     );
     void this.persistVerdict(current.id);
     this.nextReviewPhoto();
+  }
+
+  // "Not a burst" — the user says these frames aren't a real group. Replace the burst with its frames
+  // as individual photos to review now, and record an override so the group stays dissolved across
+  // reloads and re-scans (selection drops it). Stays put on the first frame.
+  dissolveBurst(): void {
+    const current = this.currentReviewPhoto();
+    if (current?.kind !== 'burst') return;
+    const singles = current.photos.map((frame) => burstFrameToPhoto(frame, current));
+    this.reviewPhotos.update((list) =>
+      list.flatMap((item) => (item.id === current.id ? singles : [item])),
+    );
+    void this.reviewStore.setDailyFeed(todayKey(), this.reviewPhotos());
+    void this.recordDissolve(current);
+  }
+
+  // Persists the "not a group" override, logging the group's max pairwise Hamming distance (from the
+  // cached hashes) so detection can later suggest tightening the threshold. Best-effort.
+  private async recordDissolve(burst: Burst): Promise<void> {
+    const memberIds = burst.photos.map((p) => p.id);
+    try {
+      const allHashes = await this.hashes.getAll();
+      const memberHashes = memberIds
+        .map((id) => allHashes.get(id))
+        .filter((h): h is string => h !== undefined);
+      const maxHamming =
+        memberHashes.length === memberIds.length ? maxPairwiseHamming(memberHashes) : undefined;
+      await this.groupOverrides.dissolve({ memberIds, maxHamming, dissolvedAt: Date.now() });
+    } catch {
+      // Best-effort correction; never break the review flow.
+    }
   }
 
   promoteToPrint(id: string): void {

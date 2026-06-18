@@ -4,5 +4,8 @@
   <p>{{ rejectedCount }} rejected</p>
   <p>{{ toEditCount }} flagged to edit</p>
   <p>{{ maybeCount }} in doubt</p>
-  <button (click)="pipelineClick.emit()">Review pipeline →</button>
+  @if (canLoadMore) {
+    <button (click)="loadMore.emit()">Review more</button>
+  }
+  <button class="secondary" (click)="pipelineClick.emit()">Review pipeline →</button>
 </div>

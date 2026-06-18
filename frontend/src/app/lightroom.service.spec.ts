@@ -139,6 +139,24 @@ describe('LightroomService', () => {
 
       expect(result?.map((a) => a.id)).toEqual(['a1', 'a2']);
     });
+
+    it('de-duplicates repeated asset ids from overlapping pagination', () => {
+      service.setTokens('acc', 'ref');
+      localStorage.setItem(CATALOG_KEY, 'cat-123');
+      let result: { id: string }[] | undefined;
+
+      service.getAllAlbumAssets('alb-1').subscribe((assets) => (result = assets));
+
+      httpMock.expectOne('api/albums/alb-1/assets').flush({
+        resources: [
+          { id: 'a1', subtype: 'image' },
+          { id: 'a2', subtype: 'image' },
+          { id: 'a1', subtype: 'image' }, // boundary asset repeated across pages
+        ],
+      });
+
+      expect(result?.map((a) => a.id)).toEqual(['a1', 'a2']);
+    });
   });
 
   describe('getPhotoBlob', () => {
