@@ -4,11 +4,12 @@ import { BurstOptions } from './burst';
 const STORAGE_KEY = 'detection-burst-options';
 
 /**
- * Provisional defaults (see docs/track-b-detection.md). A modest 3s window keeps the candidate set —
- * and therefore the hashing — small; users can widen it to catch slower re-shoots of the same subject,
- * accepting that a bigger window hashes more during active shooting sessions.
+ * Defaults chosen from detection-lab tuning (see docs/track-b-detection.md): a 60s window catches
+ * slower re-shoots of the same subject, and Hamming 24 keeps clearly-different shots apart while
+ * tolerating real burst variation. The wider window does hash more during active shooting sessions —
+ * an accepted trade-off. Users can still re-tune via the burst-window setting.
  */
-export const DEFAULT_BURST_OPTIONS: BurstOptions = { windowMs: 3000, maxHamming: 10, minSize: 2 };
+export const DEFAULT_BURST_OPTIONS: BurstOptions = { windowMs: 60_000, maxHamming: 24, minSize: 2 };
 
 /** A burst must contain at least two frames. */
 const MIN_BURST_SIZE = 2;

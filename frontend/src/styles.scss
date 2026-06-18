@@ -33,6 +33,12 @@
   padding: 0;
 }
 
+html {
+  // Always reserve the scrollbar track, so content never jumps sideways when it appears/disappears
+  // (e.g. as the detection lab's burst list grows/shrinks while you drag the sliders).
+  scrollbar-gutter: stable;
+}
+
 html,
 body {
   height: 100%;
