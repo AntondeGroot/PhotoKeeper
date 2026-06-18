@@ -99,7 +99,7 @@
                   <app-burst-card
                     [burst]="$any(currentReviewPhoto())"
                     [imageUrls]="currentUnitImageUrls()"
-                    (picked)="pickFromBurst()"
+                    (picked)="resolveBurst($event)"
                     (rejectedAll)="rejectBurst()"
                     (dissolved)="dissolveBurst()"
                   />

@@ -23,22 +23,18 @@ describe('GroupOverrideStore', () => {
   });
 
   it('records a dissolved group and exposes its signature, order-independently', async () => {
-    await store.dissolve({ memberIds: ['a', 'b'], maxHamming: 14, dissolvedAt: 1 });
+    await store.dissolve({ memberIds: ['a', 'b'], dissolvedAt: 1 });
 
     const sigs = await store.signatures();
     expect(sigs.has(groupSignature(['b', 'a']))).toBe(true);
-    expect((await store.getAll())[0]).toEqual({
-      memberIds: ['a', 'b'],
-      maxHamming: 14,
-      dissolvedAt: 1,
-    });
+    expect((await store.getAll())[0]).toEqual({ memberIds: ['a', 'b'], dissolvedAt: 1 });
   });
 
   it('keeps one entry per member set (re-dissolving overwrites)', async () => {
     await store.dissolve({ memberIds: ['a', 'b'], dissolvedAt: 1 });
-    await store.dissolve({ memberIds: ['b', 'a'], maxHamming: 9, dissolvedAt: 2 });
+    await store.dissolve({ memberIds: ['b', 'a'], dissolvedAt: 2 });
 
     expect(await store.getAll()).toHaveLength(1);
-    expect((await store.getAll())[0].maxHamming).toBe(9);
+    expect((await store.getAll())[0].dissolvedAt).toBe(2);
   });
 });

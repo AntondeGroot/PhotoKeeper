@@ -9,7 +9,6 @@ import { StoredVerdict } from './storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
-import { HashStore } from './storage/hash-store';
 import { GroupOverrideStore } from './storage/group-override-store';
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -338,14 +337,49 @@ describe('App', () => {
     });
   });
 
+  describe('burst duel', () => {
+    it('resolveBurst keeps the winning frame, rejects the rest, and marks the burst done', async () => {
+      const saved = new Map<string, StoredVerdict>();
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: (id: string, v: StoredVerdict) => {
+            saved.set(id, v);
+            return Promise.resolve();
+          },
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.reviewPhotos.set([
+        {
+          id: 'burst:alb-1:f1',
+          name: 'Burst · 2 frames',
+          album: 'A',
+          taken: '2026-01-01',
+          status: 'backlog',
+          kind: 'burst',
+          photos: [
+            { id: 'f1', name: 'IMG_1' },
+            { id: 'f2', name: 'IMG_2' },
+          ],
+        },
+      ]);
+      app.reviewIndex.set(0);
+
+      app.resolveBurst('f1');
+
+      expect(app.reviewPhotos()[0].status).toBe('kept'); // burst unit done
+      await tick();
+      expect(saved.get('f1')?.status).toBe('kept'); // winner
+      expect(saved.get('f2')?.status).toBe('rejected'); // loser
+    });
+  });
+
   describe('dissolve a burst', () => {
     it('replaces the burst with its frames as singles and records an override', async () => {
       let recorded: { memberIds: string[] } | undefined;
       TestBed.overrideProvider(ReviewStore, {
         useValue: { setDailyFeed: () => Promise.resolve() },
-      });
-      TestBed.overrideProvider(HashStore, {
-        useValue: { getAll: () => Promise.resolve(new Map()) },
       });
       TestBed.overrideProvider(GroupOverrideStore, {
         useValue: {

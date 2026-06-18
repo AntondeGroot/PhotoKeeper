@@ -42,14 +42,13 @@ export interface AssetMeta {
 }
 
 /**
- * A user correction: "this detected group is not actually a group." Keyed by its member set so
- * selection drops the group (its frames become singles) and it survives re-scans. `maxHamming` (the
- * group's max pairwise distance at dissolve time) is logged so detection can later suggest tightening
- * the threshold.
+ * A user correction: "this detected group is not actually a group" (or "I want these reviewed
+ * separately"). Keyed by its member set so selection drops the group — its frames become singles —
+ * and it survives re-scans. Records no calibration signal: a dissolve doesn't reliably mean detection
+ * was wrong, so it isn't used to tune thresholds.
  */
 export interface GroupOverride {
   memberIds: string[];
-  maxHamming?: number;
   dissolvedAt: number; // epoch ms
 }
 
