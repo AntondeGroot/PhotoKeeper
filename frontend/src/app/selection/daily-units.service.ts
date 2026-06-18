@@ -3,6 +3,7 @@ import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from '../lightroom.service';
 import { AssetMetaStore } from '../storage/asset-meta-store';
 import { GroupStore } from '../storage/group-store';
+import { GroupOverrideStore, groupSignature } from '../storage/group-override-store';
 import { AssetMeta, DetectedGroup } from '../storage/photokeeper-db';
 import { ReviewItem } from '../photo';
 import { AlbumUnits, selectUnits } from './unit-selection';
@@ -18,16 +19,18 @@ export class DailyUnitsService {
   private readonly svc = inject(LightroomService);
   private readonly meta = inject(AssetMetaStore);
   private readonly groups = inject(GroupStore);
+  private readonly overrides = inject(GroupOverrideStore);
 
   async buildUnits(
     vacationAlbumIds: readonly string[],
     limit: number,
     rng: () => number = Math.random,
   ): Promise<ReviewItem[]> {
-    const [albums, metaById, allGroups] = await Promise.all([
+    const [albums, metaById, allGroups, dissolved] = await Promise.all([
       firstValueFrom(this.svc.getAlbums()),
       this.meta.getAll(),
       this.groups.getAll(),
+      this.overrides.signatures(),
     ]);
 
     const albumName = new Map(albums.map((a) => [a.id, a.name]));
@@ -39,6 +42,8 @@ export class DailyUnitsService {
     }
     const groupsByAlbum = new Map<string, DetectedGroup[]>();
     for (const group of allGroups) {
+      // A dissolved group ("not a burst") is skipped — its members fall through to singles below.
+      if (dissolved.has(groupSignature(group.memberIds))) continue;
       pushInto(groupsByAlbum, group.sourceAlbumId, group);
     }
 

@@ -32,4 +32,11 @@
     padding: 12px 26px;
     cursor: pointer;
   }
+
+  button.secondary {
+    margin-top: 10px;
+    color: var(--c-text);
+    background: none;
+    border: 1px solid var(--c-line);
+  }
 }

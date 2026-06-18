@@ -9,6 +9,8 @@ import { StoredVerdict } from './storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
+import { HashStore } from './storage/hash-store';
+import { GroupOverrideStore } from './storage/group-override-store';
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -333,6 +335,94 @@ describe('App', () => {
       httpMock.match((r) => r.url === 'api/feed').forEach((r) => r.flush({ resources: [] }));
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
       httpMock.verify();
+    });
+  });
+
+  describe('dissolve a burst', () => {
+    it('replaces the burst with its frames as singles and records an override', async () => {
+      let recorded: { memberIds: string[] } | undefined;
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: { setDailyFeed: () => Promise.resolve() },
+      });
+      TestBed.overrideProvider(HashStore, {
+        useValue: { getAll: () => Promise.resolve(new Map()) },
+      });
+      TestBed.overrideProvider(GroupOverrideStore, {
+        useValue: {
+          dissolve: (o: { memberIds: string[] }) => {
+            recorded = o;
+            return Promise.resolve();
+          },
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.reviewPhotos.set([
+        {
+          id: 'burst:alb-1:f1',
+          name: 'Burst · 2 frames',
+          album: 'A',
+          taken: '2026-01-01',
+          status: 'backlog',
+          kind: 'burst',
+          photos: [
+            { id: 'f1', name: 'IMG_1' },
+            { id: 'f2', name: 'IMG_2' },
+          ],
+        },
+      ]);
+      app.reviewIndex.set(0);
+
+      app.dissolveBurst();
+
+      expect(app.reviewPhotos().map((u) => u.id)).toEqual(['f1', 'f2']);
+      expect(app.reviewPhotos().every((u) => u.kind === 'photo')).toBe(true);
+      await tick();
+      expect(recorded?.memberIds).toEqual(['f1', 'f2']);
+    });
+  });
+
+  describe('review more', () => {
+    it('appends fresh photos and advances to the first new one', async () => {
+      TestBed.overrideProvider(DailyUnitsService, {
+        useValue: { buildUnits: () => Promise.resolve([photo('n1'), photo('n2')]) },
+      });
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          setDailyFeed: () => Promise.resolve(),
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.reviewPhotos.set([{ ...photo('p1'), status: 'kept' }]); // current one already reviewed
+      app.reviewIndex.set(0);
+
+      await app.loadMore();
+
+      expect(app.reviewPhotos().map((u) => u.id)).toEqual(['p1', 'n1', 'n2']);
+      expect(app.reviewIndex()).toBe(1); // first backlog (n1)
+      expect(app.canLoadMore()).toBe(true);
+    });
+
+    it('hides "review more" when no fresh photos remain', async () => {
+      TestBed.overrideProvider(DailyUnitsService, {
+        useValue: { buildUnits: () => Promise.resolve([photo('p1')]) }, // already in the queue
+      });
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          setDailyFeed: () => Promise.resolve(),
+        },
+      });
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.reviewPhotos.set([{ ...photo('p1'), status: 'kept' }]);
+
+      await app.loadMore();
+
+      expect(app.canLoadMore()).toBe(false);
+      expect(app.reviewPhotos().map((u) => u.id)).toEqual(['p1']); // nothing appended
     });
   });
 

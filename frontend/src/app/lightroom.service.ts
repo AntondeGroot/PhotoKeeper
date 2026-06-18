@@ -82,7 +82,7 @@ export class LightroomService {
       .get<{ resources: PhotoAsset[] }>(`api/albums/${albumId}/assets`, {
         headers: this.authHeaders(),
       })
-      .pipe(map((res) => res.resources));
+      .pipe(map((res) => dedupeById(res.resources)));
   }
 
   getPhotoBlob(assetId: string, size = '640'): Observable<Blob> {
@@ -110,6 +110,23 @@ export class LightroomService {
     if (catalogId) headers['X-Catalog-Id'] = catalogId;
     return headers;
   }
+}
+
+/**
+ * Keeps the first occurrence of each asset id. Lightroom's cursor pagination can repeat a boundary
+ * asset across pages, and undeduped repeats inflate burst sizes (and `track`-by-id collapses them in
+ * the UI), so detection must see each asset once.
+ */
+function dedupeById(assets: readonly PhotoAsset[]): PhotoAsset[] {
+  const seen = new Set<string>();
+  const unique: PhotoAsset[] = [];
+  for (const asset of assets) {
+    if (!seen.has(asset.id)) {
+      seen.add(asset.id);
+      unique.push(asset);
+    }
+  }
+  return unique;
 }
 
 export interface PhotoAsset {

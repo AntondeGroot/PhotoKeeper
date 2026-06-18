@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { DailyUnitsService } from './daily-units.service';
 import { AssetMetaStore } from '../storage/asset-meta-store';
 import { GroupStore } from '../storage/group-store';
+import { GroupOverrideStore } from '../storage/group-override-store';
 import { Album, LightroomService } from '../lightroom.service';
 import { Burst, ReviewItem } from '../photo';
 
@@ -17,6 +18,7 @@ describe('DailyUnitsService', () => {
   let service: DailyUnitsService;
   let metaStore: AssetMetaStore;
   let groupStore: GroupStore;
+  let overrideStore: GroupOverrideStore;
   let albums: Album[];
 
   beforeEach(() => {
@@ -28,6 +30,7 @@ describe('DailyUnitsService', () => {
     service = TestBed.inject(DailyUnitsService);
     metaStore = TestBed.inject(AssetMetaStore);
     groupStore = TestBed.inject(GroupStore);
+    overrideStore = TestBed.inject(GroupOverrideStore);
   });
 
   it('builds an empty queue when nothing has been scanned', async () => {
@@ -52,6 +55,21 @@ describe('DailyUnitsService', () => {
     expect(burst?.name).toBe('Burst · 2 frames');
     const single = units.find((u) => u.kind === 'photo');
     expect(single).toMatchObject({ id: 'a3', name: 'IMG_3', album: 'Lisbon' });
+  });
+
+  it('drops a dissolved group so its members become singles', async () => {
+    albums = [{ id: 'alb-1', name: 'Lisbon' }];
+    await metaStore.put('a1', { albumId: 'alb-1', name: 'IMG_1', taken: '2026-05-01T10:00:00Z' });
+    await metaStore.put('a2', { albumId: 'alb-1', name: 'IMG_2', taken: '2026-05-01T10:00:02Z' });
+    await groupStore.replaceForAlbum('alb-1', [
+      { type: 'burst', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] },
+    ]);
+    await overrideStore.dissolve({ memberIds: ['a1', 'a2'], dissolvedAt: 1 });
+
+    const units = await service.buildUnits([], 10, fixedRng);
+
+    expect(units.every((u) => u.kind === 'photo')).toBe(true); // no burst — it was dissolved
+    expect(new Set(units.map((u) => u.id))).toEqual(new Set(['a1', 'a2']));
   });
 
   it('marks vacation albums and tolerates an album missing from the album list', async () => {

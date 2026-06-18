@@ -30,6 +30,7 @@ Alongside the existing `verdicts` / `dailyFeed` / `albumTags` stores in `PhotoKe
 | `assetHash` | `assetId` | `{ phash: string /* 64-bit hex */, taken: string, camera?: string }` | Perceptual hash + the cheap metadata used for grouping. Tens of bytes/asset. Pixels are discarded after hashing. |
 | `albumManifest` | `albumId` | `{ hash: string, fingerprints: {id, updated}[], computedAt: number }` | Change-detection gate (see Stage 0). |
 | `groups` | `groupId` | `{ type, sourceAlbumId, memberIds[], extras }` | Detected groups, ready to hydrate into the `ReviewItem` union. |
+| `groupOverrides` | member-set signature | `{ memberIds[], maxHamming?, dissolvedAt }` | User "not a group" corrections. Selection drops matching groups (frames → singles); detection stays pure. `maxHamming` logged for later threshold calibration. |
 
 ## Pipeline (per album)
 

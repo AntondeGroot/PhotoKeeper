@@ -21,6 +21,7 @@ export class BurstCardComponent {
   @Input() imageUrls = new Map<string, SafeUrl>();
   @Output() picked = new EventEmitter<string>();
   @Output() rejectedAll = new EventEmitter<void>();
+  @Output() dissolved = new EventEmitter<void>();
 
   zoomed = signal(false);
 

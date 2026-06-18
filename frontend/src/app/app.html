@@ -101,6 +101,7 @@
                     [imageUrls]="currentUnitImageUrls()"
                     (picked)="pickFromBurst()"
                     (rejectedAll)="rejectBurst()"
+                    (dissolved)="dissolveBurst()"
                   />
                 }
                 @case ('pano') {
@@ -119,7 +120,9 @@
                 [rejectedCount]="rejectedCount()"
                 [toEditCount]="toEditCount()"
                 [maybeCount]="maybeCount()"
+                [canLoadMore]="canLoadMore()"
                 (pipelineClick)="setActiveTab('pipeline')"
+                (loadMore)="loadMore()"
               />
             }
           } @else {
