@@ -66,14 +66,29 @@ describe('FullscreenViewerComponent', () => {
     expect(component.current()?.label).toBe('B');
   });
 
-  it('a tap (no real drag) closes', () => {
-    let closed = false;
-    component.closed.subscribe(() => (closed = true));
+  it('in compare mode, anything that is not a clear swipe closes (incl. a slightly-moved tap)', () => {
+    let closed = 0;
+    component.closed.subscribe(() => closed++);
+
     down(100, 100);
-    move(104, 103); // < 10px → tap
+    move(104, 103); // clean tap
     up();
-    expect(closed).toBe(true);
-    expect(component.index()).toBe(0);
+    down(100, 100);
+    move(125, 100); // 25px — not a swipe (≤40) → still closes, does not switch
+    up();
+
+    expect(closed).toBe(2);
+    expect(component.index()).toBe(0); // never switched
+  });
+
+  it('in compare mode a clear horizontal swipe switches instead of closing', () => {
+    let closed = 0;
+    component.closed.subscribe(() => closed++);
+    down(200, 100);
+    move(100, 100); // 100px left → switch
+    up();
+    expect(closed).toBe(0);
+    expect(component.current()?.label).toBe('B');
   });
 
   it('chooseVerdict emits the verdict (review buttons)', () => {
