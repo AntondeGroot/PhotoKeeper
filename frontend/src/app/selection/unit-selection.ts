@@ -8,7 +8,7 @@
 
 import { PhotoAsset } from '../lightroom.service';
 import { DetectedGroup } from '../storage/photokeeper-db';
-import { Burst, BurstPhoto, Photo, ReviewItem } from '../photo';
+import { Burst, BurstPhoto, Pano, PanoFrame, Photo, ReviewItem } from '../photo';
 
 /** One album's raw material: its assets, its detected groups, and whether it's a vacation album. */
 export interface AlbumUnits {
@@ -80,10 +80,12 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
       .map((id) => byId.get(id))
       .filter((a): a is PhotoAsset => a !== undefined);
     // A group whose members no longer all exist (≥2 needed) is no longer a group; its surviving
-    // members fall through to singles below.
-    if (group.type !== 'burst' || members.length < 2) continue;
+    // members fall through to singles below. Stereo has no detector/card yet, so it's skipped too.
+    if (members.length < 2) continue;
+    const unit = hydrateGroup(group, members, album.albumName);
+    if (!unit) continue;
     members.forEach((m) => grouped.add(m.id));
-    units.push(toBurst(group, members, album.albumName));
+    units.push(unit);
   }
 
   for (const asset of album.assets) {
@@ -92,6 +94,17 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
     }
   }
   return units;
+}
+
+/** Hydrates a detected group into its review unit, or null for kinds without a card yet (stereo). */
+function hydrateGroup(
+  group: DetectedGroup,
+  members: PhotoAsset[],
+  albumName: string | null,
+): ReviewItem | null {
+  if (group.type === 'burst') return toBurst(group, members, albumName);
+  if (group.type === 'pano') return toPano(group, members, albumName);
+  return null;
 }
 
 /** Album draw order: vacation albums over-represented, shuffled, then de-duplicated to first hit. */
@@ -113,7 +126,9 @@ function weightedAlbumOrder(albums: readonly AlbumUnits[], rng: () => number): A
 }
 
 function unitAssetIds(unit: ReviewItem): string[] {
-  return unit.kind === 'burst' ? unit.photos.map((p) => p.id) : [unit.id];
+  if (unit.kind === 'burst') return unit.photos.map((p) => p.id);
+  if (unit.kind === 'pano') return unit.frames.map((f) => f.id);
+  return [unit.id];
 }
 
 function toPhoto(asset: PhotoAsset, albumName: string | null): Photo {
@@ -143,6 +158,24 @@ function toBurst(group: DetectedGroup, members: PhotoAsset[], albumName: string 
     status: 'backlog',
     kind: 'burst',
     photos,
+  };
+}
+
+function toPano(group: DetectedGroup, members: PhotoAsset[], albumName: string | null): Pano {
+  const frames: PanoFrame[] = members.map((m) => ({ id: m.id, name: baseName(m) }));
+  const taken = members
+    .map((m) => m.payload?.captureDate ?? '')
+    .filter((t) => t)
+    .sort((a, b) => a.localeCompare(b))[0];
+  return {
+    id: `pano:${group.sourceAlbumId}:${members[0].id}`,
+    name: `Panorama · ${members.length} frames`,
+    album: albumName,
+    taken: taken ?? '',
+    status: 'backlog',
+    kind: 'pano',
+    orientation: group.orientation ?? 'horizontal',
+    frames,
   };
 }
 

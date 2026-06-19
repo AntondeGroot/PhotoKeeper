@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { PanoCardComponent } from './pano-card';
 import { Pano } from '../photo';
 
-function panoFixture(): Pano {
+function panoFixture(orientation: 'horizontal' | 'vertical' = 'horizontal'): Pano {
   return {
     id: 'pano1',
     name: 'Panorama',
@@ -10,6 +10,7 @@ function panoFixture(): Pano {
     taken: '2026-05-24',
     status: 'backlog',
     kind: 'pano',
+    orientation,
     frames: [
       { id: 'pn1', name: 'DSC_1' },
       { id: 'pn2', name: 'DSC_2', blur: true },
@@ -58,4 +59,24 @@ describe('PanoCardComponent', () => {
       expect(emitted).toBe(expected);
     });
   }
+
+  it('renders a frame image when a preview URL is available, else the frame name', () => {
+    fixture.componentRef.setInput('imageUrls', new Map([['pn1', 'blob:fake-pn1']]));
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const frames = root.querySelectorAll<HTMLElement>('.pano-frame');
+    expect(frames[0].querySelector('img.pano-frame-img')).not.toBeNull();
+    expect(frames[1].querySelector('img.pano-frame-img')).toBeNull(); // no URL → name placeholder
+    expect(frames[1].querySelector('.frame-name')?.textContent?.trim()).toBe('DSC_2');
+  });
+
+  it('marks the strip vertical only for a vertical pano', () => {
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.pano-strip')?.classList.contains('vertical')).toBe(false);
+
+    fixture.componentRef.setInput('pano', panoFixture('vertical'));
+    fixture.detectChanges();
+    expect(root.querySelector('.pano-strip')?.classList.contains('vertical')).toBe(true);
+  });
 });

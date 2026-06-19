@@ -109,7 +109,11 @@
                   />
                 }
                 @case ('pano') {
-                  <app-pano-card [pano]="$any(currentReviewPhoto())" (swiped)="decide($event)" />
+                  <app-pano-card
+                    [pano]="$any(currentReviewPhoto())"
+                    [imageUrls]="currentUnitImageUrls()"
+                    (swiped)="decide($event)"
+                  />
                 }
                 @case ('stereo') {
                   <app-stereo-card

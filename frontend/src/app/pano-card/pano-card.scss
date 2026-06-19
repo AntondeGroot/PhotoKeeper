@@ -11,6 +11,11 @@
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid var(--c-line);
+
+  // A vertical pan stacks its frames top-to-bottom instead of left-to-right.
+  &.vertical {
+    flex-direction: column;
+  }
 }
 
 .pano-frame {
@@ -29,6 +34,19 @@
   &:not(:last-child) {
     border-right: 1px solid rgba(255, 255, 255, 0.06);
   }
+
+  .pano-strip.vertical &:not(:last-child) {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+.pano-frame-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .frame-name {

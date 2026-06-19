@@ -1,7 +1,7 @@
 import { AlbumUnits, selectUnits } from './unit-selection';
 import { PhotoAsset } from '../lightroom.service';
 import { DetectedGroup } from '../storage/photokeeper-db';
-import { Burst, ReviewItem } from '../photo';
+import { Burst, Pano, ReviewItem } from '../photo';
 
 const asset = (
   id: string,
@@ -30,8 +30,11 @@ const album = (over: Partial<AlbumUnits> & { albumId: string }): AlbumUnits => (
 // Deterministic rng so selection is reproducible; assertions check content, not shuffle order.
 const fixedRng = () => 0;
 
-const idsOf = (unit: ReviewItem): string[] =>
-  unit.kind === 'burst' ? unit.photos.map((p) => p.id) : [unit.id];
+const idsOf = (unit: ReviewItem): string[] => {
+  if (unit.kind === 'burst') return unit.photos.map((p) => p.id);
+  if (unit.kind === 'pano') return unit.frames.map((f) => f.id);
+  return [unit.id];
+};
 
 describe('selectUnits', () => {
   it('returns an empty queue for no albums', () => {
@@ -119,13 +122,66 @@ describe('selectUnits', () => {
     expect(new Set(allIds).size).toBe(allIds.length);
   });
 
-  it('ignores non-burst group types (pano/stereo) until their hydrators exist', () => {
+  it('surfaces a detected pano as one unit and excludes its frames as singles', () => {
+    const units = selectUnits(
+      [
+        album({
+          albumId: 'alb-1',
+          albumName: 'Peaks',
+          assets: [
+            asset('p1', '2026-05-01T10:00:02Z'),
+            asset('p2', '2026-05-01T10:00:04Z'),
+            asset('p3', '2026-05-01T10:00:06Z'),
+            asset('a3'),
+          ],
+          groups: [{ type: 'pano', sourceAlbumId: 'alb-1', memberIds: ['p1', 'p2', 'p3'] }],
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    expect(units).toHaveLength(2);
+    const pano = units.find((u): u is Pano => u.kind === 'pano');
+    expect(pano?.frames.map((f) => f.id)).toEqual(['p1', 'p2', 'p3']);
+    expect(pano?.name).toBe('Panorama · 3 frames');
+    expect(pano?.album).toBe('Peaks');
+    expect(pano?.taken).toBe('2026-05-01T10:00:02Z'); // earliest frame
+    expect(pano?.orientation).toBe('horizontal'); // default when the group omits orientation
+    expect(units.filter((u) => u.kind === 'photo').map((u) => u.id)).toEqual(['a3']);
+  });
+
+  it('carries a vertical pano group through to the hydrated unit', () => {
+    const [pano] = selectUnits(
+      [
+        album({
+          albumId: 'alb-1',
+          assets: [asset('v1'), asset('v2'), asset('v3')],
+          groups: [
+            {
+              type: 'pano',
+              sourceAlbumId: 'alb-1',
+              memberIds: ['v1', 'v2', 'v3'],
+              orientation: 'vertical',
+            },
+          ],
+        }),
+      ],
+      10,
+      fixedRng,
+    ) as [Pano];
+
+    expect(pano.kind).toBe('pano');
+    expect(pano.orientation).toBe('vertical');
+  });
+
+  it('ignores the stereo group type until its hydrator exists', () => {
     const units = selectUnits(
       [
         album({
           albumId: 'alb-1',
           assets: [asset('a1'), asset('a2'), asset('a3')],
-          groups: [{ type: 'pano', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] }],
+          groups: [{ type: 'stereo', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] }],
         }),
       ],
       10,

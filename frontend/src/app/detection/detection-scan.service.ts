@@ -3,11 +3,13 @@ import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from '../lightroom.service';
 import { AlbumManifestStore } from '../storage/album-manifest-store';
 import { AssetMetaStore } from '../storage/asset-meta-store';
+import { EdgeHashStore } from '../storage/edge-hash-store';
 import { GroupStore } from '../storage/group-store';
 import { HashStore } from '../storage/hash-store';
 import { PreviewStore } from '../storage/preview-store';
-import { AssetMeta, DetectedGroup } from '../storage/photokeeper-db';
+import { AssetMeta, DetectedGroup, EdgeHash } from '../storage/photokeeper-db';
 import { DetectAsset, clusterBursts } from './burst';
+import { clusterPanos } from './pano';
 import { DetectionSettingsService } from './detection-settings.service';
 import { ImageHasher } from './image-hasher';
 
@@ -28,11 +30,11 @@ export interface ScanReport {
 /**
  * Background detection scan for one album (Track B). Gated by the album manifest so unchanged albums
  * cost one metadata fetch and nothing more. On a change it runs the tiered pipeline: cluster by
- * timestamp + camera first (no pixels) to find burst *candidates*, then hash *only* those candidate
- * members (reusing a warmed 2048 preview when present, else fetching one small rendition), then
- * re-cluster with the hashes so the Hamming check confirms real bursts. Lone photos — the bulk of a
- * catalog — are never fetched or hashed. Pure detection lives in `phash`/`burst`; this is the IO
- * orchestration around them.
+ * timestamp + camera first (no pixels) to find candidate runs, then hash *only* those candidate
+ * members (whole-frame + edge hashes, reusing a warmed 2048 preview when present, else fetching one
+ * small rendition), then re-cluster: the Hamming check confirms real bursts, and edge-overlap
+ * confirms panos. Lone photos — the bulk of a catalog — are never fetched or hashed. Pure detection
+ * lives in `phash`/`burst`/`pano`; this is the IO orchestration around them.
  */
 @Injectable({ providedIn: 'root' })
 export class DetectionScanService {
@@ -40,6 +42,7 @@ export class DetectionScanService {
   private readonly hasher = inject(ImageHasher);
   private readonly previews = inject(PreviewStore);
   private readonly hashes = inject(HashStore);
+  private readonly edges = inject(EdgeHashStore);
   private readonly groups = inject(GroupStore);
   private readonly manifests = inject(AlbumManifestStore);
   private readonly meta = inject(AssetMetaStore);
@@ -55,14 +58,16 @@ export class DetectionScanService {
       return { albumId, skipped: true, hashed: 0, removed: 0, groups: 0 };
     }
 
-    // Assets that left the album: drop their hash + metadata.
+    // Assets that left the album: drop their hashes + metadata.
     for (const id of diff.removed) {
       await this.hashes.delete(id);
+      await this.edges.delete(id);
       await this.meta.delete(id);
     }
-    // Edited assets: the cached hash is stale — drop it so Stage 2 re-hashes only if still a candidate.
+    // Edited assets: cached hashes are stale — drop them so Stage 2 re-hashes only if still a candidate.
     for (const id of diff.changed) {
       await this.hashes.delete(id);
+      await this.edges.delete(id);
     }
     // New + edited assets: refresh the cheap metadata. No pixels fetched here.
     for (const id of [...diff.added, ...diff.changed]) {
@@ -79,25 +84,42 @@ export class DetectionScanService {
       clusterBursts(detectAssets, new Map<string, string>(), opts).flatMap((c) => c.memberIds),
     );
 
-    // Stage 2 — hash only candidate members that lack a cached hash (reusing a warmed preview when
-    // present, else fetching one small rendition). This is the only step that touches pixels.
+    // Stage 2 — hash only candidate members that lack cached hashes (reusing a warmed preview when
+    // present, else fetching one small rendition). Computes both the whole-frame hash (burst) and the
+    // edge hashes (pano) from the same blob. This is the only step that touches pixels.
     const hashes = await this.hashes.getAll();
+    const edges = await this.edges.getAll();
     let hashed = 0;
     for (const id of candidateIds) {
-      if (hashes.has(id)) continue;
+      if (hashes.has(id) && edges.has(id)) continue;
       const asset = assets.find((a) => a.id === id);
       if (!asset) continue;
-      const hash = await this.hashAsset(asset);
+      const { hash, edge } = await this.computeHashes(asset);
       await this.hashes.put(id, hash);
-      hashes.set(id, hash); // keep the in-memory map current for Stage 3
+      hashes.set(id, hash); // keep the in-memory maps current for Stage 3
+      await this.edges.put(id, edge);
+      edges.set(id, edge);
       hashed++;
     }
 
-    // Stage 3 — confirm with perceptual hashes: the Hamming check splits time-close but visually
-    // distinct shots, leaving real bursts.
-    const groups = clusterBursts(detectAssets, hashes, opts).map(
+    // Stage 3 — confirm with the hashes: the Hamming check splits time-close but visually distinct
+    // shots into real bursts; clusterPanos groups runs whose edges overlap (a pan). Panos overlapping
+    // a detected burst are dropped (a frame belongs to one group).
+    const burstGroups = clusterBursts(detectAssets, hashes, opts).map(
       (c): DetectedGroup => ({ type: 'burst', sourceAlbumId: albumId, memberIds: c.memberIds }),
     );
+    const inBurst = new Set(burstGroups.flatMap((g) => g.memberIds));
+    const panoGroups = clusterPanos(detectAssets, edges, this.settings.panoOptions())
+      .filter((c) => !c.memberIds.some((id) => inBurst.has(id)))
+      .map(
+        (c): DetectedGroup => ({
+          type: 'pano',
+          sourceAlbumId: albumId,
+          memberIds: c.memberIds,
+          orientation: c.orientation,
+        }),
+      );
+    const groups = [...burstGroups, ...panoGroups];
     await this.groups.replaceForAlbum(albumId, groups);
 
     // Record only after a clean run, so a failure re-scans the album next time.
@@ -105,12 +127,12 @@ export class DetectionScanService {
     return { albumId, skipped: false, hashed, removed: diff.removed.length, groups: groups.length };
   }
 
-  /** Hashes one asset, reusing a warmed 2048 preview if cached, else fetching the small rendition. */
-  private async hashAsset(asset: PhotoAsset): Promise<string> {
+  /** Whole-frame + edge hashes for one asset, from a warmed 2048 preview or one fetched rendition. */
+  private async computeHashes(asset: PhotoAsset): Promise<{ hash: string; edge: EdgeHash }> {
     const warmed = await this.previews.get(asset.id, WARMED_PREVIEW_SIZE);
     const blob =
       warmed ?? (await firstValueFrom(this.svc.getPhotoBlob(asset.id, HASH_RENDITION_SIZE)));
-    return this.hasher.hash(blob);
+    return { hash: await this.hasher.hash(blob), edge: await this.hasher.edgeHash(blob) };
   }
 }
 
