@@ -111,7 +111,7 @@
     @for (c of clusters(); track c.memberIds[0]) {
       <div class="lab-cluster">
         @if (c.before; as b) {
-          <div class="lab-frame excluded">
+          <div class="lab-frame excluded" [class.included]="isBeforeIncluded(c.memberIds[0])">
             <img class="lab-thumb" [src]="thumb(b.id)" alt="" />
             <div class="lab-frame-meta">
               before · {{ secs(b.gapMs) }}s · ham {{ b.hamming ?? '—' }}
@@ -127,13 +127,53 @@
           }
         </div>
         @if (c.after; as a) {
-          <div class="lab-frame excluded">
+          <div class="lab-frame excluded" [class.included]="isAfterIncluded(c.memberIds[0])">
             <img class="lab-thumb" [src]="thumb(a.id)" alt="" />
             <div class="lab-frame-meta">
               after · {{ secs(a.gapMs) }}s · ham {{ a.hamming ?? '—' }}
             </div>
           </div>
         }
+      </div>
+      <div class="lab-group-actions">
+        @if (c.before) {
+          <button
+            [class.on]="isBeforeIncluded(c.memberIds[0])"
+            (click)="toggleBefore(c.memberIds[0])"
+          >
+            ± before
+          </button>
+        }
+        @if (c.after) {
+          <button
+            [class.on]="isAfterIncluded(c.memberIds[0])"
+            (click)="toggleAfter(c.memberIds[0])"
+          >
+            ± after
+          </button>
+        }
+        <button
+          [disabled]="analyzing()"
+          (click)="
+            downloadGroupFrames(
+              groupExportIds(c.memberIds, c.before?.id, c.after?.id),
+              'burst-' + frameName(c.memberIds[0])
+            )
+          "
+        >
+          ⬇ frames
+        </button>
+        <button
+          [disabled]="analyzing()"
+          (click)="
+            downloadGroupSignatures(
+              groupExportIds(c.memberIds, c.before?.id, c.after?.id),
+              'burst-' + frameName(c.memberIds[0])
+            )
+          "
+        >
+          ⬇ signatures
+        </button>
       </div>
     }
     @if (clusters().length === 0) {
@@ -152,7 +192,7 @@
       @let strips = panoMemberStrips(seams, c.memberIds.length);
       <div class="lab-cluster">
         @if (c.before; as b) {
-          <div class="lab-frame excluded">
+          <div class="lab-frame excluded" [class.included]="isBeforeIncluded(c.memberIds[0])">
             <img class="lab-thumb" [src]="thumb(b.id)" alt="" />
             <div class="lab-frame-meta">
               before · {{ secs(b.gapMs) }}s · seam {{ b.seamScore ?? '—' }} · whole
@@ -183,7 +223,7 @@
           }
         </div>
         @if (c.after; as a) {
-          <div class="lab-frame excluded">
+          <div class="lab-frame excluded" [class.included]="isAfterIncluded(c.memberIds[0])">
             <img class="lab-thumb" [src]="thumb(a.id)" alt="" />
             <div class="lab-frame-meta">
               after · {{ secs(a.gapMs) }}s · seam {{ a.seamScore ?? '—' }} · whole
@@ -191,6 +231,46 @@
             </div>
           </div>
         }
+      </div>
+      <div class="lab-group-actions">
+        @if (c.before) {
+          <button
+            [class.on]="isBeforeIncluded(c.memberIds[0])"
+            (click)="toggleBefore(c.memberIds[0])"
+          >
+            ± before
+          </button>
+        }
+        @if (c.after) {
+          <button
+            [class.on]="isAfterIncluded(c.memberIds[0])"
+            (click)="toggleAfter(c.memberIds[0])"
+          >
+            ± after
+          </button>
+        }
+        <button
+          [disabled]="analyzing()"
+          (click)="
+            downloadGroupFrames(
+              groupExportIds(c.memberIds, c.before?.id, c.after?.id),
+              'pano-' + frameName(c.memberIds[0])
+            )
+          "
+        >
+          ⬇ frames
+        </button>
+        <button
+          [disabled]="analyzing()"
+          (click)="
+            downloadGroupSignatures(
+              groupExportIds(c.memberIds, c.before?.id, c.after?.id),
+              'pano-' + frameName(c.memberIds[0])
+            )
+          "
+        >
+          ⬇ signatures
+        </button>
       </div>
       @if (seams.length > 0) {
         <p class="lab-seams">
