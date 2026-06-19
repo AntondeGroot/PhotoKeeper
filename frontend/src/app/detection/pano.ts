@@ -142,9 +142,10 @@ function aspectCompatible(a: PanoAsset, b: PanoAsset): boolean {
 
 /**
  * Resolves the panos in one time-adjacent run. The whole run's orientation is decided *once*, by its
- * single best-scoring seam — a real pan's strongest overlap lands on the true axis, whereas the
- * perpendicular axis only ever matches coincidentally (e.g. frames that share a sky/horizon layout).
- * Then it walks the run on that axis, splitting where a seam fails, and emits sub-runs ≥ `minSize`.
+ * single best-scoring seam — but only counting seams whose overlap is *below* the cap. A real pan has a
+ * finite optimal overlap; a flat-horizon self-match (same sky/horizon/grass layout in every frame) just
+ * wants to overlap as much as possible, so it pins to the cap — excluding those keeps it from winning
+ * the perpendicular axis. Then it walks the run on the chosen axis, emitting sub-runs ≥ `minSize`.
  */
 function emitPanos(
   run: readonly PanoAsset[],
@@ -170,14 +171,21 @@ function emitPanos(
   }
 }
 
-/** The axis of the run's single best seam, or null if no pair overlaps closely enough to be a pan. */
+/** The axis of the run's single best *non-degenerate* seam, or null if none overlaps closely enough. */
 function runOrientation(pairs: readonly PairMatch[], opts: PanoOptions): PanoOrientation | null {
+  // A match pinned at (or just under) the largest overlap the search allows is a self-similarity match,
+  // not a pan — ignore it when voting on the axis.
+  const n = SIGNATURE_SIZE;
+  const band = Math.max(1, Math.round(BAND_FRACTION * n));
+  const maxAchievable = (band + Math.min(n - band, Math.round(opts.maxOverlap * n) - band)) / n;
+  const cap = maxAchievable - 1.5 / n;
+
   let bestH = Infinity;
   let bestV = Infinity;
   for (const p of pairs) {
     if (!p.eligible) continue;
-    bestH = Math.min(bestH, p.h.score);
-    bestV = Math.min(bestV, p.v.score);
+    if (p.h.overlap <= cap) bestH = Math.min(bestH, p.h.score);
+    if (p.v.overlap <= cap) bestV = Math.min(bestV, p.v.score);
   }
   if (Math.min(bestH, bestV) > opts.maxSeamScore) return null;
   return bestH <= bestV ? 'horizontal' : 'vertical';

@@ -128,6 +128,46 @@ async function signatureToPng(signature: FrameSignature): Promise<Blob> {
   return big.convertToBlob({ type: 'image/png' });
 }
 
+/**
+ * Losslessly removes metadata segments (EXIF/IPTC/XMP/ICC/Adobe/comments) from a JPEG, keeping the
+ * pixels — and so the signature — byte-identical. Mirrors `jpegtran -copy none`: walks the marker
+ * segments before the scan, drops APP1–APP15 + COM (keeps the standard JFIF APP0), then copies the
+ * compressed scan through to EOI verbatim. Non-JPEGs are returned unchanged.
+ */
+async function stripJpegMetadata(blob: Blob): Promise<Blob> {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  if (buf.length < 2 || buf[0] !== 0xff || buf[1] !== 0xd8) return blob;
+
+  const keep: [number, number][] = [[0, 2]]; // SOI
+  let i = 2;
+  while (i + 1 < buf.length) {
+    const marker = buf[i + 1];
+    if (buf[i] !== 0xff || marker === 0xff) {
+      i++; // padding / resync
+    } else if (marker === 0xda || marker === 0xd9) {
+      keep.push([i, buf.length - i]); // SOS (scan to end) or EOI — copy the rest verbatim
+      break;
+    } else if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      keep.push([i, 2]); // standalone marker, no length
+      i += 2;
+    } else {
+      const segLen = 2 + ((buf[i + 2] << 8) | buf[i + 3]);
+      const drop = (marker >= 0xe1 && marker <= 0xef) || marker === 0xfe; // APP1–APP15, COM
+      if (!drop) keep.push([i, segLen]);
+      i += segLen;
+    }
+  }
+
+  const total = keep.reduce((sum, [, len]) => sum + len, 0);
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const [off, len] of keep) {
+    out.set(buf.subarray(off, off + len), pos);
+    pos += len;
+  }
+  return new Blob([out], { type: 'image/jpeg' });
+}
+
 interface LabFrame {
   id: string;
   name: string;
@@ -348,12 +388,13 @@ export class DetectionLabComponent implements OnInit {
     }
   }
 
-  /** Saves each analyzed frame's 640px rendition (a numbered prefix keeps capture order). */
+  /** Saves each analyzed frame's 640px rendition (metadata-stripped; a numbered prefix keeps order). */
   async downloadFrames(): Promise<void> {
     const frames = this.frames();
     for (let i = 0; i < frames.length; i++) {
       const blob = this.frameBlobs.get(frames[i].id);
-      if (blob) await this.save(blob, `${prefix(i)}_${frames[i].name}.jpg`);
+      if (blob)
+        await this.save(await stripJpegMetadata(blob), `${prefix(i)}_${frames[i].name}.jpg`);
     }
   }
 
@@ -393,25 +434,28 @@ export class DetectionLabComponent implements OnInit {
     return ids;
   }
 
-  /** Saves the 640px renditions of one group's export set (numbered, prefixed by the group label). */
-  async downloadGroupFrames(ids: readonly string[], label: string): Promise<void> {
+  /** Saves the 640px renditions of one group's export set (metadata-stripped), named `NN_<frame>`. */
+  async downloadGroupFrames(ids: readonly string[]): Promise<void> {
     for (let i = 0; i < ids.length; i++) {
       const blob = this.frameBlobs.get(ids[i]);
-      if (blob) await this.save(blob, `${label}__${prefix(i)}_${this.frameName(ids[i])}.jpg`);
+      if (blob)
+        await this.save(
+          await stripJpegMetadata(blob),
+          `${prefix(i)}_${this.frameName(ids[i])}.jpg`,
+        );
     }
   }
 
-  /** Saves the signature PNGs of one group's export set. */
-  async downloadGroupSignatures(ids: readonly string[], label: string): Promise<void> {
+  /** Saves the signature PNGs of one group's export set, named `NN_<frame>_sig`. */
+  async downloadGroupSignatures(ids: readonly string[]): Promise<void> {
     const sigs = this.signatures();
     for (let i = 0; i < ids.length; i++) {
       const sig = sigs.get(ids[i]);
-      if (sig) {
+      if (sig)
         await this.save(
           await signatureToPng(sig),
-          `${label}__${prefix(i)}_${this.frameName(ids[i])}_sig.png`,
+          `${prefix(i)}_${this.frameName(ids[i])}_sig.png`,
         );
-      }
     }
   }
 
