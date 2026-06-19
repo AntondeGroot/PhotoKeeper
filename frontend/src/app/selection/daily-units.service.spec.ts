@@ -72,6 +72,30 @@ describe('DailyUnitsService', () => {
     expect(new Set(units.map((u) => u.id))).toEqual(new Set(['a1', 'a2']));
   });
 
+  it('re-types a reclassified burst as a pano before hydrating it', async () => {
+    albums = [{ id: 'alb-1', name: 'Lisbon' }];
+    await metaStore.put('a1', { albumId: 'alb-1', name: 'IMG_1', taken: '2026-05-01T10:00:00Z' });
+    await metaStore.put('a2', { albumId: 'alb-1', name: 'IMG_2', taken: '2026-05-01T10:00:02Z' });
+    await groupStore.replaceForAlbum('alb-1', [
+      { type: 'burst', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] },
+    ]);
+    await overrideStore.reclassify({
+      memberIds: ['a1', 'a2'],
+      type: 'pano',
+      orientation: 'horizontal',
+      at: 1,
+    });
+
+    const units = await service.buildUnits([], 10, fixedRng);
+
+    expect(units).toHaveLength(1);
+    expect(units[0].kind).toBe('pano');
+    if (units[0].kind === 'pano') {
+      expect(units[0].orientation).toBe('horizontal');
+      expect(units[0].frames.map((f) => f.id)).toEqual(['a1', 'a2']);
+    }
+  });
+
   it('marks vacation albums and tolerates an album missing from the album list', async () => {
     albums = []; // 'alb-x' is not in the (empty) album list → album name resolves to null
     await metaStore.put('a1', { albumId: 'alb-x', name: 'IMG_1', taken: '2026-05-01T10:00:00Z' });

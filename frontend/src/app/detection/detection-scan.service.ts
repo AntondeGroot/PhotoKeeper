@@ -110,8 +110,10 @@ export class DetectionScanService {
     }
 
     // Stage 3 — confirm with the hashes: the Hamming check splits time-close but visually distinct
-    // shots into real bursts; clusterPanos slides signatures to confirm a pan. Panos overlapping a
-    // detected burst are dropped (a frame belongs to one group).
+    // shots into real bursts; clusterPanos slides signatures to confirm a pan. Bursts win: a pano that
+    // shares any frame with a detected burst is dropped, so near-duplicate frames are never mislabeled
+    // as a pan. (A real pan whose frames are close in whole-frame hash can fall back to a burst — an
+    // accepted trade to keep bursts clean.)
     const burstGroups = clusterBursts(detectAssets, hashes, opts).map(
       (c): DetectedGroup => ({ type: 'burst', sourceAlbumId: albumId, memberIds: c.memberIds }),
     );

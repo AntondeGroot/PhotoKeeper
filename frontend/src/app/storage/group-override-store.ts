@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { GroupOverride, PhotoKeeperDb } from './photokeeper-db';
+import { GroupOverride, GroupReclass, PhotoKeeperDb } from './photokeeper-db';
 
 /**
  * Order-independent key for a group's member set, so an override matches a re-detected group however
@@ -32,5 +32,20 @@ export class GroupOverrideStore {
   /** All recorded overrides — the labels a future "tighten detection?" suggestion would read. */
   async getAll(): Promise<GroupOverride[]> {
     return (await this.db.open()).getAll('groupOverrides');
+  }
+
+  /** Records "this group is actually a burst/pano" so selection re-types it across reloads + re-scans. */
+  async reclassify(reclass: GroupReclass): Promise<void> {
+    await (await this.db.open()).put('groupReclass', reclass, groupSignature(reclass.memberIds));
+  }
+
+  /** Group signature → its type correction, applied to detected groups at selection time. */
+  async reclassifications(): Promise<Map<string, GroupReclass>> {
+    const db = await this.db.open();
+    const keys = await db.getAllKeys('groupReclass');
+    const values = await db.getAll('groupReclass');
+    const map = new Map<string, GroupReclass>();
+    keys.forEach((key, i) => map.set(key, values[i]));
+    return map;
   }
 }

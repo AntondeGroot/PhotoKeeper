@@ -21,6 +21,23 @@ import { PanoOrientation } from '../storage/photokeeper-db';
  */
 const BAND_FRACTION = 0.25;
 
+/**
+ * Minimum structure (mean absolute deviation, per mean-subtracted line) a matched band must carry in
+ * *both* frames to count as a real seam. The matcher scores by difference, so a flat region (sky) is a
+ * perfect match against anything flat — without this floor it would slide until two skies (or a sky and
+ * a featureless wall) line up and call it a pan. Requiring structure rejects those "air matches air".
+ */
+const BAND_ACTIVITY_FLOOR = 8;
+
+/**
+ * A run only counts as a pano if at least one seam is a *confident* continuation — its best
+ * (non-cap-overlap) seam must score under this. A real pan always has one clean overlap (the fixtures
+ * anchor at ~3–4); a near-still sequence of distinct shots only ever scores middling everywhere
+ * (~14+), so without an anchor it would otherwise pass the looser per-seam connect threshold. Stricter
+ * than `maxSeamScore`, which governs *extending* a run once it's anchored.
+ */
+const MAX_ANCHOR_SCORE = 10;
+
 /** The minimum an asset must expose to be grouped into a pano. */
 export interface PanoAsset {
   id: string;
@@ -187,7 +204,7 @@ function runOrientation(pairs: readonly PairMatch[], opts: PanoOptions): PanoOri
     if (p.h.overlap <= cap) bestH = Math.min(bestH, p.h.score);
     if (p.v.overlap <= cap) bestV = Math.min(bestV, p.v.score);
   }
-  if (Math.min(bestH, bestV) > opts.maxSeamScore) return null;
+  if (Math.min(bestH, bestV) > MAX_ANCHOR_SCORE) return null; // no confident seam → not a pan
   return bestH <= bestV ? 'horizontal' : 'vertical';
 }
 
@@ -219,6 +236,8 @@ export function overlapMatch(
   const band = Math.max(1, Math.round(BAND_FRACTION * n));
   const linesA = meanSubtractedLines(a, n, axis);
   const linesB = meanSubtractedLines(b, n, axis);
+  const actA = linesA.map(lineActivity);
+  const actB = linesB.map(lineActivity);
   // Overlap = (band + gap) / n, where `gap` is how far b's window sits from b's leading edge. Clamp
   // the gap so the overlap stays within [minOverlap, maxOverlap] and the window fits inside the frame.
   const gapMin = Math.max(0, Math.round(opts.minOverlap * n) - band);
@@ -227,12 +246,42 @@ export function overlapMatch(
   let best: SeamMatch = { score: Infinity, overlap: 0, forward: true };
   for (let gap = gapMin; gap <= gapMax; gap++) {
     const overlap = (band + gap) / n;
-    const forward = bandDiff(linesA, n - band, linesB, gap, band, n);
-    if (forward < best.score) best = { score: forward, overlap, forward: true };
-    const backward = bandDiff(linesA, 0, linesB, n - band - gap, band, n);
-    if (backward < best.score) best = { score: backward, overlap, forward: false };
+    // Forward: a's trailing band vs b's window at `gap`. Both bands must carry structure (not flat sky).
+    if (structured(actA, n - band, actB, gap, band)) {
+      const forward = bandDiff(linesA, n - band, linesB, gap, band, n);
+      if (forward < best.score) best = { score: forward, overlap, forward: true };
+    }
+    // Backward: a's leading band vs b's window from its trailing edge.
+    if (structured(actA, 0, actB, n - band - gap, band)) {
+      const backward = bandDiff(linesA, 0, linesB, n - band - gap, band, n);
+      if (backward < best.score) best = { score: backward, overlap, forward: false };
+    }
   }
   return best;
+}
+
+/** Mean absolute deviation of one mean-subtracted line — how much structure it carries. */
+function lineActivity(line: Float64Array): number {
+  let sum = 0;
+  for (let j = 0; j < line.length; j++) sum += Math.abs(line[j]);
+  return sum / line.length;
+}
+
+/** Whether both bands (A from `aStart`, B from `bStart`) carry enough structure to be a real seam. */
+function structured(
+  actA: readonly number[],
+  aStart: number,
+  actB: readonly number[],
+  bStart: number,
+  band: number,
+): boolean {
+  let sumA = 0;
+  let sumB = 0;
+  for (let i = 0; i < band; i++) {
+    sumA += actA[aStart + i];
+    sumB += actB[bStart + i];
+  }
+  return Math.min(sumA, sumB) / band >= BAND_ACTIVITY_FLOOR;
 }
 
 /**

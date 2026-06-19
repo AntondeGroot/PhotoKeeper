@@ -105,6 +105,7 @@
                     (picked)="resolveBurst($event)"
                     (rejectedAll)="rejectBurst()"
                     (dissolved)="dissolveBurst()"
+                    (reclassified)="markBurstAsPano()"
                     (compare)="openBurstCompare($event)"
                   />
                 }
@@ -113,6 +114,7 @@
                     [pano]="$any(currentReviewPhoto())"
                     [imageUrls]="currentUnitImageUrls()"
                     (swiped)="decide($event)"
+                    (reclassified)="markPanoAsBurst()"
                   />
                 }
                 @case ('stereo') {

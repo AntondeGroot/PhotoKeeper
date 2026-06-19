@@ -246,14 +246,17 @@ export class DetectionLabComponent implements OnInit {
     analyzeClusters(this.frames().map(toDetectAsset), this.hashes(), this.opts()),
   );
 
-  panoClusters = computed<LabPanoCluster[]>(() =>
-    analyzePanoClusters(
+  panoClusters = computed<LabPanoCluster[]>(() => {
+    // Bursts win, mirroring the scan: a pano that shares any frame with a detected burst is dropped, so
+    // near-duplicate frames aren't also shown as a (spurious) pano.
+    const burstMembers = new Set(this.clusters().flatMap((c) => c.memberIds));
+    return analyzePanoClusters(
       this.frames().map(toPanoAsset),
       this.signatures(),
       this.hashes(),
       this.panoOpts(),
-    ),
-  );
+    ).filter((p) => !p.memberIds.some((id) => burstMembers.has(id)));
+  });
 
   ngOnInit(): void {
     void this.loadAlbums();

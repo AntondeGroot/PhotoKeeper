@@ -6,9 +6,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { decode as decodeJpeg } from 'jpeg-js';
+import { BurstCluster, BurstOptions, DetectAsset, clusterBursts } from './burst';
 import { PanoAsset, PanoCluster, PanoOptions, clusterPanos, overlapMatch } from './pano';
 import { HASH_HEIGHT, HASH_WIDTH, dhash, hammingDistance, signatureFromRgba } from './phash';
-import { DEFAULT_PANO_OPTIONS } from './detection-settings.service';
+import { DEFAULT_BURST_OPTIONS, DEFAULT_PANO_OPTIONS } from './detection-settings.service';
 
 const FIXTURES_ROOT = join(process.cwd(), 'src/app/detection/__fixtures__');
 
@@ -76,6 +77,33 @@ export function detectFixturePanos(
 ): PanoCluster[] {
   const { assets, signatures, hashes } = loadPanoFixture(folder);
   return clusterPanos(assets, signatures, hashes, opts);
+}
+
+/** Runs the burst detector over a fixture folder. */
+export function detectFixtureBursts(
+  folder: string,
+  opts: BurstOptions = DEFAULT_BURST_OPTIONS,
+): BurstCluster[] {
+  const { assets, hashes } = loadPanoFixture(folder);
+  const detectAssets: DetectAsset[] = assets.map((a) => ({ id: a.id, taken: a.taken }));
+  return clusterBursts(detectAssets, hashes, opts);
+}
+
+/**
+ * Resolves a fixture the way the scan does: bursts win, panos that share any frame with a burst are
+ * dropped. So near-duplicate frames never become a spurious pano; the trade is that a real pan whose
+ * frames sit within burst distance (the tower) falls back to a burst.
+ */
+export function detectFixtureGroups(folder: string): {
+  panos: PanoCluster[];
+  bursts: BurstCluster[];
+} {
+  const bursts = detectFixtureBursts(folder);
+  const burstMembers = new Set(bursts.flatMap((b) => b.memberIds));
+  const panos = detectFixturePanos(folder).filter(
+    (p) => !p.memberIds.some((id) => burstMembers.has(id)),
+  );
+  return { panos, bursts };
 }
 
 /** Per-adjacent-pair h/v slide scores + overlaps + whole-frame distance — for diagnosing a mis-detect. */
