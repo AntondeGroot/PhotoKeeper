@@ -30,6 +30,7 @@ export interface Pano {
   taken: string;
   status: ReviewStatus;
   kind: 'pano';
+  orientation: 'horizontal' | 'vertical';
   frames: PanoFrame[];
 }
 
@@ -115,6 +116,7 @@ export const MOCK_PANO: Pano = {
   taken: '2026-05-24',
   status: 'backlog',
   kind: 'pano',
+  orientation: 'horizontal',
   frames: [
     { id: 'pn1', name: 'DSC_5001' },
     { id: 'pn2', name: 'DSC_5002' },

@@ -1,7 +1,18 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { BurstOptions } from './burst';
+import { PanoOptions } from './pano';
 
 const STORAGE_KEY = 'detection-burst-options';
+
+/**
+ * Provisional pano defaults: a 60s pan window, edges within Hamming 12 count as overlapping, and at
+ * least 3 frames make a panorama. Not yet user-tunable — tune via the detection lab / corpus later.
+ */
+export const DEFAULT_PANO_OPTIONS: PanoOptions = {
+  windowMs: 60_000,
+  maxEdgeHamming: 12,
+  minSize: 3,
+};
 
 /**
  * Defaults chosen from detection-lab tuning (see docs/track-b-detection.md): a 60s window catches
@@ -31,6 +42,9 @@ export class DetectionSettingsService {
     maxHamming: this.maxHamming(),
     minSize: this.minSize(),
   }));
+
+  /** Pano thresholds for `clusterPanos`. Fixed defaults for now (no UI tuning yet). */
+  readonly panoOptions = computed<PanoOptions>(() => DEFAULT_PANO_OPTIONS);
 
   constructor() {
     this.load();

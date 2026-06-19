@@ -20,14 +20,26 @@ export interface AssetFingerprint {
   updated: string;
 }
 
-/** Kinds of detected group. Only `burst` is produced today; pano/stereo await their detectors. */
+/** Kinds of detected group. Burst + pano are produced; stereo awaits its detector. */
 export type GroupType = 'burst' | 'pano' | 'stereo';
+
+/** A panorama's pan axis: left↔right (horizontal) or top↔bottom (vertical). */
+export type PanoOrientation = 'horizontal' | 'vertical';
+
+/** Perceptual hashes of an asset's four edge strips, for horizontal/vertical pano detection. */
+export interface EdgeHash {
+  left: string;
+  right: string;
+  top: string;
+  bottom: string;
+}
 
 /** A detected cluster of assets, ready to hydrate into a `ReviewItem` for group-aware selection. */
 export interface DetectedGroup {
   type: GroupType;
   sourceAlbumId: string;
   memberIds: string[];
+  orientation?: PanoOrientation; // only set for pano groups
 }
 
 /**
@@ -74,6 +86,7 @@ export interface AlbumManifest {
  * - groups: groupId → a detected cluster (burst/pano/stereo) for group-aware selection
  * - assetMeta: assetId → lightweight metadata for on-device selection (album, name, taken)
  * - groupOverrides: member-set signature → a "not a group" user correction
+ * - edgeHash: assetId → left/right edge-strip hashes, for pano detection
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -85,6 +98,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   groups: { key: string; value: DetectedGroup };
   assetMeta: { key: string; value: AssetMeta };
   groupOverrides: { key: string; value: GroupOverride };
+  edgeHash: { key: string; value: EdgeHash };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -94,9 +108,9 @@ export class PhotoKeeperDb {
 
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
     // v2 renamed the 'renditions' store to 'previews'; v3 added 'assetHash'; v4 added
-    // 'albumManifest'; v5 added 'groups'; v6 added 'assetMeta'; v7 added 'groupOverrides'.
-    // Create-if-missing so existing dev databases keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 7, {
+    // 'albumManifest'; v5 added 'groups'; v6 added 'assetMeta'; v7 added 'groupOverrides'; v8 added
+    // 'edgeHash'. Create-if-missing so existing dev databases keep their data.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 8, {
       upgrade(db) {
         for (const store of [
           'previews',
@@ -108,6 +122,7 @@ export class PhotoKeeperDb {
           'groups',
           'assetMeta',
           'groupOverrides',
+          'edgeHash',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

@@ -9,6 +9,7 @@ import { HashStore } from '../storage/hash-store';
 import { GroupStore } from '../storage/group-store';
 import { PreviewStore } from '../storage/preview-store';
 import { AssetMetaStore } from '../storage/asset-meta-store';
+import { EdgeHash } from '../storage/photokeeper-db';
 
 const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => ({
   id,
@@ -19,12 +20,32 @@ const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => (
 
 // Each asset gets a blob of a unique byte length; the stub hasher maps that length → a chosen hash.
 // Using blob *size* (not content) keeps the mapping stable through a fake-indexeddb round-trip.
-const SIZE_OF: Record<string, number> = { a1: 1, a2: 2, a3: 3, a4: 4 };
+const SIZE_OF: Record<string, number> = { a1: 1, a2: 2, a3: 3, a4: 4, p1: 5, p2: 6, p3: 7 };
 const HASH_BY_SIZE: Record<number, string> = {
   1: '0000000000000000',
   2: '0000000000000001', // hamming 1 from a1 → near-duplicate
   3: 'ffffffffffffffff', // far from both → its own single
   4: '0000000000000003',
+  // p1..p3: whole-frame hashes far apart, so they are NOT a burst (only a pano via edges).
+  5: '0f0f0f0f0f0f0f0f',
+  6: 'f0f0f0f0f0f0f0f0',
+  7: '00ff00ff00ff00ff',
+};
+// Edge hashes (four strips: left/right for a horizontal pan, top/bottom for vertical). a-frames don't
+// overlap; p1→p2→p3 chain horizontally (right of one === left of the next), with top/bottom pinned
+// far apart so the run locks to 'horizontal'.
+const FAR = 'ffffffffffffffff';
+const NEAR = '0000000000000000';
+const NO_OVERLAP: EdgeHash = { left: NEAR, right: FAR, top: NEAR, bottom: FAR };
+const hEdge = (left: string, right: string): EdgeHash => ({ left, right, top: NEAR, bottom: FAR });
+const EDGE_BY_SIZE: Record<number, EdgeHash> = {
+  1: NO_OVERLAP,
+  2: NO_OVERLAP,
+  3: NO_OVERLAP,
+  4: NO_OVERLAP,
+  5: hEdge('1111111111111111', '2222222222222222'),
+  6: hEdge('2222222222222222', '3333333333333333'),
+  7: hEdge('3333333333333333', '4444444444444444'),
 };
 const blobFor = (id: string) => new Blob(['x'.repeat(SIZE_OF[id])]);
 
@@ -54,7 +75,10 @@ describe('DetectionScanService', () => {
         return of(blobFor(id));
       },
     };
-    const hasherStub = { hash: (blob: Blob) => Promise.resolve(HASH_BY_SIZE[blob.size]) };
+    const hasherStub = {
+      hash: (blob: Blob) => Promise.resolve(HASH_BY_SIZE[blob.size]),
+      edgeHash: (blob: Blob) => Promise.resolve(EDGE_BY_SIZE[blob.size]),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -131,5 +155,27 @@ describe('DetectionScanService', () => {
       name: 'a4',
       taken: '2026-05-01T10:00:03Z',
     });
+  });
+
+  it('detects a pano from edge-overlapping frames whose whole-frame hashes differ', async () => {
+    // p1→p2→p3 pan: each frame's right edge matches the next frame's left edge, but their
+    // whole-frame hashes are far apart, so this is a pano, not a burst.
+    albumAssets = [
+      image('p1', '2026-05-02T10:00:00Z'),
+      image('p2', '2026-05-02T10:00:02Z'),
+      image('p3', '2026-05-02T10:00:04Z'),
+    ];
+
+    const report = await service.scanAlbum('alb-2');
+
+    expect(report.groups).toBe(1);
+    expect(await groupStore.getByAlbum('alb-2')).toEqual([
+      {
+        type: 'pano',
+        sourceAlbumId: 'alb-2',
+        memberIds: ['p1', 'p2', 'p3'],
+        orientation: 'horizontal',
+      },
+    ]);
   });
 });
