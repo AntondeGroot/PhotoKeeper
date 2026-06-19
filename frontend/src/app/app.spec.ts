@@ -635,6 +635,68 @@ describe('App', () => {
       httpMock.verify();
     });
 
+    it('warms every frame of a tomorrow group unit, not just single photos', async () => {
+      const puts: string[] = [];
+      const pano: ReviewItem = {
+        id: 'pano:alb:pf1',
+        name: 'Panorama · 2 frames',
+        album: null,
+        taken: '2026-01-01',
+        status: 'backlog',
+        kind: 'pano',
+        orientation: 'horizontal',
+        frames: [
+          { id: 'pf1', name: 'pf1' },
+          { id: 'pf2', name: 'pf2' },
+        ],
+      };
+      // Today is a single photo; tomorrow is already chosen as a pano group.
+      const feedFor = (date: string): ReviewItem[] | undefined => {
+        if (date === TODAY) return [photo('p1')];
+        if (date === TOMORROW) return [pano];
+        return undefined;
+      };
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          getDailyFeed: (date: string) => Promise.resolve(feedFor(date)),
+          setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
+        },
+      });
+      TestBed.overrideProvider(PreviewStore, {
+        useValue: {
+          get: () => Promise.resolve(undefined), // nothing on disk → every frame fetched
+          put: (id: string) => {
+            puts.push(id);
+            return Promise.resolve();
+          },
+          evictExcept: () => Promise.resolve(),
+        },
+      });
+      localStorage.setItem('lr-access-token', 'acc');
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+
+      fixture.detectChanges();
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
+      await tick();
+      httpMock.expectOne('api/albums').flush([]);
+      await tick();
+
+      httpMock.expectNone((r) => r.url === 'api/feed'); // tomorrow already chosen → no sample
+      // Previews are warmed one at a time (each awaits the previous), so drain repeatedly.
+      for (let i = 0; i < 5; i++) {
+        await tick();
+        httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      }
+
+      expect(puts).toContain('pf1'); // both pano frames warmed ahead, not skipped as a group
+      expect(puts).toContain('pf2');
+      httpMock.verify();
+    });
+
     it("keeps tomorrow's previews when evicting earlier days", async () => {
       let evictKeep: Set<string> | undefined;
       TestBed.overrideProvider(ReviewStore, {

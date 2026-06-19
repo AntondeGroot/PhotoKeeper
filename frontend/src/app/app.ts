@@ -449,16 +449,18 @@ export class AppComponent implements OnInit, OnDestroy {
         if (units.length === 0) return;
         await this.reviewStore.setDailyFeed(tomorrow, units);
       }
-      // Fetch previews one at a time — background work, no need to flood the network. Only single
-      // photos need a warmed preview; burst cards render from their member data.
+      // Fetch previews one at a time — background work, no need to flood the network. Warms every
+      // frame id of each unit (a single photo, or all the frames of a burst/pano/stereo) so group
+      // cards render their images instantly tomorrow, just like single photos.
       for (const unit of units) {
-        if (unit.kind !== 'photo') continue;
-        if (await this.previewStore.get(unit.id, PREVIEW_SIZE)) continue;
-        try {
-          const blob = await firstValueFrom(this.svc.getPhotoBlob(unit.id, PREVIEW_SIZE));
-          await this.previewStore.put(unit.id, PREVIEW_SIZE, blob);
-        } catch {
-          // Leave it; tomorrow's session will fetch this preview on demand.
+        for (const id of unitAssetIds(unit)) {
+          if (await this.previewStore.get(id, PREVIEW_SIZE)) continue;
+          try {
+            const blob = await firstValueFrom(this.svc.getPhotoBlob(id, PREVIEW_SIZE));
+            await this.previewStore.put(id, PREVIEW_SIZE, blob);
+          } catch {
+            // Leave it; tomorrow's session will fetch this preview on demand.
+          }
         }
       }
     } catch {
