@@ -9,7 +9,8 @@ import { HashStore } from '../storage/hash-store';
 import { GroupStore } from '../storage/group-store';
 import { PreviewStore } from '../storage/preview-store';
 import { AssetMetaStore } from '../storage/asset-meta-store';
-import { EdgeHash } from '../storage/photokeeper-db';
+import { FrameSignature } from '../storage/photokeeper-db';
+import { SIGNATURE_SIZE } from './phash';
 
 const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => ({
   id,
@@ -18,34 +19,45 @@ const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => (
   payload: { captureDate },
 });
 
-// Each asset gets a blob of a unique byte length; the stub hasher maps that length → a chosen hash.
-// Using blob *size* (not content) keeps the mapping stable through a fake-indexeddb round-trip.
+// Each asset gets a blob of a unique byte length; the stub hasher maps that length → a chosen hash +
+// signature. Using blob *size* (not content) keeps the mapping stable through a fake-indexeddb round-trip.
 const SIZE_OF: Record<string, number> = { a1: 1, a2: 2, a3: 3, a4: 4, p1: 5, p2: 6, p3: 7 };
 const HASH_BY_SIZE: Record<number, string> = {
   1: '0000000000000000',
   2: '0000000000000001', // hamming 1 from a1 → near-duplicate
   3: 'ffffffffffffffff', // far from both → its own single
   4: '0000000000000003',
-  // p1..p3: whole-frame hashes far apart, so they are NOT a burst (only a pano via edges).
+  // p1..p3: whole-frame hashes far apart, so they are distinct enough to be a pan, not a burst.
   5: '0f0f0f0f0f0f0f0f',
   6: 'f0f0f0f0f0f0f0f0',
   7: '00ff00ff00ff00ff',
 };
-// Edge hashes (four strips: left/right for a horizontal pan, top/bottom for vertical). a-frames don't
-// overlap; p1→p2→p3 chain horizontally (right of one === left of the next), with top/bottom pinned
-// far apart so the run locks to 'horizontal'.
-const FAR = 'ffffffffffffffff';
-const NEAR = '0000000000000000';
-const NO_OVERLAP: EdgeHash = { left: NEAR, right: FAR, top: NEAR, bottom: FAR };
-const hEdge = (left: string, right: string): EdgeHash => ({ left, right, top: NEAR, bottom: FAR });
-const EDGE_BY_SIZE: Record<number, EdgeHash> = {
-  1: NO_OVERLAP,
-  2: NO_OVERLAP,
-  3: NO_OVERLAP,
-  4: NO_OVERLAP,
-  5: hEdge('1111111111111111', '2222222222222222'),
-  6: hEdge('2222222222222222', '3333333333333333'),
-  7: hEdge('3333333333333333', '4444444444444444'),
+
+// A 1-D "scene" sampled into a 64×64 grayscale signature: column c of a frame starting at scene
+// position `startX` shows scene column startX+c, with row-dependent texture so mean-subtracted lines
+// carry signal. Frames 32 columns apart overlap by 32 (50%) — a clean horizontal pan.
+const N = SIGNATURE_SIZE;
+// Deterministic, non-periodic pseudo-random scene so non-overlapping positions don't coincidentally match.
+const sceneValue = (x: number, r: number): number => {
+  let h = (Math.imul(x + 1, 374761393) + Math.imul(r + 1, 668265263)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) & 0xff;
+};
+const horizFrame = (startX: number): FrameSignature => {
+  const grid = new Uint8Array(N * N);
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++) grid[r * N + c] = sceneValue(startX + c, r);
+  return grid;
+};
+const flat: FrameSignature = new Uint8Array(N * N).fill(128); // a-frames: no structure to overlap
+const SIGNATURE_BY_SIZE: Record<number, FrameSignature> = {
+  1: flat,
+  2: flat,
+  3: flat,
+  4: flat,
+  5: horizFrame(0),
+  6: horizFrame(32), // left 32 cols === p1's right 32 → overlap
+  7: horizFrame(64), // left 32 cols === p2's right 32 → overlap
 };
 const blobFor = (id: string) => new Blob(['x'.repeat(SIZE_OF[id])]);
 
@@ -77,7 +89,8 @@ describe('DetectionScanService', () => {
     };
     const hasherStub = {
       hash: (blob: Blob) => Promise.resolve(HASH_BY_SIZE[blob.size]),
-      edgeHash: (blob: Blob) => Promise.resolve(EDGE_BY_SIZE[blob.size]),
+      signature: (blob: Blob) => Promise.resolve(SIGNATURE_BY_SIZE[blob.size]),
+      aspect: () => Promise.resolve(1.5), // same for every frame → aspect gate never rejects
     };
 
     TestBed.configureTestingModule({
@@ -157,9 +170,9 @@ describe('DetectionScanService', () => {
     });
   });
 
-  it('detects a pano from edge-overlapping frames whose whole-frame hashes differ', async () => {
-    // p1→p2→p3 pan: each frame's right edge matches the next frame's left edge, but their
-    // whole-frame hashes are far apart, so this is a pano, not a burst.
+  it('detects a pano from overlapping frames whose whole-frame hashes differ', async () => {
+    // p1→p2→p3 pan: each frame's right half overlaps the next frame's left half (the slide-matcher
+    // finds it), but their whole-frame hashes are far apart, so this is a pano, not a burst.
     albumAssets = [
       image('p1', '2026-05-02T10:00:00Z'),
       image('p2', '2026-05-02T10:00:02Z'),

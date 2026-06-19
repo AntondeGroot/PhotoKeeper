@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { EdgeHash } from '../storage/photokeeper-db';
-import { edgeHashImageBlob, hashImageBlob } from './phash';
+import { FrameSignature } from '../storage/photokeeper-db';
+import { frameSignatureFromBlob, hashImageBlob, imageAspect } from './phash';
 
 /**
  * Thin injectable wrapper around the canvas hashing glue. Exists so the background scan can depend on
@@ -13,7 +13,11 @@ export class ImageHasher {
     return hashImageBlob(blob);
   }
 
-  edgeHash(blob: Blob): Promise<EdgeHash> {
-    return edgeHashImageBlob(blob);
+  signature(blob: Blob): Promise<FrameSignature> {
+    return frameSignatureFromBlob(blob);
+  }
+
+  aspect(blob: Blob): Promise<number> {
+    return imageAspect(blob);
   }
 }

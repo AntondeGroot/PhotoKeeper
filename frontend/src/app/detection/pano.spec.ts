@@ -1,139 +1,148 @@
-import { EdgeHash, PanoAsset, clusterPanos } from './pano';
+import { PanoAsset, PanoOptions, clusterPanos, overlapMatch } from './pano';
+import { SIGNATURE_SIZE } from './phash';
 
+const N = SIGNATURE_SIZE;
 const asset = (id: string, taken: string): PanoAsset => ({ id, taken });
 
-// Distinct 64-bit hex hashes; chaining one frame's seam-edge to the next's means they overlap (a pan).
-const H = {
-  a: '0000000000000000',
-  b: '0000000000000001',
-  c: 'ffffffffffffffff',
-  d: '00000000ffffffff',
+// A 1-D scene sampled into a signature. A horizontal frame's column c shows scene `startX + c` (with
+// row-dependent texture so mean-subtracted lines carry signal); a vertical frame's row r shows scene
+// `startY + r`. Frames 32 apart overlap by 32 columns/rows — a clean 50% pan. `sv` is a deterministic
+// pseudo-random of (scene position, perpendicular index) — non-periodic, so distant positions don't
+// coincidentally match.
+const sv = (x: number, t: number): number => {
+  let h = (Math.imul(x + 1, 374761393) + Math.imul(t + 1, 668265263)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) & 0xff;
 };
-// A horizontal frame chains on left/right; its top/bottom are pinned far apart so a vertical seam
-// can never accidentally match. A vertical frame is the mirror image.
-const FAR = 'ffffffffffffffff';
-const NEAR = '0000000000000000';
-const hedge = (left: string, right: string): EdgeHash => ({ left, right, top: NEAR, bottom: FAR });
-const vedge = (top: string, bottom: string): EdgeHash => ({ top, bottom, left: NEAR, right: FAR });
+const horiz = (startX: number): Uint8Array => {
+  const g = new Uint8Array(N * N);
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) g[r * N + c] = sv(startX + c, r);
+  return g;
+};
+const vert = (startY: number): Uint8Array => {
+  const g = new Uint8Array(N * N);
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) g[r * N + c] = sv(startY + r, c);
+  return g;
+};
 
-const opts = { windowMs: 60_000, maxEdgeHamming: 4, minSize: 3 };
+const opts: PanoOptions = {
+  windowMs: 60_000,
+  minWholeHamming: 0, // distinctness gate off for the overlap-focused tests (no whole hashes given)
+  maxSeamScore: 5,
+  minOverlap: 0.1,
+  maxOverlap: 0.8,
+  minSize: 3,
+};
+const noHashes = new Map<string, string>();
+
+const t = (s: number): string => `2026-05-01T10:00:0${s}Z`;
+const run = (): PanoAsset[] => [asset('f1', t(0)), asset('f2', t(1)), asset('f3', t(2))];
 
 describe('clusterPanos', () => {
-  it('groups a horizontal run whose adjacent left/right edges overlap, in capture order', () => {
-    const assets = [
-      asset('f1', '2026-05-01T10:00:00Z'),
-      asset('f2', '2026-05-01T10:00:01Z'),
-      asset('f3', '2026-05-01T10:00:02Z'),
-    ];
-    const edges = new Map([
-      ['f1', hedge(H.a, H.b)],
-      ['f2', hedge(H.b, H.c)], // f2.left === f1.right → overlap
-      ['f3', hedge(H.c, H.d)], // f3.left === f2.right → overlap
+  it('groups a horizontal run whose frames overlap left↔right, in capture order', () => {
+    const sigs = new Map([
+      ['f1', horiz(0)],
+      ['f2', horiz(32)], // left half === f1's right half
+      ['f3', horiz(64)], // left half === f2's right half
     ]);
-
-    expect(clusterPanos(assets, edges, opts)).toEqual([
+    expect(clusterPanos(run(), sigs, noHashes, opts)).toEqual([
       { memberIds: ['f1', 'f2', 'f3'], orientation: 'horizontal' },
     ]);
   });
 
-  it('groups a vertical run whose adjacent top/bottom edges overlap', () => {
-    const assets = [
-      asset('f1', '2026-05-01T10:00:00Z'),
-      asset('f2', '2026-05-01T10:00:01Z'),
-      asset('f3', '2026-05-01T10:00:02Z'),
-    ];
-    const edges = new Map([
-      ['f1', vedge(H.a, H.b)],
-      ['f2', vedge(H.b, H.c)], // f2.top === f1.bottom → overlap
-      ['f3', vedge(H.c, H.d)], // f3.top === f2.bottom → overlap
+  it('groups a vertical run whose frames overlap top↔bottom', () => {
+    const sigs = new Map([
+      ['f1', vert(0)],
+      ['f2', vert(32)],
+      ['f3', vert(64)],
     ]);
-
-    expect(clusterPanos(assets, edges, opts)).toEqual([
+    expect(clusterPanos(run(), sigs, noHashes, opts)).toEqual([
       { memberIds: ['f1', 'f2', 'f3'], orientation: 'vertical' },
     ]);
   });
 
-  it('locks orientation: a vertical-only overlap cannot extend a horizontal run', () => {
-    const assets = [
-      asset('f1', '2026-05-01T10:00:00Z'),
-      asset('f2', '2026-05-01T10:00:01Z'),
-      asset('f3', '2026-05-01T10:00:02Z'),
-      asset('f4', '2026-05-01T10:00:03Z'),
-    ];
-    const edges = new Map<string, EdgeHash>([
-      ['f1', hedge(H.a, H.b)],
-      ['f2', hedge(H.b, H.c)],
-      ['f3', hedge(H.c, H.d)], // f1–f3 lock the run horizontal (their bottom edge is FAR)
-      // f4 meets f3 only on the vertical seam (its top === f3.bottom), not horizontally.
-      ['f4', { left: H.a, right: H.a, top: FAR, bottom: NEAR }],
+  it('rejects same-scene near-duplicates even though they overlap perfectly', () => {
+    const sigs = new Map([
+      ['f1', horiz(0)],
+      ['f2', horiz(32)],
+      ['f3', horiz(64)],
     ]);
+    const same = new Map([
+      ['f1', '0000000000000000'],
+      ['f2', '0000000000000000'], // identical → Hamming 0
+      ['f3', '0000000000000000'],
+    ]);
+    const gated = { ...opts, minWholeHamming: 10 };
+    expect(clusterPanos(run(), sigs, same, gated)).toEqual([]);
 
-    // The run is locked horizontal, so f4's vertical match is never tested → it breaks the run.
-    expect(clusterPanos(assets, edges, opts)).toEqual([
+    const distinct = new Map([
+      ['f1', '0000000000000000'],
+      ['f2', '00000000ffffffff'], // 32 apart
+      ['f3', 'ffffffffffffffff'],
+    ]);
+    expect(clusterPanos(run(), sigs, distinct, gated)).toEqual([
       { memberIds: ['f1', 'f2', 'f3'], orientation: 'horizontal' },
     ]);
-  });
-
-  it('does not group frames whose edges do not meet', () => {
-    const assets = [
-      asset('f1', '2026-05-01T10:00:00Z'),
-      asset('f2', '2026-05-01T10:00:01Z'),
-      asset('f3', '2026-05-01T10:00:02Z'),
-    ];
-    const edges = new Map([
-      ['f1', hedge(H.a, H.a)],
-      ['f2', hedge(H.c, H.c)], // f2.left (c) ≠ f1.right (a)
-      ['f3', hedge(H.a, H.a)],
-    ]);
-
-    expect(clusterPanos(assets, edges, opts)).toEqual([]);
   });
 
   it('splits the run when the time gap is too large', () => {
-    const assets = [
-      asset('f1', '2026-05-01T10:00:00Z'),
-      asset('f2', '2026-05-01T10:00:01Z'),
-      asset('f3', '2026-05-01T11:00:00Z'), // an hour later
-    ];
-    const edges = new Map([
-      ['f1', hedge(H.a, H.b)],
-      ['f2', hedge(H.b, H.c)],
-      ['f3', hedge(H.c, H.d)],
+    const assets = [asset('f1', t(0)), asset('f2', t(1)), asset('f3', '2026-05-01T11:00:00Z')];
+    const sigs = new Map([
+      ['f1', horiz(0)],
+      ['f2', horiz(32)],
+      ['f3', horiz(64)],
     ]);
-
     // f1–f2 overlap but that's only 2 (< minSize 3); f3 is too far → no pano.
-    expect(clusterPanos(assets, edges, opts)).toEqual([]);
+    expect(clusterPanos(assets, sigs, noHashes, opts)).toEqual([]);
   });
 
-  it('breaks a run at a frame missing edge hashes', () => {
-    const assets = [
-      asset('f1', '2026-05-01T10:00:00Z'),
-      asset('f2', '2026-05-01T10:00:01Z'),
-      asset('f3', '2026-05-01T10:00:02Z'),
-    ];
-    const edges = new Map([
-      ['f1', hedge(H.a, H.b)],
-      // f2 has no edge hash
-      ['f3', hedge(H.b, H.c)],
+  it('breaks a run at a frame missing its signature', () => {
+    const sigs = new Map([
+      ['f1', horiz(0)],
+      // f2 has no signature
+      ['f3', horiz(64)],
     ]);
-
-    expect(clusterPanos(assets, edges, opts)).toEqual([]);
+    expect(clusterPanos(run(), sigs, noHashes, opts)).toEqual([]);
   });
 
-  it('detects a pan in the other direction (left edge of one meets right edge of the next)', () => {
-    const assets = [
-      asset('f1', '2026-05-01T10:00:00Z'),
-      asset('f2', '2026-05-01T10:00:01Z'),
-      asset('f3', '2026-05-01T10:00:02Z'),
-    ];
-    const edges = new Map([
-      ['f1', hedge(H.b, H.a)],
-      ['f2', hedge(H.c, H.b)], // f1.left (b) === f2.right (b) → overlap (panning left)
-      ['f3', hedge(H.d, H.c)], // f2.left (c) === f3.right (c) → overlap
+  it('does not group frames that do not overlap', () => {
+    const sigs = new Map([
+      ['f1', horiz(0)],
+      ['f2', horiz(300)], // a different part of the scene → no shared content
+      ['f3', horiz(600)],
     ]);
+    expect(clusterPanos(run(), sigs, noHashes, opts)).toEqual([]);
+  });
 
-    expect(clusterPanos(assets, edges, opts)).toEqual([
+  it('excludes a frame whose aspect ratio differs too much, even if it overlaps', () => {
+    const sigs = new Map([
+      ['f1', horiz(0)],
+      ['f2', horiz(32)],
+      ['f3', horiz(64)],
+      ['f4', horiz(96)], // overlaps f3, but it's a wide stitched output, not a portrait source
+    ]);
+    const portraitRun: PanoAsset[] = [
+      { id: 'f1', taken: t(0), aspect: 0.67 },
+      { id: 'f2', taken: t(1), aspect: 0.67 },
+      { id: 'f3', taken: t(2), aspect: 0.67 },
+      { id: 'f4', taken: t(3), aspect: 2.2 }, // ~3× wider → incompatible
+    ];
+    expect(clusterPanos(portraitRun, sigs, noHashes, opts)).toEqual([
       { memberIds: ['f1', 'f2', 'f3'], orientation: 'horizontal' },
     ]);
+  });
+});
+
+describe('overlapMatch', () => {
+  it('finds the overlap offset, near-zero score and forward direction for a clean pan', () => {
+    const m = overlapMatch(horiz(0), horiz(32), 'horizontal', opts);
+    expect(m.score).toBeLessThan(1);
+    expect(m.overlap).toBeCloseTo(0.5, 1);
+    expect(m.forward).toBe(true);
+  });
+
+  it('scores unrelated frames far above a real seam', () => {
+    const m = overlapMatch(horiz(0), horiz(300), 'horizontal', opts);
+    expect(m.score).toBeGreaterThan(5);
   });
 });
