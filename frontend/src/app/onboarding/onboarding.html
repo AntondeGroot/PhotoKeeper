@@ -1,0 +1,51 @@
+<div class="onboarding-screen">
+  <div class="onboarding-card">
+    <div class="logo-mark">PK</div>
+    <h1>Keeper</h1>
+    <p class="lead">Set up your photo sources to begin.</p>
+
+    @if (error) {
+      <p class="auth-error">{{ error }}</p>
+    }
+
+    <div class="sources">
+      <!-- Adobe Lightroom -->
+      <div class="source-card" [class.done]="connected">
+        <div class="source-head">
+          <div>
+            <div class="source-title">Adobe Lightroom</div>
+            <div class="source-sub">Review and sort your catalogue</div>
+          </div>
+          @if (connected) {
+            <span class="source-check" aria-label="connected">✓</span>
+          }
+        </div>
+        @if (connected) {
+          <span class="connected-chip">Connected</span>
+        } @else if (connecting) {
+          <button class="btn-connect connecting" disabled type="button">
+            <span class="spinner" aria-hidden="true"></span>
+            Connecting…
+          </button>
+        } @else {
+          <a [attr.href]="loginHref" class="btn-connect">Connect to Lightroom</a>
+        }
+      </div>
+
+      <!-- This device -->
+      <app-device-source
+        [enabled]="deviceEnabled"
+        [folders]="deviceFolders"
+        (toggled)="deviceToggled.emit($event)"
+        (folderToggled)="folderToggled.emit($event)"
+      />
+    </div>
+
+    <button class="btn-continue" [disabled]="!canContinue" (click)="continued.emit()">
+      Continue
+    </button>
+    @if (!canContinue) {
+      <p class="continue-hint">Connect Lightroom or turn on this device to continue.</p>
+    }
+  </div>
+</div>

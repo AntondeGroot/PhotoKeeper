@@ -5,20 +5,21 @@
       (continued)="continueFromSplash()"
       (updateRequested)="requestSplashUpdate()"
     />
-  } @else if (!authenticated()) {
-    <div class="login-screen">
-      <div class="login-card">
-        <div class="logo-mark">PK</div>
-        <h1>PhotoKeeper</h1>
-        <p>Browse your Adobe Lightroom catalogue</p>
-        @if (error()) {
-          <p class="auth-error">{{ error() }}</p>
-        }
-        <a [attr.href]="loginHref" class="btn-connect">Connect to Lightroom</a>
-      </div>
-    </div>
-  } @else if (labMode()) {
+  } @else if (labMode() && authenticated()) {
     <app-detection-lab />
+  } @else if (!onboarded()) {
+    <app-onboarding
+      [connected]="authenticated()"
+      [connecting]="connecting()"
+      [loginHref]="loginHref"
+      [error]="error()"
+      [deviceEnabled]="deviceEnabled()"
+      [deviceFolders]="deviceFolders()"
+      [canContinue]="canContinueOnboarding()"
+      (deviceToggled)="toggleDevice($event)"
+      (folderToggled)="toggleDeviceFolder($event)"
+      (continued)="completeOnboarding()"
+    />
   } @else {
     <div class="keeper-shell">
       <header class="keeper-header">
@@ -161,6 +162,11 @@
             [silentTime]="silentTime()"
             [silentEvening]="silentEvening()"
             [burstWindowSeconds]="burstWindowSeconds()"
+            [deviceEnabled]="deviceEnabled()"
+            [deviceFolders]="deviceFolders()"
+            [lightroomConnected]="authenticated()"
+            [lightroomConnecting]="connecting()"
+            [loginHref]="loginHref"
             (dailyGoalChange)="setDailyGoal($event)"
             (burstWindowSecondsChange)="setBurstWindowSeconds($event)"
             (editGoalChange)="editGoal.set($event)"
@@ -168,6 +174,9 @@
             (silentTimeChange)="silentTime.set($event)"
             (silentEveningChange)="silentEvening.set($event)"
             (manageAlbums)="manageAlbumsOpen.set(true)"
+            (deviceToggled)="toggleDevice($event)"
+            (folderToggled)="toggleDeviceFolder($event)"
+            (lightroomDisconnect)="disconnectLightroom()"
           />
         }
       </div>

@@ -1,0 +1,195 @@
+.onboarding-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 24px;
+}
+
+.onboarding-card {
+  text-align: center;
+  width: 100%;
+  max-width: 410px;
+}
+
+.logo-mark {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--c-amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 32px;
+  color: #131110;
+  margin: 0 auto 20px;
+}
+
+h1 {
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--c-text);
+  margin-bottom: 6px;
+}
+
+.lead {
+  color: var(--c-dim);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.auth-error {
+  color: var(--c-reject);
+  font-size: 13px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: rgba(201, 104, 90, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(201, 104, 90, 0.25);
+}
+
+.sources {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+  margin-bottom: 22px;
+}
+
+.source-card {
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 16px;
+  transition: border-color 0.18s;
+
+  &.done {
+    border-color: rgba(143, 174, 126, 0.45); // --c-keep, soft
+  }
+}
+
+.source-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.source-title {
+  font-family: var(--font-head);
+  font-size: 18px;
+  color: var(--c-text);
+}
+
+.source-sub {
+  font-size: 12px;
+  color: var(--c-dim);
+  margin-top: 3px;
+}
+
+.source-check {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--c-keep);
+  color: #131110;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-connect {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+  padding: 12px 24px;
+  border-radius: 10px;
+  background: var(--c-amber);
+  color: #131110;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+// Waiting on Lightroom to confirm: a golden circling spinner, no longer a tappable button.
+.btn-connect.connecting {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(229, 160, 69, 0.12);
+  border: 1px solid rgba(229, 160, 69, 0.4);
+  color: var(--c-amber);
+  font-family: var(--font-body);
+  cursor: default;
+}
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(229, 160, 69, 0.3);
+  border-top-color: var(--c-amber);
+  border-radius: 50%;
+  animation: onboarding-spin 0.7s linear infinite;
+}
+
+@keyframes onboarding-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.connected-chip {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-keep);
+  border: 1px solid rgba(143, 174, 126, 0.45);
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+
+.btn-continue {
+  width: 100%;
+  padding: 14px 28px;
+  border-radius: 10px;
+  border: none;
+  background: var(--c-amber);
+  color: #131110;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    background 0.2s;
+
+  &:disabled {
+    background: var(--c-panel2);
+    color: var(--c-faint);
+    cursor: not-allowed;
+  }
+
+  &:not(:disabled):hover {
+    opacity: 0.9;
+  }
+}
+
+.continue-hint {
+  font-size: 12px;
+  color: var(--c-faint);
+  margin-top: 10px;
+}

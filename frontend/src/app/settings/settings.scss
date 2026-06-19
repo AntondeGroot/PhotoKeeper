@@ -5,6 +5,160 @@
   padding: 4px 0;
 }
 
+.lightroom-card {
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 16px;
+  transition: border-color 0.18s;
+
+  &.connected {
+    border-color: rgba(143, 174, 126, 0.45); // --c-keep, soft
+  }
+}
+
+.lightroom-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.lightroom-title {
+  font-family: var(--font-head);
+  font-size: 18px;
+  color: var(--c-text);
+}
+
+.lightroom-sub {
+  font-size: 12px;
+  color: var(--c-dim);
+  margin-top: 3px;
+}
+
+.connected-chip {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-keep);
+  border: 1px solid rgba(143, 174, 126, 0.45);
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+
+.lr-connect {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+  margin-top: 14px;
+  padding: 11px 24px;
+  border-radius: 10px;
+  background: var(--c-amber);
+  color: #131110;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+.lr-disconnect {
+  display: inline-block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 24px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-dim);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.18s,
+    border-color 0.18s;
+
+  &:hover {
+    color: var(--c-reject);
+    border-color: rgba(201, 104, 90, 0.4);
+  }
+
+  // The confirmed action reads as the destructive one.
+  &.danger {
+    flex: 1;
+    margin-top: 0;
+    color: var(--c-reject);
+    border-color: rgba(201, 104, 90, 0.4);
+    background: rgba(201, 104, 90, 0.1);
+  }
+}
+
+.lr-confirm {
+  margin-top: 14px;
+}
+
+.lr-confirm-text {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--c-dim);
+  margin-bottom: 12px;
+}
+
+.lr-confirm-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.lr-cancel {
+  flex: 1;
+  padding: 10px 24px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s;
+
+  &:hover {
+    border-color: var(--c-dim);
+  }
+}
+
+// Waiting on Lightroom to confirm after the redirect: a golden circling spinner, not a tappable button.
+.lr-connect.connecting {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(229, 160, 69, 0.12);
+  border: 1px solid rgba(229, 160, 69, 0.4);
+  color: var(--c-amber);
+  font-family: var(--font-body);
+  cursor: default;
+}
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(229, 160, 69, 0.3);
+  border-top-color: var(--c-amber);
+  border-radius: 50%;
+  animation: settings-spin 0.7s linear infinite;
+}
+
+@keyframes settings-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .settings-section-label {
   font-size: 11px;
   font-weight: 700;

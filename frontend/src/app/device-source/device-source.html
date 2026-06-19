@@ -1,0 +1,47 @@
+<div class="device-card" [class.on]="enabled">
+  <div class="device-head">
+    <div>
+      <div class="device-title">This device</div>
+      <div class="device-sub">Also review photos from local folders</div>
+    </div>
+    <button
+      class="toggle"
+      [class.on]="enabled"
+      (click)="toggled.emit(!enabled)"
+      aria-label="toggle device photos"
+      type="button"
+    ></button>
+  </div>
+
+  @if (enabled) {
+    <div class="device-folders">
+      <button
+        class="folders-toggle"
+        (click)="expanded.set(!expanded())"
+        [attr.aria-expanded]="expanded()"
+        type="button"
+      >
+        <span class="folders-label">Folders to include</span>
+        <span class="folders-summary">{{ enabledCount() }} of {{ folders.length }}</span>
+        <span class="folders-chevron" [class.open]="expanded()">›</span>
+      </button>
+
+      @if (expanded()) {
+        @for (folder of folders; track folder.name) {
+          <button class="folder-row" (click)="folderToggled.emit(folder.name)" type="button">
+            <span class="folder-check" [class.on]="folder.enabled">{{
+              folder.enabled ? '✓' : ''
+            }}</span>
+            <span class="folder-name">{{ folder.name }}</span>
+            <span class="folder-count">{{ formatCount(folder.count) }}</span>
+          </button>
+        }
+        <p class="device-hint">
+          Uses the system folder picker — the app only sees folders you select, and photos are
+          scored on-device. Rejects go to the device trash (recoverable for 30 days); photos you
+          flag to edit are queued for upload to Lightroom, so only keepers use cloud storage.
+        </p>
+      }
+    </div>
+  }
+</div>
