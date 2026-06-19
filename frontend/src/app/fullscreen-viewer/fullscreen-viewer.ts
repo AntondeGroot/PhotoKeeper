@@ -96,13 +96,15 @@ export class FullscreenViewerComponent {
     this.dragX.set(0);
     this.dragY.set(0);
 
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) {
-      this.close(); // a tap on the image closes
-    } else if (this.reviewMode) {
-      this.swipeVerdict(dx, dy); // review: swipe gives a verdict (same as the buttons)
+    if (this.reviewMode) {
+      // Review: a clean tap closes; a long directional swipe gives a verdict; partial swipes snap back.
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) this.close();
+      else this.swipeVerdict(dx, dy);
     } else if (Math.abs(dx) > 40 && this.imagesSig().length > 0) {
       const n = this.imagesSig().length;
-      this.index.set((this.index() + (dx < 0 ? 1 : -1) + n) % n); // compare mode: switch frame
+      this.index.set((this.index() + (dx < 0 ? 1 : -1) + n) % n); // compare: clear swipe → switch
+    } else {
+      this.close(); // compare: any other gesture (incl. a tap with slight movement) closes
     }
   }
 
