@@ -1,8 +1,8 @@
 <div class="lab">
   <h1>Detection lab</h1>
   <p class="lab-note">
-    Developer view — tune burst thresholds and inspect what's grouped vs excluded. Sliders
-    re-cluster live; they don't change the app's saved settings.
+    Developer view — tune burst &amp; pano thresholds and inspect what's grouped vs excluded.
+    Sliders re-cluster live; they don't change the app's saved settings.
   </p>
 
   <div class="lab-controls">
@@ -18,6 +18,12 @@
     <button (click)="analyze()" [disabled]="!selectedAlbumId() || analyzing()">
       {{ analyzing() ? 'Analyzing… ' + progressPct() + '%' : 'Analyze' }}
     </button>
+    <button (click)="downloadFrames()" [disabled]="frames().length === 0 || analyzing()">
+      Download 640px frames
+    </button>
+    <button (click)="downloadSignatures()" [disabled]="frames().length === 0 || analyzing()">
+      Download signatures
+    </button>
   </div>
 
   @if (error(); as e) {
@@ -25,6 +31,7 @@
   }
 
   <div class="lab-sliders">
+    <span class="lab-sliders-title">Burst</span>
     <label>
       Window {{ windowSec() }}s
       <input type="range" min="1" max="120" [value]="windowSec()" (input)="onWindow($event)" />
@@ -39,9 +46,68 @@
     </label>
   </div>
 
-  @if (frames().length > 0) {
-    <p class="lab-summary">{{ frames().length }} frames · {{ clusters().length }} bursts</p>
+  <div class="lab-sliders">
+    <span class="lab-sliders-title">Pano</span>
+    <label>
+      Window {{ panoWindowSec() }}s
+      <input
+        type="range"
+        min="1"
+        max="120"
+        [value]="panoWindowSec()"
+        (input)="onPanoWindow($event)"
+      />
+    </label>
+    <label>
+      Max seam score {{ panoMaxSeamScore() }}
+      <input
+        type="range"
+        min="0"
+        max="100"
+        [value]="panoMaxSeamScore()"
+        (input)="onPanoMaxSeamScore($event)"
+      />
+    </label>
+    <label>
+      Min whole Hamming {{ panoMinWholeHamming() }}
+      <input
+        type="range"
+        min="0"
+        max="64"
+        [value]="panoMinWholeHamming()"
+        (input)="onPanoMinWholeHamming($event)"
+      />
+    </label>
+    <label>
+      Overlap {{ panoMinOverlapPct() }}–{{ panoMaxOverlapPct() }}%
+      <input
+        type="range"
+        min="2"
+        max="90"
+        [value]="panoMinOverlapPct()"
+        (input)="onPanoMinOverlap($event)"
+      />
+      <input
+        type="range"
+        min="2"
+        max="90"
+        [value]="panoMaxOverlapPct()"
+        (input)="onPanoMaxOverlap($event)"
+      />
+    </label>
+    <label>
+      Min size {{ panoMinSize() }}
+      <input type="range" min="2" max="6" [value]="panoMinSize()" (input)="onPanoMinSize($event)" />
+    </label>
+  </div>
 
+  @if (frames().length > 0) {
+    <p class="lab-summary">
+      {{ frames().length }} frames · {{ clusters().length }} bursts · {{ panoClusters().length }}
+      panos
+    </p>
+
+    <h2 class="lab-section">Bursts</h2>
     @for (c of clusters(); track c.memberIds[0]) {
       <div class="lab-cluster">
         @if (c.before; as b) {
@@ -70,9 +136,77 @@
         }
       </div>
     }
-
     @if (clusters().length === 0) {
       <p class="lab-summary">No bursts at these thresholds.</p>
+    }
+
+    <h2 class="lab-section">Panos</h2>
+    <p class="lab-note">
+      Coloured bands are the overlap the slide-matcher found (its width = the detected overlap); a
+      seam's two facing bands share a colour. Per-seam <b>h</b>/<b>v</b> are the best horizontal vs
+      vertical match scores (lower = better) — the detector picked the lower axis, shown in bold —
+      and <b>ov</b> is the overlap on that axis.
+    </p>
+    @for (c of panoClusters(); track c.memberIds[0]) {
+      @let seams = panoSeams(c);
+      @let strips = panoMemberStrips(seams, c.memberIds.length);
+      <div class="lab-cluster">
+        @if (c.before; as b) {
+          <div class="lab-frame excluded">
+            <img class="lab-thumb" [src]="thumb(b.id)" alt="" />
+            <div class="lab-frame-meta">
+              before · {{ secs(b.gapMs) }}s · seam {{ b.seamScore ?? '—' }} · whole
+              {{ b.wholeHamming ?? '—' }}
+            </div>
+          </div>
+        }
+        <div class="lab-members">
+          <span class="lab-badge">{{ c.orientation }}</span>
+          @for (id of c.memberIds; track id; let i = $index) {
+            <div class="lab-frame">
+              <div class="lab-thumb-wrap">
+                <img class="lab-thumb" [src]="thumb(id)" alt="" />
+                @for (s of strips[i]; track $index) {
+                  <div
+                    class="lab-strip"
+                    [style.left.%]="s.left"
+                    [style.top.%]="s.top"
+                    [style.width.%]="s.width"
+                    [style.height.%]="s.height"
+                    [style.background-color]="s.color"
+                    [style.border-color]="s.color"
+                  ></div>
+                }
+              </div>
+              <div class="lab-frame-meta">{{ frameName(id) }}</div>
+            </div>
+          }
+        </div>
+        @if (c.after; as a) {
+          <div class="lab-frame excluded">
+            <img class="lab-thumb" [src]="thumb(a.id)" alt="" />
+            <div class="lab-frame-meta">
+              after · {{ secs(a.gapMs) }}s · seam {{ a.seamScore ?? '—' }} · whole
+              {{ a.wholeHamming ?? '—' }}
+            </div>
+          </div>
+        }
+      </div>
+      @if (seams.length > 0) {
+        <p class="lab-seams">
+          @for (s of seams; track $index) {
+            <span class="seam-cost">
+              <span class="seam-dot" [style.background-color]="s.color"></span>
+              <span [class.win]="c.orientation === 'horizontal'">h {{ s.hScore }}</span> /
+              <span [class.win]="c.orientation === 'vertical'">v {{ s.vScore }}</span> ·
+              {{ pct(s.overlap) }}%
+            </span>
+          }
+        </p>
+      }
+    }
+    @if (panoClusters().length === 0) {
+      <p class="lab-summary">No panos at these thresholds.</p>
     }
   }
 </div>

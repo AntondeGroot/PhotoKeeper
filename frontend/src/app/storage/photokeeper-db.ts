@@ -26,13 +26,11 @@ export type GroupType = 'burst' | 'pano' | 'stereo';
 /** A panorama's pan axis: left↔right (horizontal) or top↔bottom (vertical). */
 export type PanoOrientation = 'horizontal' | 'vertical';
 
-/** Perceptual hashes of an asset's four edge strips, for horizontal/vertical pano detection. */
-export interface EdgeHash {
-  left: string;
-  right: string;
-  top: string;
-  bottom: string;
-}
+/**
+ * A whole-frame grayscale signature (SIGNATURE_SIZE² bytes, row-major) for pano detection. The matcher
+ * slides one frame's signature over the next to find their overlap, so it works at any overlap amount.
+ */
+export type FrameSignature = Uint8Array;
 
 /** A detected cluster of assets, ready to hydrate into a `ReviewItem` for group-aware selection. */
 export interface DetectedGroup {
@@ -86,7 +84,8 @@ export interface AlbumManifest {
  * - groups: groupId → a detected cluster (burst/pano/stereo) for group-aware selection
  * - assetMeta: assetId → lightweight metadata for on-device selection (album, name, taken)
  * - groupOverrides: member-set signature → a "not a group" user correction
- * - edgeHash: assetId → left/right edge-strip hashes, for pano detection
+ * - frameSignature: assetId → grayscale signature (Uint8Array), the pano matcher's input
+ * - frameAspect: assetId → rendition width/height, the pano aspect gate's input
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -98,7 +97,8 @@ export interface PhotoKeeperSchema extends DBSchema {
   groups: { key: string; value: DetectedGroup };
   assetMeta: { key: string; value: AssetMeta };
   groupOverrides: { key: string; value: GroupOverride };
-  edgeHash: { key: string; value: EdgeHash };
+  frameSignature: { key: string; value: FrameSignature };
+  frameAspect: { key: string; value: number };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -107,11 +107,16 @@ export class PhotoKeeperDb {
   private dbPromise: Promise<IDBPDatabase<PhotoKeeperSchema>> | null = null;
 
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
-    // v2 renamed the 'renditions' store to 'previews'; v3 added 'assetHash'; v4 added
-    // 'albumManifest'; v5 added 'groups'; v6 added 'assetMeta'; v7 added 'groupOverrides'; v8 added
-    // 'edgeHash'. Create-if-missing so existing dev databases keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 8, {
-      upgrade(db) {
+    // v2–v8 grew the store set (see history). v9 replaced the fixed 'edgeHash' store with
+    // 'frameSignature'. v10 added 'frameAspect' (the aspect gate's input) and clears signatures +
+    // manifests so every album re-scans and recomputes both signature and aspect together.
+    // Create-if-missing so other stores keep their data.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 10, {
+      upgrade(db, _oldVersion, _newVersion, tx) {
+        // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
+        const legacy = db as unknown as IDBPDatabase;
+        if (legacy.objectStoreNames.contains('edgeHash')) legacy.deleteObjectStore('edgeHash');
+        if (db.objectStoreNames.contains('frameSignature')) db.deleteObjectStore('frameSignature');
         for (const store of [
           'previews',
           'verdicts',
@@ -122,11 +127,17 @@ export class PhotoKeeperDb {
           'groups',
           'assetMeta',
           'groupOverrides',
-          'edgeHash',
+          'frameSignature',
+          'frameAspect',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);
           }
+        }
+        // Force every album to re-detect: signatures were cleared and aspect is new, so cached manifests
+        // must not gate it out.
+        if (db.objectStoreNames.contains('albumManifest')) {
+          void tx.objectStore('albumManifest').clear();
         }
       },
     });

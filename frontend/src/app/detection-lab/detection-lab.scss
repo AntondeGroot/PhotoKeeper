@@ -47,6 +47,7 @@ h1 {
 .lab-sliders {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 18px;
   padding: 12px;
   border: 1px solid var(--c-line);
@@ -68,9 +69,63 @@ h1 {
   }
 }
 
+.lab-sliders-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-faint);
+  flex: 0 0 48px;
+}
+
 .lab-summary {
   font-size: 13px;
   color: var(--c-faint);
+}
+
+.lab-section {
+  font-size: 15px;
+  margin: 18px 0 8px;
+}
+
+// Per-seam horizontal-vs-vertical cost readout under a pano, so a mislabel is visible.
+.lab-seams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 2px 0 14px;
+  font-size: 11px;
+  color: var(--c-dim);
+
+  .seam-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .seam-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  .win {
+    color: var(--c-text);
+    font-weight: 700;
+  }
+}
+
+.lab-badge {
+  align-self: center;
+  padding: 2px 8px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--c-amber);
+  color: #131110;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
 }
 
 .lab-cluster {
@@ -108,6 +163,24 @@ h1 {
   object-fit: cover;
   border-radius: 6px;
   background: var(--c-panel);
+  display: block;
+}
+
+// Wraps a thumb so the sampled-strip overlays can be absolutely positioned over it.
+.lab-thumb-wrap {
+  position: relative;
+  width: 96px;
+  height: 72px;
+}
+
+// The exact region hashed for pano matching, drawn over the thumbnail. Border + fill colour come from
+// the seam (set inline); a seam's two facing strips share a colour. opacity keeps the photo visible.
+.lab-strip {
+  position: absolute;
+  border: 2px solid;
+  border-radius: 2px;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .lab-frame-meta {

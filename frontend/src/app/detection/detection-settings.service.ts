@@ -5,12 +5,18 @@ import { PanoOptions } from './pano';
 const STORAGE_KEY = 'detection-burst-options';
 
 /**
- * Provisional pano defaults: a 60s pan window, edges within Hamming 12 count as overlapping, and at
- * least 3 frames make a panorama. Not yet user-tunable — tune via the detection lab / corpus later.
+ * Provisional pano defaults: a 60s pan window; consecutive frames must differ by ≥ 20 of the
+ * whole-frame 64 bits (else same scene, not a pan); the slide-matcher's best-aligned seam must score
+ * under 24 (mean abs luma diff, 0–255) to count as a real continuation — measured against the
+ * bridge-pano fixture, whose true seams run up to ~23 while a non-matching frame sits ~25; the overlap
+ * must be 10–80% of a frame; ≥ 3 frames make a panorama. Tune via the detection lab / corpus later.
  */
 export const DEFAULT_PANO_OPTIONS: PanoOptions = {
   windowMs: 60_000,
-  maxEdgeHamming: 12,
+  minWholeHamming: 20,
+  maxSeamScore: 24,
+  minOverlap: 0.1,
+  maxOverlap: 0.8,
   minSize: 3,
 };
 

@@ -55,89 +55,109 @@ export function hammingDistance(a: string, b: string): number {
 }
 
 /**
+ * Decodes a blob to a bitmap, applying EXIF orientation so we hash the image the way it's *displayed*
+ * (an `<img>` honours EXIF; `createImageBitmap` doesn't by default). Without this a rotated frame is
+ * hashed sideways — harmless for whole-frame burst matching, but it swaps a pano's horizontal and
+ * vertical seams, so left/right and top/bottom edges would be mislabelled.
+ */
+function decode(blob: Blob): Promise<ImageBitmap> {
+  return createImageBitmap(blob, { imageOrientation: 'from-image' });
+}
+
+/**
  * Decodes an image blob and hashes it. Thin browser glue around the pure `dhash`: downscale to the
- * fixed grid on an OffscreenCanvas, convert to luminance, hash. Hashing the smallest rendition the
+ * fixed 9×8 grid on an OffscreenCanvas, convert to luminance, hash. Hashing the smallest rendition the
  * caller has on hand keeps this cheap — the downscale throws the extra resolution away anyway.
  */
 export async function hashImageBlob(blob: Blob): Promise<string> {
-  const bitmap = await createImageBitmap(blob);
+  const bitmap = await decode(blob);
   try {
-    return hashRegion(bitmap, 0, 0, bitmap.width, bitmap.height);
+    return dhash(grayscaleGrid(bitmap, HASH_WIDTH, HASH_HEIGHT));
   } finally {
     bitmap.close();
   }
 }
 
-/** Fraction of the width/height taken as each edge strip when hashing for pano overlap. */
-const EDGE_FRACTION = 0.25;
-
-/** Perceptual hashes of an asset's four edge strips, for horizontal *and* vertical pano overlap. */
-export interface EdgeHashes {
-  left: string;
-  right: string;
-  top: string;
-  bottom: string;
-}
+/**
+ * Side of a square grayscale signature used for pano seam matching. Bigger than the dHash grid so the
+ * sliding overlap search has enough columns/rows to localise where two frames actually meet.
+ */
+export const SIGNATURE_SIZE = 64;
 
 /**
- * Hashes an image's four edge strips (for pano detection). A horizontal pan meets at the left/right
- * seam (one frame's right ≈ the next's left); a vertical pan meets at the top/bottom seam. The
- * top/bottom strips are hashed *transposed* so the dHash gradient runs along the vertical (pan) axis,
- * mirroring how the left/right strips fingerprint the horizontal axis. Both sides of a seam use the
- * same transform, so a `top`/`bottom` pair stays comparable with {@link hammingDistance}.
+ * A whole-frame grayscale thumbnail (SIGNATURE_SIZE², row-major, 0–255) used by the pano matcher. Unlike
+ * a fixed-edge hash, this lets the matcher *slide* one frame's edge over the next to find the overlap
+ * offset, so detection works regardless of how much the frames overlap. EXIF orientation is applied so
+ * the grid matches what's displayed. The downscale is done by {@link signatureFromRgba} (pure, so the
+ * same math is exercised by tests that decode fixtures without a canvas).
  */
-export async function edgeHashImageBlob(blob: Blob): Promise<EdgeHashes> {
-  const bitmap = await createImageBitmap(blob);
+export async function frameSignatureFromBlob(blob: Blob): Promise<Uint8Array> {
+  const bitmap = await decode(blob);
   try {
     const { width, height } = bitmap;
-    const stripW = Math.max(1, Math.round(width * EDGE_FRACTION));
-    const stripH = Math.max(1, Math.round(height * EDGE_FRACTION));
-    return {
-      left: hashRegion(bitmap, 0, 0, stripW, height),
-      right: hashRegion(bitmap, width - stripW, 0, stripW, height),
-      top: hashRegion(bitmap, 0, 0, width, stripH, true),
-      bottom: hashRegion(bitmap, 0, height - stripH, width, stripH, true),
-    };
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('could not get a 2d canvas context for hashing');
+    ctx.drawImage(bitmap, 0, 0);
+    return signatureFromRgba(ctx.getImageData(0, 0, width, height).data, width, height);
   } finally {
     bitmap.close();
   }
 }
 
 /**
- * Downscales a source rectangle [sx,sx+sWidth)×[sy,sy+sHeight) to the hash grid and dHashes it. When
- * `transpose` is set, the grid is transposed before hashing so the dHash compares vertically-adjacent
- * pixels — the right scan direction for a vertical (top/bottom) pano seam.
+ * Box-downscales a full-resolution RGBA buffer to a SIGNATURE_SIZE² grayscale signature (Rec. 601 luma,
+ * row-major). Pure — no canvas — so production (canvas pixels) and tests (decoded-fixture pixels) share
+ * one downscale, making the signature reproducible off-browser.
  */
-function hashRegion(
-  bitmap: ImageBitmap,
-  sx: number,
-  sy: number,
-  sWidth: number,
-  sHeight: number,
-  transpose = false,
-): string {
-  const canvas = new OffscreenCanvas(HASH_WIDTH, HASH_HEIGHT);
+export function signatureFromRgba(
+  data: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+  size = SIGNATURE_SIZE,
+): Uint8Array {
+  const out = new Uint8Array(size * size);
+  for (let oy = 0; oy < size; oy++) {
+    const y0 = Math.floor((oy * height) / size);
+    const y1 = Math.max(y0 + 1, Math.floor(((oy + 1) * height) / size));
+    for (let ox = 0; ox < size; ox++) {
+      const x0 = Math.floor((ox * width) / size);
+      const x1 = Math.max(x0 + 1, Math.floor(((ox + 1) * width) / size));
+      let sum = 0;
+      let count = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * width + x) * 4;
+          sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]; // Rec. 601 luma
+          count++;
+        }
+      }
+      out[oy * size + ox] = (sum / count) | 0;
+    }
+  }
+  return out;
+}
+
+/** The width/height ratio of an image (EXIF orientation applied), for the pano aspect gate. */
+export async function imageAspect(blob: Blob): Promise<number> {
+  const bitmap = await decode(blob);
+  try {
+    return bitmap.height > 0 ? bitmap.width / bitmap.height : 1;
+  } finally {
+    bitmap.close();
+  }
+}
+
+/** Downscales the whole bitmap to a `width`×`height` row-major grayscale grid (Rec. 601 luma). */
+function grayscaleGrid(bitmap: ImageBitmap, width: number, height: number): number[] {
+  const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('could not get a 2d canvas context for hashing');
-  ctx.drawImage(bitmap, sx, sy, sWidth, sHeight, 0, 0, HASH_WIDTH, HASH_HEIGHT);
-  const { data } = ctx.getImageData(0, 0, HASH_WIDTH, HASH_HEIGHT);
+  ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, 0, 0, width, height);
+  const { data } = ctx.getImageData(0, 0, width, height);
   const gray: number[] = [];
   for (let i = 0; i < data.length; i += 4) {
     gray.push(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]); // Rec. 601 luma
   }
-  if (transpose) {
-    return dhash(transposeGrid(gray, HASH_WIDTH, HASH_HEIGHT), HASH_HEIGHT, HASH_WIDTH);
-  }
-  return dhash(gray);
-}
-
-/** Transposes a row-major `width`×`height` grid into a row-major `height`×`width` grid. */
-function transposeGrid(gray: readonly number[], width: number, height: number): number[] {
-  const out: number[] = [];
-  for (let col = 0; col < width; col++) {
-    for (let row = 0; row < height; row++) {
-      out.push(gray[row * width + col]);
-    }
-  }
-  return out;
+  return gray;
 }
