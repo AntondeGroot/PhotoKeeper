@@ -154,23 +154,13 @@
         }
         <button
           [disabled]="analyzing()"
-          (click)="
-            downloadGroupFrames(
-              groupExportIds(c.memberIds, c.before?.id, c.after?.id),
-              'burst-' + frameName(c.memberIds[0])
-            )
-          "
+          (click)="downloadGroupFrames(groupExportIds(c.memberIds, c.before?.id, c.after?.id))"
         >
           ⬇ frames
         </button>
         <button
           [disabled]="analyzing()"
-          (click)="
-            downloadGroupSignatures(
-              groupExportIds(c.memberIds, c.before?.id, c.after?.id),
-              'burst-' + frameName(c.memberIds[0])
-            )
-          "
+          (click)="downloadGroupSignatures(groupExportIds(c.memberIds, c.before?.id, c.after?.id))"
         >
           ⬇ signatures
         </button>
@@ -251,23 +241,13 @@
         }
         <button
           [disabled]="analyzing()"
-          (click)="
-            downloadGroupFrames(
-              groupExportIds(c.memberIds, c.before?.id, c.after?.id),
-              'pano-' + frameName(c.memberIds[0])
-            )
-          "
+          (click)="downloadGroupFrames(groupExportIds(c.memberIds, c.before?.id, c.after?.id))"
         >
           ⬇ frames
         </button>
         <button
           [disabled]="analyzing()"
-          (click)="
-            downloadGroupSignatures(
-              groupExportIds(c.memberIds, c.before?.id, c.after?.id),
-              'pano-' + frameName(c.memberIds[0])
-            )
-          "
+          (click)="downloadGroupSignatures(groupExportIds(c.memberIds, c.before?.id, c.after?.id))"
         >
           ⬇ signatures
         </button>
