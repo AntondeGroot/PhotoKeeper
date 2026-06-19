@@ -1,0 +1,94 @@
+<svg
+  class="scene"
+  [class.blur]="scene.blur"
+  viewBox="0 0 300 400"
+  preserveAspectRatio="xMidYMid slice"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <rect width="300" height="400" [attr.fill]="scene.sky" />
+  <circle
+    [attr.cx]="scene.sunX"
+    [attr.cy]="scene.sunY"
+    r="34"
+    [attr.fill]="scene.sun"
+    opacity="0.95"
+  />
+
+  @switch (scene.variant) {
+    @case ('peaks') {
+      <polygon
+        points="0,250 70,140 130,240 180,170 240,260 300,190 300,400 0,400"
+        [attr.fill]="scene.far"
+      />
+      <polygon
+        points="0,310 60,230 140,320 210,250 300,330 300,400 0,400"
+        [attr.fill]="scene.near"
+      />
+    }
+    @case ('coast') {
+      <rect y="250" width="300" height="150" [attr.fill]="scene.near" />
+      <rect
+        [attr.x]="scene.sunX - 12"
+        y="250"
+        width="24"
+        height="150"
+        [attr.fill]="scene.sun"
+        opacity="0.25"
+      />
+      <polygon points="0,250 90,200 160,252 0,252" [attr.fill]="scene.far" />
+      <path
+        d="M0 268 Q40 262 80 268 T160 268 T240 268 T300 268"
+        [attr.stroke]="scene.sky"
+        stroke-width="2"
+        fill="none"
+        opacity="0.4"
+      />
+      <path
+        d="M0 300 Q50 294 100 300 T200 300 T300 300"
+        [attr.stroke]="scene.sky"
+        stroke-width="2"
+        fill="none"
+        opacity="0.3"
+      />
+    }
+    @case ('dunes') {
+      <path d="M0 240 Q90 190 170 250 T300 235 V400 H0 Z" [attr.fill]="scene.far" />
+      <path d="M0 320 Q110 260 210 330 T300 315 V400 H0 Z" [attr.fill]="scene.near" />
+    }
+    @case ('forest') {
+      <rect y="290" width="300" height="110" [attr.fill]="scene.near" />
+      @for (tree of trees; track $index) {
+        <polygon [attr.points]="tree.points" [attr.fill]="scene.far" />
+        <rect [attr.x]="tree.trunkX" y="298" width="6" height="16" [attr.fill]="scene.far" />
+      }
+    }
+    @case ('city') {
+      @for (b of buildings; track $index) {
+        <rect
+          [attr.x]="b.x"
+          [attr.y]="b.top"
+          [attr.width]="b.w"
+          [attr.height]="b.h"
+          [attr.fill]="b.far ? scene.far : scene.near"
+        />
+        @for (y of b.windowYs; track $index) {
+          <rect
+            [attr.x]="b.windowX"
+            [attr.y]="y"
+            [attr.width]="b.windowW"
+            height="6"
+            [attr.fill]="scene.sun"
+            opacity="0.35"
+          />
+        }
+      }
+    }
+  }
+
+  @if (scene.birds) {
+    <g [attr.stroke]="scene.near" stroke-width="3" fill="none" stroke-linecap="round">
+      <path d="M170 90 q8 -8 16 0 M186 90 q8 -8 16 0" transform="translate(-60,-10)" />
+      <path d="M200 70 q7 -7 14 0" />
+    </g>
+  }
+</svg>

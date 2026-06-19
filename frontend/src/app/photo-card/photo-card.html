@@ -10,6 +10,8 @@
   <div class="photo-area">
     @if (imageUrl) {
       <img class="photo-img" [src]="imageUrl" alt="" draggable="false" />
+    } @else if (photo.scene; as scene) {
+      <app-scene [scene]="scene" />
     }
   </div>
   <div class="swipe-overlay overlay-keep" [style.opacity]="dragX() > 0 ? dragX() / 100 : 0">
@@ -25,11 +27,13 @@
     ↓ MAYBE
   </div>
   <div class="photo-top">
-    <span class="chip">{{ photo.album || 'No album' }}</span>
+    <span class="chip" [class.chip-device]="photo.source === 'device'">
+      {{ photo.source === 'device' ? 'Device · ' + photo.album : photo.album || 'No album' }}
+    </span>
   </div>
   <div class="photo-bottom">
     <div>
-      <div class="photo-name">{{ photo.name }}.RAW</div>
+      <div class="photo-name">{{ photo.name }}{{ photo.source === 'device' ? '' : '.RAW' }}</div>
       <div class="photo-meta">{{ photo.taken }}</div>
     </div>
     @if (photo.starred) {

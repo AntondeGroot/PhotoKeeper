@@ -92,6 +92,11 @@
     background: rgba(19, 17, 16, 0.6);
     backdrop-filter: blur(4px);
   }
+
+  .chip-device {
+    color: var(--c-device);
+    border: 1px solid rgba(111, 174, 158, 0.45);
+  }
 }
 
 .photo-bottom {

@@ -8,6 +8,54 @@
     <span class="manage-albums-chevron">&#8250;</span>
   </button>
 
+  <div class="settings-section-label">Sources</div>
+  <div class="lightroom-card" [class.connected]="lightroomConnected">
+    <div class="lightroom-head">
+      <div>
+        <div class="lightroom-title">Adobe Lightroom</div>
+        <div class="lightroom-sub">Review and sort your catalogue</div>
+      </div>
+      @if (lightroomConnected) {
+        <span class="connected-chip">Connected</span>
+      }
+    </div>
+    @if (lightroomConnected) {
+      @if (confirmingDisconnect()) {
+        <div class="lr-confirm">
+          <p class="lr-confirm-text">
+            Disconnect Lightroom? Your catalogue photos will leave today's deck — you can reconnect
+            any time.
+          </p>
+          <div class="lr-confirm-actions">
+            <button class="lr-cancel" (click)="confirmingDisconnect.set(false)" type="button">
+              Cancel
+            </button>
+            <button class="lr-disconnect danger" (click)="confirmDisconnect()" type="button">
+              Disconnect
+            </button>
+          </div>
+        </div>
+      } @else {
+        <button class="lr-disconnect" (click)="confirmingDisconnect.set(true)" type="button">
+          Disconnect
+        </button>
+      }
+    } @else if (lightroomConnecting) {
+      <button class="lr-connect connecting" disabled type="button">
+        <span class="spinner" aria-hidden="true"></span>
+        Connecting…
+      </button>
+    } @else {
+      <a [attr.href]="loginHref" class="lr-connect">Connect to Lightroom</a>
+    }
+  </div>
+  <app-device-source
+    [enabled]="deviceEnabled"
+    [folders]="deviceFolders"
+    (toggled)="deviceToggled.emit($event)"
+    (folderToggled)="folderToggled.emit($event)"
+  />
+
   <div class="settings-section-label">Daily review</div>
 
   <div class="settings-card">

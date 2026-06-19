@@ -22,9 +22,12 @@ import { AlbumManifestStore } from './storage/album-manifest-store';
 import {
   Burst,
   BurstPhoto,
+  DeviceFolder,
   Pano,
   Photo,
   ReviewItem,
+  DEVICE_FOLDERS,
+  DEVICE_PHOTOS,
   MOCK_PHOTOS,
   MOCK_BURST,
   MOCK_PANO,
@@ -43,6 +46,7 @@ import { AlbumManagerComponent } from './album-manager/album-manager';
 import { DetectionLabComponent } from './detection-lab/detection-lab';
 import { FullscreenViewerComponent, ViewerImage } from './fullscreen-viewer/fullscreen-viewer';
 import { SplashComponent, SplashState } from './splash/splash';
+import { OnboardingComponent } from './onboarding/onboarding';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
@@ -122,6 +126,11 @@ function panoToBurst(pano: Pano): Burst {
   };
 }
 
+/** A single photo pulled from a local device folder (no Lightroom rendition to fetch). */
+function isDevicePhoto(item: ReviewItem): boolean {
+  return item.kind === 'photo' && item.source === 'device';
+}
+
 /** Every real asset id a review unit references — its own, or all the frames of a group. */
 function unitAssetIds(item: ReviewItem): string[] {
   switch (item.kind) {
@@ -151,6 +160,7 @@ function unitAssetIds(item: ReviewItem): string[] {
     DetectionLabComponent,
     FullscreenViewerComponent,
     SplashComponent,
+    OnboardingComponent,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -176,6 +186,21 @@ export class AppComponent implements OnInit, OnDestroy {
   // yet, and an offline mode that keeps a valid session needs its own auth-flow change).
   splashState = signal<SplashState>('normal');
   authenticated = signal(false);
+  // First-run setup is done (Lightroom connected and/or this device accepted). Until then the
+  // onboarding screen shows instead of the app. Persisted so it's a true first-run-only gate.
+  onboarded = signal(false);
+  // True while a Lightroom token is being verified (after the OAuth redirect) — drives the golden
+  // spinner on the onboarding connect button.
+  connecting = signal(false);
+  // "This device" photo source: a master toggle plus which local folders to include. Mock data in the
+  // web PoC (see DEVICE_FOLDERS); persisted to localStorage like the other settings.
+  deviceEnabled = signal(false);
+  deviceFolders = signal<DeviceFolder[]>(DEVICE_FOLDERS.map((f) => ({ ...f })));
+  // Device source is "ready" (contributes photos / satisfies onboarding) only when it's on AND at
+  // least one folder is selected.
+  deviceReady = computed(() => this.deviceEnabled() && this.deviceFolders().some((f) => f.enabled));
+  // Onboarding Continue unlocks once at least one source is set up.
+  canContinueOnboarding = computed(() => this.authenticated() || this.deviceReady());
   // Developer detection lab, reached via the ?lab query param. Replaces the review UI when set.
   labMode = signal(false);
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
@@ -266,6 +291,14 @@ export class AppComponent implements OnInit, OnDestroy {
       localStorage.setItem('silentTime', this.silentTime());
       localStorage.setItem('silentEvening', String(this.silentEvening()));
       localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
+      localStorage.setItem('onboarded', String(this.onboarded()));
+      localStorage.setItem('deviceEnabled', String(this.deviceEnabled()));
+      // Persist only the per-folder enabled flags by name, so changing the folder catalogue later
+      // doesn't strand stale entries.
+      const enabledFolders = this.deviceFolders()
+        .filter((f) => f.enabled)
+        .map((f) => f.name);
+      localStorage.setItem('deviceFolders', JSON.stringify(enabledFolders));
     });
 
     // Keep the current unit's previews plus the next PREFETCH_AHEAD ones loaded, so swiping never
@@ -280,6 +313,7 @@ export class AppComponent implements OnInit, OnDestroy {
       for (let i = 0; i <= PREFETCH_AHEAD; i++) {
         const item = photos[start + i];
         if (!item) continue;
+        if (isDevicePhoto(item)) continue; // device photos have no Lightroom rendition to warm
         for (const id of unitAssetIds(item)) {
           windowIds.add(id);
           void this.ensurePreview(id);
@@ -307,6 +341,18 @@ export class AppComponent implements OnInit, OnDestroy {
         this.vacationAlbumIds.set(parsed.filter((id): id is string => typeof id === 'string'));
       }
     }
+    this.onboarded.set(localStorage.getItem('onboarded') === 'true');
+    this.deviceEnabled.set(localStorage.getItem('deviceEnabled') === 'true');
+    const savedFolders = localStorage.getItem('deviceFolders');
+    if (savedFolders) {
+      const parsed: unknown = JSON.parse(savedFolders);
+      if (Array.isArray(parsed)) {
+        const on = new Set(parsed.filter((n): n is string => typeof n === 'string'));
+        this.deviceFolders.update((folders) =>
+          folders.map((f) => ({ ...f, enabled: on.has(f.name) })),
+        );
+      }
+    }
     void this.init();
   }
 
@@ -314,43 +360,67 @@ export class AppComponent implements OnInit, OnDestroy {
     const params = new URLSearchParams(window.location.search);
     this.labMode.set(params.has('lab'));
     const authError = params.get('auth_error');
+
+    // After login the backend redirects with the tokens in the URL fragment; capture them.
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const accessToken = hash.get('access_token');
+    const refreshToken = hash.get('refresh_token');
+
+    // Coming back from an OAuth round-trip (tokens or an error in the URL) is not a cold start — skip
+    // the launch splash and land straight on onboarding, where the Lightroom card shows the spinner /
+    // checkmark for what just happened.
+    const returningFromLogin = !!authError || !!(accessToken && refreshToken);
+    if (returningFromLogin) this.loading.set(false);
+
     if (authError) {
       const detail = params.get('detail');
       this.error.set(`Login failed: ${authError}${detail ? ' — ' + detail : ''}`);
       window.history.replaceState({}, '', window.location.pathname);
-      await this.revealAfterSplash();
       return;
     }
 
-    // After login the backend redirects with the tokens in the URL fragment; capture and store them.
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const accessToken = hash.get('access_token');
-    const refreshToken = hash.get('refresh_token');
     if (accessToken && refreshToken) {
       this.svc.setTokens(accessToken, refreshToken);
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    if (this.svc.getAccessToken()) {
-      try {
-        // Fetching the catalog id both caches it and validates the token (refreshing if expired).
-        await firstValueFrom(this.svc.loadCatalogId());
-        this.authenticated.set(true);
-        if (this.labMode()) {
-          this.loading.set(false);
-          return; // the lab loads its own data; skip the review pipeline entirely
-        }
-        await this.loadPhotos();
-        await this.loadAlbums();
-        void this.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
-        void this.runBackgroundScan(); // populate detection stores for future sessions
-      } catch {
-        // Token couldn't be validated/refreshed — fall back to the login screen.
-        this.svc.clearTokens();
-        this.authenticated.set(false);
-      }
+    if (await this.verifyAndLoadSession(returningFromLogin)) return; // lab took over the screen
+
+    // Device-only returning user (onboarded, no Lightroom session): the deck is just device photos.
+    if (!this.authenticated() && this.onboarded()) {
+      this.reviewPhotos.set([]); // drop the design-time mock fallback
+      await this.refreshDeviceDeck();
     }
-    await this.revealAfterSplash();
+    if (!returningFromLogin) await this.revealAfterSplash();
+  }
+
+  // Validates the stored Lightroom token (showing the connect spinner meanwhile) and, on success,
+  // loads the review session. Returns true only when it has fully taken over the screen (lab mode),
+  // signalling init to stop. A missing token or a failure leaves the user on onboarding.
+  private async verifyAndLoadSession(returningFromLogin: boolean): Promise<boolean> {
+    if (!this.svc.getAccessToken()) return false;
+    this.connecting.set(true); // golden spinner on the onboarding connect button until this resolves
+    try {
+      // Fetching the catalog id both caches it and validates the token (refreshing if expired).
+      await firstValueFrom(this.svc.loadCatalogId());
+      this.authenticated.set(true);
+      this.connecting.set(false);
+      if (this.labMode()) {
+        this.loading.set(false);
+        return true; // the lab loads its own data; skip the review pipeline entirely
+      }
+      await this.loadPhotos();
+      await this.loadAlbums();
+      void this.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
+      void this.runBackgroundScan(); // populate detection stores for future sessions
+    } catch {
+      // Token couldn't be validated/refreshed — fall back to onboarding.
+      this.svc.clearTokens();
+      this.authenticated.set(false);
+      this.connecting.set(false);
+      if (returningFromLogin) this.error.set('Could not connect to Lightroom — please try again.');
+    }
+    return false;
   }
 
   /**
@@ -374,6 +444,52 @@ export class AppComponent implements OnInit, OnDestroy {
   /** Splash "Update" — would open the store / trigger the update once that path exists. */
   requestSplashUpdate(): void {
     // No update channel yet; wired so the button is live the moment one lands.
+  }
+
+  /** The enabled-folder device photos that should be in the deck right now (empty if device is off). */
+  private deviceDeck(): Photo[] {
+    if (!this.deviceReady()) return [];
+    const on = new Set(
+      this.deviceFolders()
+        .filter((f) => f.enabled)
+        .map((f) => f.name),
+    );
+    return DEVICE_PHOTOS.filter((p) => p.album && on.has(p.album));
+  }
+
+  // Reconciles the device photos in the deck with the current device settings: strips the existing
+  // device photos and re-appends the ones the settings now call for, with stored verdicts overlaid so
+  // swipes survive. Keeps Lightroom photos and the review index intact.
+  private async refreshDeviceDeck(): Promise<void> {
+    const verdicts = await this.reviewStore.getVerdicts();
+    const base = this.reviewPhotos().filter((p) => !isDevicePhoto(p));
+    const device = this.deviceDeck().map((p) => this.applyVerdict(p, verdicts.get(p.id)));
+    const deck = [...base, ...device];
+    this.reviewPhotos.set(deck);
+    if (this.reviewIndex() >= deck.length) this.reviewIndex.set(Math.max(0, deck.length - 1));
+  }
+
+  /** Onboarding "Continue" — record setup as done and enter the app with the chosen sources. */
+  async completeOnboarding(): Promise<void> {
+    this.onboarded.set(true);
+    // An authenticated user already had loadPhotos build the deck during init; a device-only user
+    // starts from an empty base. Either way, reconcile device photos against the final settings.
+    if (!this.authenticated()) this.reviewPhotos.set([]);
+    await this.refreshDeviceDeck();
+  }
+
+  /** Flip the master "review photos from this device" toggle, then re-sync the deck. */
+  toggleDevice(enabled: boolean): void {
+    this.deviceEnabled.set(enabled);
+    void this.refreshDeviceDeck();
+  }
+
+  /** Toggle one device folder's inclusion, then re-sync the deck. */
+  toggleDeviceFolder(name: string): void {
+    this.deviceFolders.update((folders) =>
+      folders.map((f) => (f.name === name ? { ...f, enabled: !f.enabled } : f)),
+    );
+    void this.refreshDeviceDeck();
   }
 
   private async loadAlbums(): Promise<void> {
@@ -403,9 +519,12 @@ export class AppComponent implements OnInit, OnDestroy {
         }
       }
       if (photos.length > 0) {
-        // Overlay stored verdicts so in-progress swipes survive a reload.
+        // Overlay stored verdicts so in-progress swipes survive a reload, and append any enabled
+        // device photos to the deck (device photos aren't persisted in the feed — they're rebuilt
+        // from settings each load).
         const verdicts = await this.reviewStore.getVerdicts();
-        const withVerdicts = photos.map((p) => this.applyVerdict(p, verdicts.get(p.id)));
+        const deck = [...photos, ...this.deviceDeck()];
+        const withVerdicts = deck.map((p) => this.applyVerdict(p, verdicts.get(p.id)));
         this.reviewPhotos.set(withVerdicts);
         // Resume at the first un-reviewed photo, so a reload continues where you left off instead of
         // re-showing photos you already decided. (Done ones stay in the set for the progress count.)
@@ -486,8 +605,13 @@ export class AppComponent implements OnInit, OnDestroy {
       this.canLoadMore.set(false);
       return;
     }
-    this.reviewPhotos.update((list) => [...list, ...more]);
-    void this.reviewStore.setDailyFeed(todayKey(), this.reviewPhotos());
+    // Insert the new Lightroom units ahead of any device photos, and persist only the Lightroom feed
+    // (device photos are rebuilt from settings, never stored).
+    const base = this.reviewPhotos().filter((p) => !isDevicePhoto(p));
+    const newBase = [...base, ...more];
+    void this.reviewStore.setDailyFeed(todayKey(), newBase);
+    this.reviewPhotos.set(newBase);
+    await this.refreshDeviceDeck();
     const next = this.reviewPhotos().findIndex((p) => p.status === 'backlog');
     if (next !== -1) this.reviewIndex.set(next);
   }
@@ -851,17 +975,23 @@ export class AppComponent implements OnInit, OnDestroy {
     return Array.from(map.entries()).map(([album, photos]) => ({ album, photos }));
   }
 
-  async logout(): Promise<void> {
+  // Disconnects the Lightroom source from Settings: revokes the token (best-effort) and drops its
+  // photos from the deck, but stays in the app — the user keeps their device source and can reconnect
+  // any time from the same card. Not a full sign-out; onboarding is not re-shown.
+  async disconnectLightroom(): Promise<void> {
     try {
       await firstValueFrom(this.svc.logout());
     } catch {
-      /* ignore */
+      /* ignore — disconnect locally regardless of the backend call */
     }
     this.svc.clearTokens();
     this.authenticated.set(false);
+    this.connecting.set(false);
     this.photosLoaded.set(false);
     this.revokeAllPreviews();
     this.inFlight.clear();
+    this.reviewPhotos.set([]); // drop Lightroom photos; device photos (if any) are re-added below
+    await this.refreshDeviceDeck();
   }
 
   ngOnDestroy(): void {

@@ -9,11 +9,12 @@ import {
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { Photo } from '../photo';
+import { SceneComponent } from '../scene/scene';
 
 @Component({
   selector: 'app-photo-card',
   templateUrl: './photo-card.html',
-  imports: [],
+  imports: [SceneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './photo-card.scss',
 })
