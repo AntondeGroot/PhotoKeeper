@@ -12,6 +12,8 @@ const report = (albumId: string, over: Partial<ScanReport> = {}): ScanReport => 
   hashed: 0,
   removed: 0,
   groups: 0,
+  scanned: 0,
+  exhausted: true,
   ...over,
 });
 
@@ -19,7 +21,7 @@ describe('CatalogScanService', () => {
   let service: CatalogScanService;
   let albums: Album[];
   let behavior: Record<string, ScanReport | 'throw'>;
-  let calls: string[];
+  let calls: { id: string; budget: number }[];
 
   beforeEach(() => {
     albums = [];
@@ -28,8 +30,8 @@ describe('CatalogScanService', () => {
 
     const svcStub = { getAlbums: () => of(albums) };
     const scanStub = {
-      scanAlbum: (id: string) => {
-        calls.push(id);
+      scanAlbum: (id: string, budget: number) => {
+        calls.push({ id, budget });
         const outcome = behavior[id];
         return outcome === 'throw' ? Promise.reject(new Error('boom')) : Promise.resolve(outcome);
       },
@@ -47,9 +49,9 @@ describe('CatalogScanService', () => {
   it('scans every album and aggregates the reports when under budget', async () => {
     albums = [album('a'), album('b'), album('c')];
     behavior = {
-      a: report('a', { skipped: true }),
-      b: report('b', { hashed: 2, groups: 1 }),
-      c: report('c', { hashed: 1, groups: 2 }),
+      a: report('a', { scanned: 0 }), // already fully scanned → counted as skipped
+      b: report('b', { scanned: 2, hashed: 2, groups: 1 }),
+      c: report('c', { scanned: 1, hashed: 1, groups: 2 }),
     };
 
     const summary = await service.scanAllAlbums();
@@ -60,35 +62,48 @@ describe('CatalogScanService', () => {
       scanned: 2,
       skipped: 1,
       failed: 0,
+      scannedImages: 3,
       hashed: 3,
       groups: 3,
       completed: true,
     });
-    expect(calls).toEqual(['a', 'b', 'c']);
+    expect(calls.map((c) => c.id)).toEqual(['a', 'b', 'c']);
   });
 
-  it('stops at the per-pass hash budget and reports incomplete', async () => {
+  it('passes the shrinking remaining budget to each album', async () => {
+    albums = [album('a'), album('b')];
+    behavior = { a: report('a', { scanned: 30 }), b: report('b', { scanned: 10 }) };
+
+    await service.scanAllAlbums(100);
+
+    expect(calls).toEqual([
+      { id: 'a', budget: 100 },
+      { id: 'b', budget: 70 }, // 100 − 30 already spent on 'a'
+    ]);
+  });
+
+  it('stops at the per-pass image budget and reports incomplete', async () => {
     albums = [album('a'), album('b'), album('c')];
     behavior = {
-      a: report('a', { hashed: 10 }),
-      b: report('b', { hashed: 10 }),
-      c: report('c', { hashed: 10 }),
+      a: report('a', { scanned: 10 }),
+      b: report('b', { scanned: 10 }),
+      c: report('c', { scanned: 10 }),
     };
 
     const summary = await service.scanAllAlbums(15);
 
-    expect(summary.processed).toBe(2); // budget hit before the third album
-    expect(summary.hashed).toBe(20);
+    expect(summary.processed).toBe(2); // budget exhausted before the third album
+    expect(summary.scannedImages).toBe(20); // soft: 'b' pushed past 15
     expect(summary.completed).toBe(false);
-    expect(calls).toEqual(['a', 'b']);
+    expect(calls.map((c) => c.id)).toEqual(['a', 'b']);
   });
 
   it('keeps going when an album scan throws, counting it as failed', async () => {
     albums = [album('a'), album('b'), album('c')];
     behavior = {
-      a: report('a', { hashed: 1 }),
+      a: report('a', { scanned: 1 }),
       b: 'throw',
-      c: report('c', { hashed: 1 }),
+      c: report('c', { scanned: 1 }),
     };
 
     const summary = await service.scanAllAlbums();
@@ -96,9 +111,9 @@ describe('CatalogScanService', () => {
     expect(summary.processed).toBe(3);
     expect(summary.failed).toBe(1);
     expect(summary.scanned).toBe(2);
-    expect(summary.hashed).toBe(2);
+    expect(summary.scannedImages).toBe(2);
     expect(summary.completed).toBe(true);
-    expect(calls).toEqual(['a', 'b', 'c']);
+    expect(calls.map((c) => c.id)).toEqual(['a', 'b', 'c']);
   });
 
   it('handles an empty catalog', async () => {

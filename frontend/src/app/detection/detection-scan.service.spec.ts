@@ -61,6 +61,9 @@ const SIGNATURE_BY_SIZE: Record<number, FrameSignature> = {
 };
 const blobFor = (id: string) => new Blob(['x'.repeat(SIZE_OF[id])]);
 
+// A budget comfortably larger than the test albums, so each scan covers the whole album in one pass.
+const BUDGET = 100;
+
 describe('DetectionScanService', () => {
   let service: DetectionScanService;
   let hashStore: HashStore;
@@ -107,10 +110,18 @@ describe('DetectionScanService', () => {
   });
 
   it('hashes only the burst candidates (not lone photos) and stores the detected burst', async () => {
-    const report = await service.scanAlbum('alb-1');
+    const report = await service.scanAlbum('alb-1', BUDGET);
 
     // a1+a2 are a time-cluster candidate → hashed; a3 is a lone photo → metadata only, never hashed.
-    expect(report).toEqual({ albumId: 'alb-1', skipped: false, hashed: 2, removed: 0, groups: 1 });
+    expect(report).toEqual({
+      albumId: 'alb-1',
+      skipped: false,
+      hashed: 2,
+      removed: 0,
+      groups: 1,
+      scanned: 3, // all three images covered this pass (budget ≫ album)
+      exhausted: true,
+    });
     expect([...(await hashStore.getAll()).keys()].sort((x, y) => x.localeCompare(y))).toEqual([
       'a1',
       'a2',
@@ -128,10 +139,10 @@ describe('DetectionScanService', () => {
   });
 
   it('skips an unchanged album on the second scan — no fetch, no re-hash', async () => {
-    await service.scanAlbum('alb-1');
+    await service.scanAlbum('alb-1', BUDGET);
     fetched.length = 0;
 
-    const report = await service.scanAlbum('alb-1');
+    const report = await service.scanAlbum('alb-1', BUDGET);
 
     expect(report.skipped).toBe(true);
     expect(fetched).toEqual([]);
@@ -140,14 +151,14 @@ describe('DetectionScanService', () => {
   it('reuses a warmed 2048 preview instead of fetching a rendition', async () => {
     await previewStore.put('a1', '2048', blobFor('a1'));
 
-    await service.scanAlbum('alb-1');
+    await service.scanAlbum('alb-1', BUDGET);
 
     // Only burst candidates a1/a2 are hashed; a1 comes from the warmed preview, so only a2 is fetched.
     expect(fetched).toEqual(['a2']);
   });
 
   it('re-hashes edited assets, fetches added ones, and drops removed hashes', async () => {
-    await service.scanAlbum('alb-1');
+    await service.scanAlbum('alb-1', BUDGET);
     fetched.length = 0;
 
     // a1 unchanged, a2 edited (new revision), a3 removed, a4 added.
@@ -157,7 +168,7 @@ describe('DetectionScanService', () => {
       image('a4', '2026-05-01T10:00:03Z'),
     ];
 
-    const report = await service.scanAlbum('alb-1');
+    const report = await service.scanAlbum('alb-1', BUDGET);
 
     expect([...fetched].sort((x, y) => x.localeCompare(y))).toEqual(['a2', 'a4']); // a1 keeps its hash
     expect(report.removed).toBe(1);
@@ -170,6 +181,50 @@ describe('DetectionScanService', () => {
     });
   });
 
+  it('caps a pass at the budget and resumes from the cursor on the next pass', async () => {
+    // Four lone photos an hour apart — no groups, so the budget bites cleanly at each boundary.
+    albumAssets = [
+      image('a1', '2026-05-01T10:00:00Z'),
+      image('a2', '2026-05-01T11:00:00Z'),
+      image('a3', '2026-05-01T12:00:00Z'),
+      image('a4', '2026-05-01T13:00:00Z'),
+    ];
+
+    const first = await service.scanAlbum('alb-1', 2);
+    expect(first.scanned).toBe(2);
+    expect(first.exhausted).toBe(false);
+    expect([...(await metaStore.getAll()).keys()].sort((x, y) => x.localeCompare(y))).toEqual([
+      'a1',
+      'a2',
+    ]);
+
+    const second = await service.scanAlbum('alb-1', 2);
+    expect(second.scanned).toBe(2);
+    expect(second.exhausted).toBe(true);
+    expect([...(await metaStore.getAll()).keys()].sort((x, y) => x.localeCompare(y))).toEqual([
+      'a1',
+      'a2',
+      'a3',
+      'a4',
+    ]);
+  });
+
+  it('overshoots the budget to finish a burst straddling the cap (soft max + peek)', async () => {
+    // a1 lone; a2/a3/a4 are a 1-second-apart run an hour later. A budget of 2 would stop after a1,a2 —
+    // but a2 opens a time-run, so the window keeps going through a3,a4 and peeks one past to confirm.
+    albumAssets = [
+      image('a1', '2026-05-01T10:00:00Z'),
+      image('a2', '2026-05-01T11:00:00Z'),
+      image('a3', '2026-05-01T11:00:01Z'),
+      image('a4', '2026-05-01T11:00:02Z'),
+    ];
+
+    const report = await service.scanAlbum('alb-1', 2);
+
+    expect(report.scanned).toBe(4); // finished the run rather than cutting it at the budget
+    expect(report.exhausted).toBe(true);
+  });
+
   it('detects a pano from overlapping frames whose whole-frame hashes differ', async () => {
     // p1→p2→p3 pan: each frame's right half overlaps the next frame's left half (the slide-matcher
     // finds it), but their whole-frame hashes are far apart, so this is a pano, not a burst.
@@ -179,7 +234,7 @@ describe('DetectionScanService', () => {
       image('p3', '2026-05-02T10:00:04Z'),
     ];
 
-    const report = await service.scanAlbum('alb-2');
+    const report = await service.scanAlbum('alb-2', BUDGET);
 
     expect(report.groups).toBe(1);
     expect(await groupStore.getByAlbum('alb-2')).toEqual([
