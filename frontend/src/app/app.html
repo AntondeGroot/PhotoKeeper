@@ -1,8 +1,10 @@
 <div class="app">
   @if (loading()) {
-    <div class="splash">
-      <div class="spinner"></div>
-    </div>
+    <app-splash
+      [state]="splashState()"
+      (continued)="continueFromSplash()"
+      (updateRequested)="requestSplashUpdate()"
+    />
   } @else if (!authenticated()) {
     <div class="login-screen">
       <div class="login-card">

@@ -7,29 +7,6 @@
   padding: 28px 12px 48px;
 }
 
-/* ── Loading splash ── */
-.splash {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid rgba(255, 255, 255, 0.15);
-  border-top-color: var(--c-amber);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* ── Login ── */
 .login-screen {
   display: flex;
