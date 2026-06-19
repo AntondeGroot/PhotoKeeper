@@ -133,10 +133,39 @@ h1 {
   align-items: flex-start;
   gap: 8px;
   padding: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
   border: 1px solid var(--c-line);
   border-radius: 10px;
   overflow-x: auto;
+}
+
+// Per-group export controls: extend the group across its bracket frames, then download the visible set.
+.lab-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+
+  button {
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--c-line);
+    background: var(--c-panel);
+    color: var(--c-text);
+    font-size: 11px;
+    cursor: pointer;
+
+    &.on {
+      background: var(--c-amber);
+      color: #131110;
+      font-weight: 600;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
 }
 
 .lab-members {
@@ -154,6 +183,16 @@ h1 {
 
   &.excluded {
     opacity: 0.4;
+  }
+
+  // A bracket frame the user pulled into the group's export set: undimmed + outlined so it's obvious.
+  &.included {
+    opacity: 1;
+
+    .lab-thumb {
+      outline: 2px solid var(--c-amber);
+      outline-offset: 1px;
+    }
   }
 }
 

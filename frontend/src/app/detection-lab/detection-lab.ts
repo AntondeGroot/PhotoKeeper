@@ -169,6 +169,10 @@ export class DetectionLabComponent implements OnInit {
   private readonly thumbs = signal<Map<string, SafeUrl>>(new Map());
   // The raw 640px rendition blobs from the last Analyze, so they can be exported for inspection.
   private readonly frameBlobs = new Map<string, Blob>();
+  // Per-group export extensions (keyed by the group's first member id): whether the before/after
+  // bracket frame is pulled into the group's downloadable set, for curating test fixtures.
+  private readonly includeBefore = signal<Set<string>>(new Set());
+  private readonly includeAfter = signal<Set<string>>(new Set());
 
   // Burst sliders, seeded from the saved detection settings.
   windowSec = signal(this.settings.burstOptions().windowMs / 1000);
@@ -363,6 +367,54 @@ export class DetectionLabComponent implements OnInit {
     }
   }
 
+  isBeforeIncluded(key: string): boolean {
+    return this.includeBefore().has(key);
+  }
+
+  isAfterIncluded(key: string): boolean {
+    return this.includeAfter().has(key);
+  }
+
+  /** Pull the before-bracket frame into (or out of) the group's downloadable set. */
+  toggleBefore(key: string): void {
+    this.includeBefore.update((set) => toggled(set, key));
+  }
+
+  toggleAfter(key: string): void {
+    this.includeAfter.update((set) => toggled(set, key));
+  }
+
+  /** A group's export set: its members, plus whichever bracket neighbours the user opted to include. */
+  groupExportIds(memberIds: readonly string[], beforeId?: string, afterId?: string): string[] {
+    const key = memberIds[0];
+    const ids = [...memberIds];
+    if (beforeId && this.includeBefore().has(key)) ids.unshift(beforeId);
+    if (afterId && this.includeAfter().has(key)) ids.push(afterId);
+    return ids;
+  }
+
+  /** Saves the 640px renditions of one group's export set (numbered, prefixed by the group label). */
+  async downloadGroupFrames(ids: readonly string[], label: string): Promise<void> {
+    for (let i = 0; i < ids.length; i++) {
+      const blob = this.frameBlobs.get(ids[i]);
+      if (blob) await this.save(blob, `${label}__${prefix(i)}_${this.frameName(ids[i])}.jpg`);
+    }
+  }
+
+  /** Saves the signature PNGs of one group's export set. */
+  async downloadGroupSignatures(ids: readonly string[], label: string): Promise<void> {
+    const sigs = this.signatures();
+    for (let i = 0; i < ids.length; i++) {
+      const sig = sigs.get(ids[i]);
+      if (sig) {
+        await this.save(
+          await signatureToPng(sig),
+          `${label}__${prefix(i)}_${this.frameName(ids[i])}_sig.png`,
+        );
+      }
+    }
+  }
+
   private async save(blob: Blob, filename: string): Promise<void> {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -385,6 +437,13 @@ export class DetectionLabComponent implements OnInit {
 /** Zero-padded capture-order prefix for an exported filename, so frames sort in sequence. */
 function prefix(index: number): string {
   return String(index + 1).padStart(2, '0');
+}
+
+/** A copy of `set` with `key` toggled in/out. */
+function toggled(set: ReadonlySet<string>, key: string): Set<string> {
+  const next = new Set(set);
+  if (!next.delete(key)) next.add(key);
+  return next;
 }
 
 function toDetectAsset(frame: LabFrame): DetectAsset {
