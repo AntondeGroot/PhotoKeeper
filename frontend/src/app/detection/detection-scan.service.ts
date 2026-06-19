@@ -22,10 +22,12 @@ const WARMED_PREVIEW_SIZE = '2048';
 /** What one album scan did, for logging / progress. */
 export interface ScanReport {
   albumId: string;
-  skipped: boolean; // change-gate saw no changes → nothing fetched or hashed
+  skipped: boolean; // change-gate saw no changes and the album was already fully scanned
   hashed: number; // assets hashed this run (added + edited)
   removed: number; // cached hashes dropped for assets that left the album
   groups: number; // burst groups stored for the album
+  scanned: number; // images newly covered this pass (drawn from the budget)
+  exhausted: boolean; // the album is now fully scanned (cursor reached the end)
 }
 
 /**
@@ -50,58 +52,113 @@ export class DetectionScanService {
   private readonly meta = inject(AssetMetaStore);
   private readonly settings = inject(DetectionSettingsService);
 
-  async scanAlbum(albumId: string): Promise<ScanReport> {
-    const assets = (await firstValueFrom(this.svc.getAllAlbumAssets(albumId))).filter(
-      (a) => a.subtype === 'image',
+  /**
+   * Scans the next slice of one album, in capture-time order, up to `budget` new images — a *soft* cap:
+   * once the budget is reached it keeps going while consecutive captures stay within the group window
+   * (so a burst/pano straddling the cap is finished, not cut), and peeks one photo past to confirm the
+   * boundary. A per-album cursor (in the manifest) records how far it reached, so the next pass resumes
+   * there; the cursor resets and the album re-scans from the start whenever its population changes.
+   */
+  async scanAlbum(albumId: string, budget: number): Promise<ScanReport> {
+    // Capture-time order makes "the next photo" and the group-window peek well-defined.
+    const all = (await firstValueFrom(this.svc.getAllAlbumAssets(albumId)))
+      .filter((a) => a.subtype === 'image')
+      .sort((a, b) => takenOf(a).localeCompare(takenOf(b)));
+
+    const { unchanged, diff } = await this.manifests.scan(albumId, all);
+    const stored = unchanged ? ((await this.manifests.get(albumId))?.scanned ?? 0) : 0;
+
+    // Nothing changed and the whole album is already scanned → skip without spending budget.
+    if (unchanged && stored >= all.length) {
+      return {
+        albumId,
+        skipped: true,
+        hashed: 0,
+        removed: 0,
+        groups: 0,
+        scanned: 0,
+        exhausted: true,
+      };
+    }
+
+    // Population changed → drop stale per-asset caches; the cursor is already reset to 0 above, so the
+    // album re-scans from the start (cheap: hashes are cached for unchanged assets).
+    if (!unchanged) {
+      for (const id of [...diff.removed, ...diff.changed]) {
+        await this.hashes.delete(id);
+        await this.signatures.delete(id);
+        await this.aspects.delete(id);
+      }
+      for (const id of diff.removed) await this.meta.delete(id);
+    }
+
+    const cursor = stored;
+    const end = this.windowEnd(all, cursor, budget);
+
+    // Refresh the cheap metadata for the newly-covered slice. No pixels fetched here.
+    for (let i = cursor; i < end; i++) {
+      await this.meta.put(all[i].id, toAssetMeta(all[i], albumId));
+    }
+
+    // Detection runs on the whole scanned prefix [0, end): both ends sit at a time-gap (the previous
+    // pass stopped at one, and we extended this one to one), so no group is split. Re-clustering the
+    // prefix is cheap — Stage 2 only hashes the new, un-cached candidates.
+    const prefix = all.slice(0, end);
+    const { hashed, groups } = await this.detectPrefix(albumId, prefix);
+
+    await this.manifests.record(albumId, all, end);
+    return {
+      albumId,
+      skipped: false,
+      hashed,
+      removed: diff.removed.length,
+      groups: groups.length,
+      scanned: end - cursor,
+      exhausted: end >= all.length,
+    };
+  }
+
+  /**
+   * Where this pass stops: `cursor + budget`, then extended while consecutive captures stay within the
+   * group window (finishing a straddling burst/pano), which also peeks the photo just past the cap to
+   * confirm it's a real boundary. Always advances at least one image so a pass can't stall.
+   */
+  private windowEnd(all: PhotoAsset[], cursor: number, budget: number): number {
+    const gapMs = Math.max(
+      this.settings.burstOptions().windowMs,
+      this.settings.panoOptions().windowMs,
     );
+    let end = Math.min(cursor + Math.max(budget, 1), all.length);
+    while (end < all.length && withinGap(all[end - 1], all[end], gapMs)) end++;
+    return end;
+  }
 
-    const { unchanged, diff } = await this.manifests.scan(albumId, assets);
-    if (unchanged) {
-      return { albumId, skipped: true, hashed: 0, removed: 0, groups: 0 };
-    }
-
-    // Assets that left the album: drop their hashes + metadata.
-    for (const id of diff.removed) {
-      await this.hashes.delete(id);
-      await this.signatures.delete(id);
-      await this.aspects.delete(id);
-      await this.meta.delete(id);
-    }
-    // Edited assets: cached hashes are stale — drop them so Stage 2 re-hashes only if still a candidate.
-    for (const id of diff.changed) {
-      await this.hashes.delete(id);
-      await this.signatures.delete(id);
-      await this.aspects.delete(id);
-    }
-    // New + edited assets: refresh the cheap metadata. No pixels fetched here.
-    for (const id of [...diff.added, ...diff.changed]) {
-      const asset = assets.find((a) => a.id === id);
-      if (asset) await this.meta.put(id, toAssetMeta(asset, albumId));
-    }
-
-    const detectAssets = assets.map(toDetectAsset);
+  /** Runs the tiered burst/pano detection over a scanned prefix and stores its groups for the album. */
+  private async detectPrefix(
+    albumId: string,
+    prefix: PhotoAsset[],
+  ): Promise<{ hashed: number; groups: DetectedGroup[] }> {
+    const detectAssets = prefix.map(toDetectAsset);
     const opts = this.settings.burstOptions();
 
-    // Stage 1 — candidates from timestamps alone: clusterBursts with no hashes groups on capture-time
-    // proximity + camera only, so we learn which assets are even worth hashing. Lone photos drop out.
+    // Stage 1 — candidates from timestamps alone (no pixels). Lone photos drop out.
     const candidateIds = new Set(
       clusterBursts(detectAssets, new Map<string, string>(), opts).flatMap((c) => c.memberIds),
     );
 
-    // Stage 2 — hash only candidate members that lack cached data (reusing a warmed preview when
-    // present, else fetching one small rendition). Computes the whole-frame hash (burst), the grayscale
-    // signature and the aspect ratio (pano) from the same blob. This is the only step that touches pixels.
+    // Stage 2 — hash only candidate members that lack cached data. The only step that touches pixels.
     const hashes = await this.hashes.getAll();
     const signatures = await this.signatures.getAll();
     const aspects = await this.aspects.getAll();
+    const byId = new Map(prefix.map((a) => [a.id, a]));
     let hashed = 0;
     for (const id of candidateIds) {
       if (hashes.has(id) && signatures.has(id) && aspects.has(id)) continue;
-      const asset = assets.find((a) => a.id === id);
+      const asset = byId.get(id);
       if (!asset) continue;
       const { hash, signature, aspect } = await this.computeHashes(asset);
       await this.hashes.put(id, hash);
-      hashes.set(id, hash); // keep the in-memory maps current for Stage 3
+      hashes.set(id, hash);
       await this.signatures.put(id, signature);
       signatures.set(id, signature);
       await this.aspects.put(id, aspect);
@@ -109,16 +166,12 @@ export class DetectionScanService {
       hashed++;
     }
 
-    // Stage 3 — confirm with the hashes: the Hamming check splits time-close but visually distinct
-    // shots into real bursts; clusterPanos slides signatures to confirm a pan. Bursts win: a pano that
-    // shares any frame with a detected burst is dropped, so near-duplicate frames are never mislabeled
-    // as a pan. (A real pan whose frames are close in whole-frame hash can fall back to a burst — an
-    // accepted trade to keep bursts clean.)
+    // Stage 3 — confirm with the hashes; bursts win over panos that share any frame.
     const burstGroups = clusterBursts(detectAssets, hashes, opts).map(
       (c): DetectedGroup => ({ type: 'burst', sourceAlbumId: albumId, memberIds: c.memberIds }),
     );
     const inBurst = new Set(burstGroups.flatMap((g) => g.memberIds));
-    const panoAssets = assets.map((a): PanoAsset => toPanoAsset(a, aspects.get(a.id)));
+    const panoAssets = prefix.map((a): PanoAsset => toPanoAsset(a, aspects.get(a.id)));
     const panoGroups = clusterPanos(panoAssets, signatures, hashes, this.settings.panoOptions())
       .filter((c) => !c.memberIds.some((id) => inBurst.has(id)))
       .map(
@@ -131,10 +184,7 @@ export class DetectionScanService {
       );
     const groups = [...burstGroups, ...panoGroups];
     await this.groups.replaceForAlbum(albumId, groups);
-
-    // Record only after a clean run, so a failure re-scans the album next time.
-    await this.manifests.record(albumId, assets);
-    return { albumId, skipped: false, hashed, removed: diff.removed.length, groups: groups.length };
+    return { hashed, groups };
   }
 
   /** Hash + signature + aspect for one asset, from a warmed 2048 preview or a fetched rendition. */
@@ -150,6 +200,22 @@ export class DetectionScanService {
       aspect: await this.hasher.aspect(blob),
     };
   }
+}
+
+function takenOf(asset: PhotoAsset): string {
+  return asset.payload?.captureDate ?? '';
+}
+
+/**
+ * Whether two consecutive captures are close enough in time to belong to the same group — the rule the
+ * scan window uses to finish a straddling burst/pano. A missing/unparseable timestamp counts as a
+ * boundary (returns false), so the window stops rather than swallowing the rest of the album.
+ */
+function withinGap(a: PhotoAsset, b: PhotoAsset, gapMs: number): boolean {
+  const ta = Date.parse(takenOf(a));
+  const tb = Date.parse(takenOf(b));
+  if (Number.isNaN(ta) || Number.isNaN(tb)) return false;
+  return Math.abs(tb - ta) <= gapMs;
 }
 
 function toDetectAsset(asset: PhotoAsset): DetectAsset {

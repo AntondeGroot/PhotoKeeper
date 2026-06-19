@@ -21,13 +21,14 @@ export function fingerprintsOf(assets: readonly ManifestAsset[]): AssetFingerpri
     .sort((x, y) => x.id.localeCompare(y.id));
 }
 
-/** Builds the manifest stored after a scan: fingerprints, a hash over them, and a timestamp. */
+/** Builds the manifest stored after a scan: fingerprints, a hash over them, a cursor, and a timestamp. */
 export function computeAlbumManifest(
   assets: readonly ManifestAsset[],
+  scanned = 0,
   now: number = Date.now(),
 ): AlbumManifest {
   const fingerprints = fingerprintsOf(assets);
-  return { hash: hashFingerprints(fingerprints), fingerprints, computedAt: now };
+  return { hash: hashFingerprints(fingerprints), fingerprints, scanned, computedAt: now };
 }
 
 /**
@@ -101,17 +102,25 @@ export class AlbumManifestStore {
   async scan(
     albumId: string,
     currentAssets: readonly ManifestAsset[],
-  ): Promise<{ unchanged: boolean; diff: ManifestDiff }> {
+  ): Promise<{ unchanged: boolean; diff: ManifestDiff; scanned: number }> {
     const stored = await this.get(albumId);
     const current = computeAlbumManifest(currentAssets);
+    const scanned = stored?.scanned ?? 0;
     if (stored && stored.hash === current.hash) {
-      return { unchanged: true, diff: { added: [], removed: [], changed: [] } };
+      return { unchanged: true, diff: { added: [], removed: [], changed: [] }, scanned };
     }
-    return { unchanged: false, diff: diffManifest(stored, currentAssets) };
+    return { unchanged: false, diff: diffManifest(stored, currentAssets), scanned };
   }
 
-  /** Persists the album's current population so the next {@link scan} compares against it. */
-  async record(albumId: string, currentAssets: readonly ManifestAsset[]): Promise<void> {
-    await this.put(albumId, computeAlbumManifest(currentAssets));
+  /**
+   * Persists the album's current population plus how far the incremental scan has reached, so the next
+   * {@link scan} compares against it and resumes from `scanned`.
+   */
+  async record(
+    albumId: string,
+    currentAssets: readonly ManifestAsset[],
+    scanned = 0,
+  ): Promise<void> {
+    await this.put(albumId, computeAlbumManifest(currentAssets, scanned));
   }
 }

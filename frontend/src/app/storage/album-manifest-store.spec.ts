@@ -19,10 +19,11 @@ describe('computeAlbumManifest', () => {
     expect(computeAlbumManifest([asset('a'), asset('b', 'v2')], 0).hash).not.toBe(base);
   });
 
-  it('stores sorted fingerprints, an 8-char hex hash, and the given timestamp', () => {
-    const m = computeAlbumManifest([asset('b'), asset('a')], 1234);
+  it('stores sorted fingerprints, an 8-char hex hash, the cursor, and the given timestamp', () => {
+    const m = computeAlbumManifest([asset('b'), asset('a')], 5, 1234);
     expect(m.fingerprints.map((f) => f.id)).toEqual(['a', 'b']);
     expect(m.hash).toMatch(/^[0-9a-f]{8}$/);
+    expect(m.scanned).toBe(5);
     expect(m.computedAt).toBe(1234);
   });
 

@@ -83,6 +83,10 @@ export interface AlbumManifest {
   hash: string; // hash over the sorted id+updated fingerprints; a quick "did anything change?" check
   fingerprints: AssetFingerprint[]; // sorted by id, for diffing when the hash differs
   computedAt: number; // epoch ms of the scan that produced this manifest
+  // How many of the album's capture-time-sorted images have been scanned so far. The scan is
+  // incremental (a soft per-pass image budget), so an album can be partially done: < total means
+  // "resume here next pass". Absent on pre-cursor manifests → treated as 0 (re-scan from the start).
+  scanned?: number;
 }
 
 /**
