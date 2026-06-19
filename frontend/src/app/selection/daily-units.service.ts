@@ -26,11 +26,12 @@ export class DailyUnitsService {
     limit: number,
     rng: () => number = Math.random,
   ): Promise<ReviewItem[]> {
-    const [albums, metaById, allGroups, dissolved] = await Promise.all([
+    const [albums, metaById, allGroups, dissolved, reclassified] = await Promise.all([
       firstValueFrom(this.svc.getAlbums()),
       this.meta.getAll(),
       this.groups.getAll(),
       this.overrides.signatures(),
+      this.overrides.reclassifications(),
     ]);
 
     const albumName = new Map(albums.map((a) => [a.id, a.name]));
@@ -42,9 +43,15 @@ export class DailyUnitsService {
     }
     const groupsByAlbum = new Map<string, DetectedGroup[]>();
     for (const group of allGroups) {
+      const sig = groupSignature(group.memberIds);
       // A dissolved group ("not a burst") is skipped — its members fall through to singles below.
-      if (dissolved.has(groupSignature(group.memberIds))) continue;
-      pushInto(groupsByAlbum, group.sourceAlbumId, group);
+      if (dissolved.has(sig)) continue;
+      // A reclassified group is re-typed before hydration ("this burst is actually a pano").
+      const reclass = reclassified.get(sig);
+      const effective = reclass
+        ? { ...group, type: reclass.type, orientation: reclass.orientation }
+        : group;
+      pushInto(groupsByAlbum, group.sourceAlbumId, effective);
     }
 
     const albumIds = new Set([...assetsByAlbum.keys(), ...groupsByAlbum.keys()]);

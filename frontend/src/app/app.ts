@@ -22,6 +22,7 @@ import { AlbumManifestStore } from './storage/album-manifest-store';
 import {
   Burst,
   BurstPhoto,
+  Pano,
   Photo,
   ReviewItem,
   MOCK_PHOTOS,
@@ -85,6 +86,33 @@ function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
     starred: false,
     keepsake: false,
     ai: frame.ai,
+  };
+}
+
+/** Re-types a burst as a (horizontal) pano in place, keeping its frames, album, time and status. */
+function burstToPano(burst: Burst): Pano {
+  return {
+    id: `pano:${burst.id}`,
+    name: `Panorama · ${burst.photos.length} frames`,
+    album: burst.album,
+    taken: burst.taken,
+    status: burst.status,
+    kind: 'pano',
+    orientation: 'horizontal',
+    frames: burst.photos.map((p) => ({ id: p.id, name: p.name, blur: p.blur })),
+  };
+}
+
+/** Re-types a pano as a burst in place, keeping its frames, album, time and status. */
+function panoToBurst(pano: Pano): Burst {
+  return {
+    id: `burst:${pano.id}`,
+    name: `Burst · ${pano.frames.length} frames`,
+    album: pano.album,
+    taken: pano.taken,
+    status: pano.status,
+    kind: 'burst',
+    photos: pano.frames.map((f) => ({ id: f.id, name: f.name, blur: f.blur })),
   };
 }
 
@@ -701,6 +729,52 @@ export class AppComponent implements OnInit, OnDestroy {
         memberIds: burst.photos.map((p) => p.id),
         dissolvedAt: Date.now(),
       });
+    } catch {
+      // Best-effort correction; never break the review flow.
+    }
+  }
+
+  // "This is actually a pano" — relabel the current burst, swap its card in place, and persist the
+  // correction so it survives reloads + re-scans. Orientation defaults to horizontal (the user can't
+  // pick one from a single button). Stays put on the same unit.
+  markBurstAsPano(): void {
+    const current = this.currentReviewPhoto();
+    if (current?.kind !== 'burst') return;
+    const pano = burstToPano(current);
+    this.replaceCurrentUnit(current, pano);
+    void this.recordReclassify(
+      current.photos.map((p) => p.id),
+      'pano',
+      'horizontal',
+    );
+  }
+
+  // "This is actually a burst" — relabel the current pano and swap its card in place.
+  markPanoAsBurst(): void {
+    const current = this.currentReviewPhoto();
+    if (current?.kind !== 'pano') return;
+    const burst = panoToBurst(current);
+    this.replaceCurrentUnit(current, burst);
+    void this.recordReclassify(
+      current.frames.map((f) => f.id),
+      'burst',
+    );
+  }
+
+  // Swaps one review unit for a re-typed version of itself (burst↔pano), keeping its place + status,
+  // and re-persists the day's feed so the relabel survives a reload.
+  private replaceCurrentUnit(from: ReviewItem, to: ReviewItem): void {
+    this.reviewPhotos.update((list) => list.map((item) => (item.id === from.id ? to : item)));
+    void this.reviewStore.setDailyFeed(todayKey(), this.reviewPhotos());
+  }
+
+  private async recordReclassify(
+    memberIds: string[],
+    type: 'burst' | 'pano',
+    orientation?: 'horizontal' | 'vertical',
+  ): Promise<void> {
+    try {
+      await this.groupOverrides.reclassify({ memberIds, type, orientation, at: Date.now() });
     } catch {
       // Best-effort correction; never break the review flow.
     }

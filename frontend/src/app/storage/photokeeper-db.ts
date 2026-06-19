@@ -63,6 +63,18 @@ export interface GroupOverride {
 }
 
 /**
+ * A user correction of a group's *type*: "this burst is actually a pano" (or vice-versa). Keyed by its
+ * member set like {@link GroupOverride}, so it survives reloads + re-scans. Selection re-types the
+ * detected group before hydrating it. Records no calibration signal (a relabel doesn't pin a threshold).
+ */
+export interface GroupReclass {
+  memberIds: string[];
+  type: GroupType;
+  orientation?: PanoOrientation; // for a pano relabel; defaults to horizontal when re-typing a burst
+  at: number; // epoch ms
+}
+
+/**
  * A snapshot of an album's asset population, written after each detection scan. The change-gate
  * hashes the current population and compares it against this; on a mismatch it diffs the fingerprint
  * lists to find exactly which assets were added/removed/changed, so only those get re-hashed.
@@ -84,6 +96,7 @@ export interface AlbumManifest {
  * - groups: groupId → a detected cluster (burst/pano/stereo) for group-aware selection
  * - assetMeta: assetId → lightweight metadata for on-device selection (album, name, taken)
  * - groupOverrides: member-set signature → a "not a group" user correction
+ * - groupReclass: member-set signature → a "this is actually a burst/pano" user correction
  * - frameSignature: assetId → grayscale signature (Uint8Array), the pano matcher's input
  * - frameAspect: assetId → rendition width/height, the pano aspect gate's input
  */
@@ -97,6 +110,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   groups: { key: string; value: DetectedGroup };
   assetMeta: { key: string; value: AssetMeta };
   groupOverrides: { key: string; value: GroupOverride };
+  groupReclass: { key: string; value: GroupReclass };
   frameSignature: { key: string; value: FrameSignature };
   frameAspect: { key: string; value: number };
 }
@@ -109,14 +123,17 @@ export class PhotoKeeperDb {
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
     // v2–v8 grew the store set (see history). v9 replaced the fixed 'edgeHash' store with
     // 'frameSignature'. v10 added 'frameAspect' (the aspect gate's input) and clears signatures +
-    // manifests so every album re-scans and recomputes both signature and aspect together.
+    // manifests so every album re-scans. v11 added 'groupReclass' (burst↔pano user corrections).
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 10, {
-      upgrade(db, _oldVersion, _newVersion, tx) {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 11, {
+      upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
         if (legacy.objectStoreNames.contains('edgeHash')) legacy.deleteObjectStore('edgeHash');
-        if (db.objectStoreNames.contains('frameSignature')) db.deleteObjectStore('frameSignature');
+        // The v10 re-hash (drop signatures, clear manifests) only applies to DBs older than v10.
+        if (oldVersion < 10 && db.objectStoreNames.contains('frameSignature')) {
+          db.deleteObjectStore('frameSignature');
+        }
         for (const store of [
           'previews',
           'verdicts',
@@ -127,6 +144,7 @@ export class PhotoKeeperDb {
           'groups',
           'assetMeta',
           'groupOverrides',
+          'groupReclass',
           'frameSignature',
           'frameAspect',
         ] as const) {
@@ -134,9 +152,7 @@ export class PhotoKeeperDb {
             db.createObjectStore(store);
           }
         }
-        // Force every album to re-detect: signatures were cleared and aspect is new, so cached manifests
-        // must not gate it out.
-        if (db.objectStoreNames.contains('albumManifest')) {
+        if (oldVersion < 10 && db.objectStoreNames.contains('albumManifest')) {
           void tx.objectStore('albumManifest').clear();
         }
       },

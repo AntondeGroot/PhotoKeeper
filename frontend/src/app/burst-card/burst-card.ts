@@ -29,6 +29,8 @@ export class BurstCardComponent {
   @Output() picked = new EventEmitter<string>();
   @Output() rejectedAll = new EventEmitter<void>();
   @Output() dissolved = new EventEmitter<void>();
+  /** "This isn't a burst, it's a pano" — relabel the group so it's reviewed as a panorama instead. */
+  @Output() reclassified = new EventEmitter<void>();
   /**
    * Open the current duel pair (or lone survivor) full screen to compare, starting on the tapped
    * frame so it shows first with its tab highlighted.

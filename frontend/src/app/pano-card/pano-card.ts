@@ -14,4 +14,6 @@ export class PanoCardComponent {
   /** Frame-id → preview URL; frames without a cached preview fall back to a name placeholder. */
   @Input() imageUrls = new Map<string, SafeUrl>();
   @Output() swiped = new EventEmitter<'kept' | 'rejected' | 'toEdit' | 'maybe'>();
+  /** "This isn't a pano, it's a burst" — relabel the group so it's reviewed as a burst instead. */
+  @Output() reclassified = new EventEmitter<void>();
 }
