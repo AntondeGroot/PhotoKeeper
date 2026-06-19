@@ -42,12 +42,18 @@ import { StereoCardComponent } from './stereo-card/stereo-card';
 import { AlbumManagerComponent } from './album-manager/album-manager';
 import { DetectionLabComponent } from './detection-lab/detection-lab';
 import { FullscreenViewerComponent, ViewerImage } from './fullscreen-viewer/fullscreen-viewer';
+import { SplashComponent, SplashState } from './splash/splash';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
 
 // Preview size requested + cached (Lightroom 2048px preview).
 const PREVIEW_SIZE = '2048';
+
+// Minimum time the launch splash stays up before the app takes over, so the print finishes developing
+// and the slogan is readable even when boot data loads faster than the animation. Covers the ~1s
+// develop + wordmark reveal plus a beat to read "for the photos you'll keep".
+const SPLASH_MIN_MS = 1800;
 
 // A cached preview keeps both the raw object URL (so it can be revoked on eviction) and the
 // sanitized SafeUrl (stable reference, so re-reads don't re-trigger the <img> binding).
@@ -144,6 +150,7 @@ function unitAssetIds(item: ReviewItem): string[] {
     AlbumManagerComponent,
     DetectionLabComponent,
     FullscreenViewerComponent,
+    SplashComponent,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -162,6 +169,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
+  // When the splash first painted, so {@link revealAfterSplash} can hold it for at least SPLASH_MIN_MS.
+  private readonly splashShownAt = performance.now();
+  // What the launch splash communicates while loading. 'normal' is the only state wired to real boot
+  // for now; 'offline'/'update'/'forced' are built out but await their triggers (no version endpoint
+  // yet, and an offline mode that keeps a valid session needs its own auth-flow change).
+  splashState = signal<SplashState>('normal');
   authenticated = signal(false);
   // Developer detection lab, reached via the ?lab query param. Replaces the review UI when set.
   labMode = signal(false);
@@ -305,7 +318,7 @@ export class AppComponent implements OnInit, OnDestroy {
       const detail = params.get('detail');
       this.error.set(`Login failed: ${authError}${detail ? ' — ' + detail : ''}`);
       window.history.replaceState({}, '', window.location.pathname);
-      this.loading.set(false);
+      await this.revealAfterSplash();
       return;
     }
 
@@ -337,7 +350,30 @@ export class AppComponent implements OnInit, OnDestroy {
         this.authenticated.set(false);
       }
     }
+    await this.revealAfterSplash();
+  }
+
+  /**
+   * Hands the screen from the splash to the app, but never before SPLASH_MIN_MS has passed — so the
+   * print finishes developing and the slogan is readable even when boot data arrives sooner. Skipped
+   * for a non-normal notice (offline/update/forced), which waits on the user instead.
+   */
+  private async revealAfterSplash(): Promise<void> {
+    if (this.splashState() !== 'normal') return;
+    const remaining = SPLASH_MIN_MS - (performance.now() - this.splashShownAt);
+    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
     this.loading.set(false);
+  }
+
+  /** Splash "Continue"/"Later" — dismiss a non-blocking notice and fall through to the loaded app. */
+  continueFromSplash(): void {
+    this.splashState.set('normal');
+    this.loading.set(false);
+  }
+
+  /** Splash "Update" — would open the store / trigger the update once that path exists. */
+  requestSplashUpdate(): void {
+    // No update channel yet; wired so the button is live the moment one lands.
   }
 
   private async loadAlbums(): Promise<void> {

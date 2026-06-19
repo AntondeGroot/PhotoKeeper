@@ -1,0 +1,78 @@
+<div class="screen">
+  <div class="stage">
+    <div class="mark" [class.dev]="developed()" [class.dim]="markDimmed()">
+      <svg viewBox="0 0 116 116" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="splash-sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3a2f26" />
+            <stop offset="1" stop-color="#1c1714" />
+          </linearGradient>
+          <radialGradient id="splash-sun" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stop-color="#f3c98a" />
+            <stop offset="0.55" stop-color="#e5a045" />
+            <stop offset="1" stop-color="#e5a045" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <rect width="116" height="116" fill="url(#splash-sky)" />
+        <circle cx="58" cy="66" r="30" fill="url(#splash-sun)" />
+        <circle cx="58" cy="66" r="11" fill="#f5d6a3" />
+        <path d="M0 86 L30 64 L52 80 L78 56 L116 84 L116 116 L0 116 Z" fill="#16110d" />
+        <path d="M0 96 L26 82 L50 94 L80 76 L116 98 L116 116 L0 116 Z" fill="#0d0a08" />
+      </svg>
+    </div>
+
+    <div class="word" [class.reveal]="developed()" [class.gone]="noticeVisible()">Keeper</div>
+    <div class="tag" [class.reveal]="developed()" [class.gone]="noticeVisible()">
+      the backlog ends here
+    </div>
+
+    <div class="status" [class.show]="noticeVisible()">
+      @switch (state()) {
+        @case ('offline') {
+          <!-- Lightroom / sync unreachable: soft, never blocks the device-only flow. -->
+          <div class="notice">
+            <span class="dotwarn" style="background: var(--c-amber)"></span>
+            <h2>Working offline</h2>
+            <p>
+              Can't reach Lightroom or Keeper's sync right now. You can still sort and edit your
+              device photos — everything syncs when you're back online.
+            </p>
+            <button class="btn" (click)="continued.emit()">Continue</button>
+            <button
+              class="check"
+              [class.on]="dontRemind()"
+              (click)="toggleDontRemind()"
+              type="button"
+            >
+              <span class="box"></span>Don't remind me
+            </button>
+          </div>
+        }
+        @case ('update') {
+          <!-- Optional update: Later keeps going on the current version. -->
+          <div class="notice">
+            <span class="dotwarn" style="background: var(--c-keep)"></span>
+            <h2>Update available</h2>
+            <p>
+              A new version of Keeper is ready. Update now, or keep going — this one still works
+              fine.
+            </p>
+            <div class="row">
+              <button class="btn" (click)="updateRequested.emit()">Update</button>
+              <button class="btn ghost" (click)="continued.emit()">Later</button>
+            </div>
+          </div>
+        }
+        @case ('forced') {
+          <!-- The rare hard stop: the app genuinely can't run on this version. -->
+          <div class="notice">
+            <span class="dotwarn" style="background: var(--c-reject)"></span>
+            <h2>Update required</h2>
+            <p>Please update Keeper to continue.</p>
+            <button class="btn" (click)="updateRequested.emit()">Update Keeper</button>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</div>

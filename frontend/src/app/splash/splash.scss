@@ -1,0 +1,291 @@
+:host {
+  display: block;
+  width: 100%;
+  max-width: 410px; // matches the authenticated shell, so the print sits where the app will
+}
+
+.screen {
+  position: relative;
+  min-height: 80vh;
+  width: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  background: radial-gradient(130% 70% at 50% 18%, #221b16 0%, var(--c-bg) 55%, #100e0d 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Faint safelight vignette that slowly breathes behind the print. */
+.screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 36% at 50% 40%, rgba(229, 160, 69, 0.1) 0%, transparent 70%);
+  pointer-events: none;
+  animation: splash-glow 6s ease-in-out infinite;
+}
+
+@keyframes splash-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 28px;
+  transform: translateY(-12px);
+}
+
+/* ── The developing print ── */
+.mark {
+  width: 116px;
+  height: 116px;
+  border-radius: 26px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid #4a3d2f;
+  box-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.7);
+  /* "undeveloped" start state */
+  filter: blur(11px) brightness(0.32) saturate(0.35);
+  opacity: 0.18;
+  transform: scale(0.94);
+}
+
+.mark.dev {
+  filter: blur(0) brightness(1) saturate(1);
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    filter 1000ms cubic-bezier(0.2, 0.75, 0.2, 1),
+    opacity 760ms ease,
+    transform 1000ms cubic-bezier(0.2, 0.75, 0.2, 1);
+}
+
+.mark.dim {
+  filter: blur(2px) brightness(0.5) saturate(0.6);
+  opacity: 0.55;
+  transition: all 0.4s ease;
+}
+
+.mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Wordmark ── */
+.word {
+  font-family: var(--font-head);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 44px;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  margin-top: 26px;
+  max-height: 60px;
+  overflow: hidden;
+  color: var(--c-text);
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.tag {
+  font-size: 12.5px;
+  letter-spacing: 2.5px;
+  text-transform: lowercase;
+  color: var(--c-faint);
+  margin-top: 10px;
+  max-height: 30px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.reveal {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 0.7s ease 0.35s,
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.35s;
+}
+
+.word.gone {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  transform: translateY(0);
+  transition:
+    opacity 0.4s ease,
+    max-height 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-top 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tag.gone {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  transition:
+    opacity 0.35s ease,
+    max-height 0.55s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-top 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Status zone (offline / update / forced) — lives low, appears only when needed ── */
+.status {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 34px;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  margin-top: 0;
+  transition:
+    opacity 0.45s ease,
+    max-height 0.45s ease,
+    margin-top 0.45s ease;
+}
+
+.status.show {
+  opacity: 1;
+  max-height: 420px;
+  margin-top: 22px;
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.notice h2 {
+  font-family: var(--font-head);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 19px;
+  color: var(--c-text);
+  margin-bottom: 6px;
+}
+
+.notice p {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--c-dim);
+  max-width: 220px;
+  margin-bottom: 16px;
+}
+
+.btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  color: #1a1410;
+  background: var(--c-amber);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background 0.2s ease;
+}
+
+.btn:hover {
+  background: #f0c089;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn:focus-visible {
+  outline: 2px solid #f0c089;
+  outline-offset: 3px;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--c-dim);
+  border: 1px solid var(--c-line);
+}
+
+.btn.ghost:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--c-text);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--c-dim);
+  user-select: none;
+  background: none;
+  border: none;
+}
+
+.check:hover {
+  color: var(--c-text);
+}
+
+.check .box {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.check.on .box {
+  background: var(--c-amber);
+  border-color: var(--c-amber);
+}
+
+.check.on .box::after {
+  content: '✓';
+  color: #1a1410;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dotwarn {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-bottom: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    transition: none !important;
+  }
+  .screen::after {
+    animation: none;
+  }
+}
