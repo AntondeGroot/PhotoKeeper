@@ -48,6 +48,7 @@ import { DetectionLabComponent } from './detection-lab/detection-lab';
 import { FullscreenViewerComponent, ViewerImage } from './fullscreen-viewer/fullscreen-viewer';
 import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
+import { HeadsUpComponent, HeadsUp } from './heads-up/heads-up';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
@@ -169,6 +170,7 @@ function unitAssetIds(item: ReviewItem): string[] {
     FullscreenViewerComponent,
     SplashComponent,
     OnboardingComponent,
+    HeadsUpComponent,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -226,6 +228,8 @@ export class AppComponent implements OnInit, OnDestroy {
   burstWindowSeconds = computed(() => this.detectionSettings.burstOptions().windowMs / 1000);
   editGoal = signal(3);
   editedToday = signal(0);
+  // The current in-app celebration heads-up (or null). Celebrations only — earned, in-the-moment wins.
+  celebration = signal<HeadsUp | null>(null);
   morningReminder = signal(true);
   reminderTime = signal('09:00');
   silentTime = signal('21:00');
@@ -1006,6 +1010,24 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     // A review decision shrinks the scanned-ahead buffer — top it back up (debounced).
     this.scheduleScanRefill();
+    // A decision may have just carried the day's count over the sorting goal — celebrate it.
+    this.maybeCelebrateGoal();
+  }
+
+  // Fires the in-app "goal hit" celebration the moment the day's reviewed count reaches the sorting
+  // goal — once per day (persisted), so reopening the app after finishing doesn't re-congratulate you.
+  private maybeCelebrateGoal(): void {
+    if (!this.photosLoaded()) return;
+    const goal = this.dailyGoal();
+    if (goal <= 0 || this.doneToday() < goal) return;
+    const today = todayKey();
+    if (localStorage.getItem('celebratedGoal') === today) return;
+    localStorage.setItem('celebratedGoal', today);
+    this.celebration.set({
+      icon: '🎉',
+      title: `That's ${goal} — daily goal done`,
+      text: 'Lovely work. Everything from here is a bonus.',
+    });
   }
 
   private groupByAlbum(photos: Photo[]): { album: string; photos: Photo[] }[] {
