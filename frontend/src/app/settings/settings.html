@@ -138,15 +138,28 @@
   <div class="settings-card">
     <h3 class="card-title">Daily reminder</h3>
 
-    <!-- time row -->
+    <!-- morning toggle row -->
     <div class="reminder-row">
-      <span class="reminder-label">Remind me at</span>
-      <input
-        class="time-input"
-        type="time"
-        [value]="reminderTime"
-        (change)="onReminderTimeChange($event)"
-      />
+      <div class="reminder-text">
+        <div class="reminder-label">Morning reminder</div>
+        <div class="reminder-description">A gentle nudge to start your daily review</div>
+      </div>
+      <div class="toggle-group">
+        @if (morningReminder) {
+          <input
+            class="time-input"
+            type="time"
+            [value]="reminderTime"
+            (change)="onReminderTimeChange($event)"
+          />
+        }
+        <button
+          class="toggle"
+          [class.on]="morningReminder"
+          (click)="morningReminderChange.emit(!morningReminder)"
+          aria-label="toggle morning reminder"
+        ></button>
+      </div>
     </div>
 
     <!-- silent toggle row -->
@@ -158,12 +171,6 @@
         </div>
       </div>
       <div class="toggle-group">
-        <button
-          class="toggle"
-          [class.on]="silentEvening"
-          (click)="silentEveningChange.emit(!silentEvening)"
-          aria-label="toggle silent evening reminder"
-        ></button>
         @if (silentEvening) {
           <input
             class="time-input"
@@ -172,6 +179,12 @@
             (change)="onSilentTimeChange($event)"
           />
         }
+        <button
+          class="toggle"
+          [class.on]="silentEvening"
+          (click)="silentEveningChange.emit(!silentEvening)"
+          aria-label="toggle silent evening reminder"
+        ></button>
       </div>
     </div>
   </div>

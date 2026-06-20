@@ -226,6 +226,7 @@ export class AppComponent implements OnInit, OnDestroy {
   burstWindowSeconds = computed(() => this.detectionSettings.burstOptions().windowMs / 1000);
   editGoal = signal(3);
   editedToday = signal(0);
+  morningReminder = signal(true);
   reminderTime = signal('09:00');
   silentTime = signal('21:00');
   silentEvening = signal(true);
@@ -298,6 +299,7 @@ export class AppComponent implements OnInit, OnDestroy {
     effect(() => {
       localStorage.setItem('dailyGoal', String(this.dailyGoal()));
       localStorage.setItem('editGoal', String(this.editGoal()));
+      localStorage.setItem('morningReminder', String(this.morningReminder()));
       localStorage.setItem('reminderTime', this.reminderTime());
       localStorage.setItem('silentTime', this.silentTime());
       localStorage.setItem('silentEvening', String(this.silentEvening()));
@@ -339,6 +341,8 @@ export class AppComponent implements OnInit, OnDestroy {
     if (savedDailyGoal) this.dailyGoal.set(Number(savedDailyGoal));
     const savedEditGoal = localStorage.getItem('editGoal');
     if (savedEditGoal) this.editGoal.set(Number(savedEditGoal));
+    const savedMorningReminder = localStorage.getItem('morningReminder');
+    if (savedMorningReminder) this.morningReminder.set(savedMorningReminder === 'true');
     const savedReminderTime = localStorage.getItem('reminderTime');
     if (savedReminderTime) this.reminderTime.set(savedReminderTime);
     const savedSilentTime = localStorage.getItem('silentTime');
