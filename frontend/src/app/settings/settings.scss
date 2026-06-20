@@ -306,6 +306,9 @@
   color: var(--c-faint);
   line-height: 1.5;
   margin-top: 2px;
+  // Cap the measure so the description wraps to ~2 lines instead of one long line: the evening copy
+  // breaks after "…reviewed and" and the morning copy fits on a single line.
+  max-width: 240px;
 }
 
 .time-input {

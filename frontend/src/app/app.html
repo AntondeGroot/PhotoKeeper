@@ -158,6 +158,7 @@
           <app-settings
             [dailyGoal]="dailyGoal()"
             [editGoal]="editGoal()"
+            [morningReminder]="morningReminder()"
             [reminderTime]="reminderTime()"
             [silentTime]="silentTime()"
             [silentEvening]="silentEvening()"
@@ -170,6 +171,7 @@
             (dailyGoalChange)="setDailyGoal($event)"
             (burstWindowSecondsChange)="setBurstWindowSeconds($event)"
             (editGoalChange)="editGoal.set($event)"
+            (morningReminderChange)="morningReminder.set($event)"
             (reminderTimeChange)="reminderTime.set($event)"
             (silentTimeChange)="silentTime.set($event)"
             (silentEveningChange)="silentEvening.set($event)"

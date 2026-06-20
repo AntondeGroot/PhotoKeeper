@@ -19,6 +19,7 @@ import { DeviceSourceComponent } from '../device-source/device-source';
 export class SettingsComponent {
   @Input() dailyGoal = 15;
   @Input() editGoal = 3;
+  @Input() morningReminder: boolean = true;
   @Input() reminderTime: string = '09:00';
   @Input() silentTime: string = '21:00';
   @Input() silentEvening: boolean = false;
@@ -31,6 +32,7 @@ export class SettingsComponent {
   @Output() dailyGoalChange = new EventEmitter<number>();
   @Output() burstWindowSecondsChange = new EventEmitter<number>();
   @Output() editGoalChange = new EventEmitter<number>();
+  @Output() morningReminderChange = new EventEmitter<boolean>();
   @Output() reminderTimeChange = new EventEmitter<string>();
   @Output() silentTimeChange = new EventEmitter<string>();
   @Output() silentEveningChange = new EventEmitter<boolean>();
