@@ -75,9 +75,11 @@ function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
 
 /** Reconstructs the minimal {@link PhotoAsset} shape `selectUnits` hydrates from, out of stored meta. */
 function toPhotoAsset(id: string, meta: AssetMeta): PhotoAsset {
+  // Rejoin name + ext into the original filename so hydration recovers both (it re-splits on the dot).
+  const fileName = meta.ext ? `${meta.name}.${meta.ext}` : meta.name;
   return {
     id,
     subtype: 'image', // only images are stored as metadata
-    payload: { captureDate: meta.taken, importSource: { fileName: meta.name } },
+    payload: { captureDate: meta.taken, importSource: { fileName } },
   };
 }

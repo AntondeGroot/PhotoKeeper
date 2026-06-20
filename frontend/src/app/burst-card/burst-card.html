@@ -14,14 +14,14 @@
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
         <div class="frame-label">A</div>
-        <div class="frame-name">{{ d.a.name }}</div>
+        <div class="frame-name">{{ d.a.name }}{{ d.a.ext ? '.' + d.a.ext : '' }}</div>
       </button>
       <button class="burst-frame" (click)="compare.emit({ ids: [d.a.id, d.b.id], start: 1 })">
         @if (imageUrls.get(d.b.id); as url) {
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
         <div class="frame-label">B</div>
-        <div class="frame-name">{{ d.b.name }}</div>
+        <div class="frame-name">{{ d.b.name }}{{ d.b.ext ? '.' + d.b.ext : '' }}</div>
       </button>
     </div>
     <div class="burst-pick">
@@ -35,7 +35,7 @@
         @if (imageUrls.get(champ.id); as url) {
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
-        <div class="frame-name">{{ champ.name }}</div>
+        <div class="frame-name">{{ champ.name }}{{ champ.ext ? '.' + champ.ext : '' }}</div>
       </button>
     </div>
     <div class="burst-pick">

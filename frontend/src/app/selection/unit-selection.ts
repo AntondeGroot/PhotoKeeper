@@ -8,7 +8,7 @@
 
 import { PhotoAsset } from '../lightroom.service';
 import { DetectedGroup } from '../storage/photokeeper-db';
-import { Burst, BurstPhoto, Pano, PanoFrame, Photo, ReviewItem } from '../photo';
+import { Burst, BurstPhoto, Pano, PanoFrame, Photo, ReviewItem, splitFileName } from '../photo';
 
 /** One album's raw material: its assets, its detected groups, and whether it's a vacation album. */
 export interface AlbumUnits {
@@ -76,7 +76,10 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
   const units: ReviewItem[] = [];
 
   for (const group of album.groups) {
-    const members = group.memberIds
+    // Dedupe member ids: a stored group should never list an asset twice, but if one slips through
+    // (e.g. a pagination repeat at scan time) the duel would pit a frame against itself. `new Set`
+    // keeps first-seen order. Also fixes already-stored groups with no re-scan.
+    const members = [...new Set(group.memberIds)]
       .map((id) => byId.get(id))
       .filter((a): a is PhotoAsset => a !== undefined);
     // A group whose members no longer all exist (≥2 needed) is no longer a group; its surviving
@@ -132,9 +135,11 @@ function unitAssetIds(unit: ReviewItem): string[] {
 }
 
 function toPhoto(asset: PhotoAsset, albumName: string | null): Photo {
+  const { name, ext } = splitAsset(asset);
   return {
     id: asset.id,
-    name: baseName(asset),
+    name,
+    ext,
     album: albumName,
     taken: asset.payload?.captureDate ?? '',
     status: 'backlog',
@@ -145,7 +150,7 @@ function toPhoto(asset: PhotoAsset, albumName: string | null): Photo {
 }
 
 function toBurst(group: DetectedGroup, members: PhotoAsset[], albumName: string | null): Burst {
-  const photos: BurstPhoto[] = members.map((m) => ({ id: m.id, name: baseName(m) }));
+  const photos: BurstPhoto[] = members.map((m) => ({ id: m.id, ...splitAsset(m) }));
   const taken = members
     .map((m) => m.payload?.captureDate ?? '')
     .filter((t) => t)
@@ -162,7 +167,7 @@ function toBurst(group: DetectedGroup, members: PhotoAsset[], albumName: string 
 }
 
 function toPano(group: DetectedGroup, members: PhotoAsset[], albumName: string | null): Pano {
-  const frames: PanoFrame[] = members.map((m) => ({ id: m.id, name: baseName(m) }));
+  const frames: PanoFrame[] = members.map((m) => ({ id: m.id, ...splitAsset(m) }));
   const taken = members
     .map((m) => m.payload?.captureDate ?? '')
     .filter((t) => t)
@@ -179,8 +184,9 @@ function toPano(group: DetectedGroup, members: PhotoAsset[], albumName: string |
   };
 }
 
-function baseName(asset: PhotoAsset): string {
-  return (asset.payload?.importSource?.fileName ?? asset.id).replace(/\.[^.]+$/, '');
+/** The display name + original extension of an asset, from its import filename (falling back to id). */
+function splitAsset(asset: PhotoAsset): { name: string; ext?: string } {
+  return splitFileName(asset.payload?.importSource?.fileName ?? asset.id);
 }
 
 /** Fisher–Yates with an injected rng, on a copy (never mutates the input). */

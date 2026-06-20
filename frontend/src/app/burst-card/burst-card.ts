@@ -19,9 +19,14 @@ import { Burst } from '../photo';
 })
 export class BurstCardComponent {
   // Setting a new burst resets the tournament: the first survivor is the champion, frame 1 challenges.
+  // Frames are de-duplicated by id first — a burst should never list the same asset twice, but if one
+  // slips through (e.g. an already-cached feed) the duel would pit a frame against itself.
   @Input() set burst(value: Burst) {
-    this.burstSig.set(value);
-    this.championId.set(value.photos.find((p) => !p.blur)?.id ?? '');
+    const seen = new Set<string>();
+    const photos = value.photos.filter((p) => !seen.has(p.id) && seen.add(p.id));
+    const deduped = { ...value, photos };
+    this.burstSig.set(deduped);
+    this.championId.set(photos.find((p) => !p.blur)?.id ?? '');
     this.challengerIdx.set(1);
   }
   @Input() imageUrls = new Map<string, SafeUrl>();

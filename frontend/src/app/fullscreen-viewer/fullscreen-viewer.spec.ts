@@ -91,6 +91,30 @@ describe('FullscreenViewerComponent', () => {
     expect(component.current()?.label).toBe('B');
   });
 
+  it('next()/prev() step through and wrap around the ends (overflow)', () => {
+    component.next();
+    expect(component.current()?.label).toBe('B');
+    component.next(); // wraps B → A
+    expect(component.current()?.label).toBe('A');
+    component.prev(); // wraps A → B
+    expect(component.current()?.label).toBe('B');
+  });
+
+  it('arrow keys page through in compare mode', () => {
+    component.onArrowRight();
+    expect(component.current()?.label).toBe('B');
+    component.onArrowLeft();
+    expect(component.current()?.label).toBe('A');
+  });
+
+  it('arrow keys do nothing in single-photo review mode', () => {
+    component.reviewMode = true;
+    component.images = [{ label: 'only', url: undefined }];
+    component.onArrowRight();
+    component.onArrowLeft();
+    expect(component.index()).toBe(0);
+  });
+
   it('chooseVerdict emits the verdict (review buttons)', () => {
     const verdicts: string[] = [];
     component.verdict.subscribe((v) => verdicts.push(v));

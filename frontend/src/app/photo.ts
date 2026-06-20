@@ -7,6 +7,17 @@ export type ReviewStatus = 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint
 
 export type ReviewItem = Photo | Burst | Pano | Stereo;
 
+/**
+ * Splits an original filename into its display name and extension (without the dot). A name with no
+ * usable extension (no dot, a leading dot, or a trailing dot) yields no `ext`. Used so the cards can
+ * show the real source extension (e.g. `IMG_4044.CR2`) instead of a cosmetic placeholder.
+ */
+export function splitFileName(fileName: string): { name: string; ext?: string } {
+  const dot = fileName.lastIndexOf('.');
+  if (dot <= 0 || dot === fileName.length - 1) return { name: fileName };
+  return { name: fileName.slice(0, dot), ext: fileName.slice(dot + 1) };
+}
+
 export interface Burst {
   id: string;
   name: string; // without extension
@@ -19,7 +30,8 @@ export interface Burst {
 
 export interface PanoFrame {
   id: string;
-  name: string;
+  name: string; // without extension
+  ext?: string; // original file extension without the dot, e.g. 'CR2'
   blur?: boolean;
 }
 
@@ -36,7 +48,8 @@ export interface Pano {
 
 export interface BurstPhoto {
   id: string;
-  name: string;
+  name: string; // without extension
+  ext?: string; // original file extension without the dot, e.g. 'CR2'
   blur?: boolean;
   ai?: AiHint;
 }
@@ -61,6 +74,7 @@ export interface PhotoScene {
 export interface Photo {
   id: string;
   name: string; // without extension
+  ext?: string; // original file extension without the dot, e.g. 'CR2'
   album: string | null;
   taken: string; // ISO 8601, e.g. '2026-05-24'
   status: ReviewStatus;
@@ -213,6 +227,7 @@ export const MOCK_PHOTOS: Photo[] = [
   {
     id: 'IMG_4021',
     name: 'IMG_4021',
+    ext: 'CR2',
     album: 'Field work',
     taken: '2026-05-24',
     status: 'backlog',
@@ -227,6 +242,7 @@ export const MOCK_PHOTOS: Photo[] = [
   {
     id: 'IMG_4022',
     name: 'IMG_4022',
+    ext: 'CR2',
     album: null,
     taken: '2026-03-15',
     status: 'backlog',
@@ -237,6 +253,7 @@ export const MOCK_PHOTOS: Photo[] = [
   {
     id: 'IMG_4038',
     name: 'IMG_4038',
+    ext: 'CR2',
     album: 'Field work',
     taken: '2026-05-24',
     status: 'backlog',
@@ -251,6 +268,7 @@ export const MOCK_PHOTOS: Photo[] = [
   {
     id: 'IMG_4090',
     name: 'IMG_4090',
+    ext: 'CR2',
     album: 'Lisbon, May',
     taken: '2026-05-10',
     status: 'kept',
@@ -269,16 +287,17 @@ export const MOCK_PANO: Pano = {
   kind: 'pano',
   orientation: 'horizontal',
   frames: [
-    { id: 'pn1', name: 'DSC_5001' },
-    { id: 'pn2', name: 'DSC_5002' },
-    { id: 'pn3', name: 'DSC_5003', blur: true },
-    { id: 'pn4', name: 'DSC_5004' },
+    { id: 'pn1', name: 'DSC_5001', ext: 'NEF' },
+    { id: 'pn2', name: 'DSC_5002', ext: 'NEF' },
+    { id: 'pn3', name: 'DSC_5003', ext: 'NEF', blur: true },
+    { id: 'pn4', name: 'DSC_5004', ext: 'NEF' },
   ],
 };
 
 export interface StereoFrame {
   id: string;
-  name: string;
+  name: string; // without extension
+  ext?: string; // original file extension without the dot, e.g. 'CR2'
   blur?: boolean;
 }
 
@@ -309,9 +328,9 @@ export const MOCK_STEREO: Stereo = {
   status: 'backlog',
   kind: 'stereo',
   left: [
-    { id: 's1', name: 'DSC_6001' },
-    { id: 's2', name: 'DSC_6002' },
-    { id: 's3', name: 'DSC_6003' },
+    { id: 's1', name: 'DSC_6001', ext: 'NEF' },
+    { id: 's2', name: 'DSC_6002', ext: 'NEF' },
+    { id: 's3', name: 'DSC_6003', ext: 'NEF' },
   ],
   baselines: [
     {
@@ -319,8 +338,8 @@ export const MOCK_STEREO: Stereo = {
       label: '3 m',
       hint: 'avg of 1 · 1 soft excluded',
       frames: [
-        { id: 's4', name: 'DSC_6004' },
-        { id: 's5', name: 'DSC_6005', blur: true },
+        { id: 's4', name: 'DSC_6004', ext: 'NEF' },
+        { id: 's5', name: 'DSC_6005', ext: 'NEF', blur: true },
       ],
     },
     {
@@ -328,8 +347,8 @@ export const MOCK_STEREO: Stereo = {
       label: '10 m',
       hint: 'avg of 2',
       frames: [
-        { id: 's6', name: 'DSC_6006' },
-        { id: 's7', name: 'DSC_6007' },
+        { id: 's6', name: 'DSC_6006', ext: 'NEF' },
+        { id: 's7', name: 'DSC_6007', ext: 'NEF' },
       ],
       recommended: true,
     },
@@ -347,9 +366,10 @@ export const MOCK_BURST: Burst = {
     {
       id: 'b1',
       name: 'IMG_4044',
+      ext: 'CR2',
       ai: { verdict: 'kept', reason: 'Best of burst — level horizon' },
     },
-    { id: 'b2', name: 'IMG_4045' },
-    { id: 'b3', name: 'IMG_4046', blur: true },
+    { id: 'b2', name: 'IMG_4045', ext: 'CR2' },
+    { id: 'b3', name: 'IMG_4046', ext: 'CR2', blur: true },
   ],
 };

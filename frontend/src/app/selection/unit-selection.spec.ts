@@ -61,6 +61,23 @@ describe('selectUnits', () => {
     expect(units.filter((u) => u.kind === 'photo').map((u) => u.id)).toEqual(['a3']);
   });
 
+  it('dedupes a repeated member id so a burst never contains the same frame twice', () => {
+    const [burst] = selectUnits(
+      [
+        album({
+          albumId: 'alb-1',
+          assets: [asset('a1'), asset('a2')],
+          groups: [burstGroup('alb-1', ['a1', 'a1', 'a2'])], // 'a1' listed twice
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    expect(burst.kind).toBe('burst');
+    expect(idsOf(burst)).toEqual(['a1', 'a2']); // not ['a1', 'a1', 'a2']
+  });
+
   it('hydrates a burst with album name and the earliest member capture time', () => {
     const [burst] = selectUnits(
       [

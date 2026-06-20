@@ -8,6 +8,7 @@ import { AspectStore } from '../storage/aspect-store';
 import { GroupStore } from '../storage/group-store';
 import { HashStore } from '../storage/hash-store';
 import { PreviewStore } from '../storage/preview-store';
+import { splitFileName } from '../photo';
 import { AssetMeta, DetectedGroup, FrameSignature } from '../storage/photokeeper-db';
 import { DetectAsset, clusterBursts } from './burst';
 import { PanoAsset, clusterPanos } from './pano';
@@ -227,6 +228,6 @@ function toPanoAsset(asset: PhotoAsset, aspect: number | undefined): PanoAsset {
 }
 
 function toAssetMeta(asset: PhotoAsset, albumId: string): AssetMeta {
-  const name = (asset.payload?.importSource?.fileName ?? asset.id).replace(/\.[^.]+$/, '');
-  return { albumId, name, taken: asset.payload?.captureDate ?? '' };
+  const { name, ext } = splitFileName(asset.payload?.importSource?.fileName ?? asset.id);
+  return { albumId, name, ext, taken: asset.payload?.captureDate ?? '' };
 }

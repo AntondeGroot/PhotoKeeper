@@ -37,11 +37,13 @@
     </div>
     <div class="viewer-hint">swipe or use the buttons · tap the photo to close</div>
   } @else if (multi()) {
+    <button class="viewer-nav prev" (click)="prev()" aria-label="previous photo">‹</button>
+    <button class="viewer-nav next" (click)="next()" aria-label="next photo">›</button>
     <div class="viewer-switch">
       @for (img of images; track $index) {
         <button [class.active]="$index === index()" (click)="show($index)">{{ img.label }}</button>
       }
     </div>
-    <div class="viewer-hint">tap a label or swipe to compare · tap the photo to close</div>
+    <div class="viewer-hint">← / → or tap a label to compare · tap the photo to close</div>
   }
 </div>
