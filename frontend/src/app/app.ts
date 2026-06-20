@@ -803,6 +803,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {
     this.activeTab.set(tab);
+    // Switching tabs closes the Manage-albums sub-screen, so returning to Settings lands on the main
+    // page rather than stranding anyone who missed its back arrow.
+    this.manageAlbumsOpen.set(false);
   }
 
   // Opens the current single photo full screen (true orientation) with verdict buttons to review it.

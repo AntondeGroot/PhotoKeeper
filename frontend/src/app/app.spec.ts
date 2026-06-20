@@ -473,6 +473,22 @@ describe('App', () => {
     });
   });
 
+  describe('manage-albums sub-screen', () => {
+    it('closes when switching tabs, so returning to Settings shows the main page', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      app.setActiveTab('settings');
+      app.manageAlbumsOpen.set(true); // user drilled into Manage albums
+
+      app.setActiveTab('review'); // navigate away
+      expect(app.manageAlbumsOpen()).toBe(false);
+
+      app.setActiveTab('settings'); // back to Settings → main page, not stranded in Manage albums
+      expect(app.manageAlbumsOpen()).toBe(false);
+    });
+  });
+
   describe('stable daily selection', () => {
     it("reuses today's stored selection instead of re-sampling the feed", async () => {
       const selection = [photo('p1'), photo('p2')];
