@@ -1,4 +1,5 @@
 <div class="app">
+  <app-heads-up [message]="celebration()" (dismissed)="celebration.set(null)" />
   @if (loading()) {
     <app-splash
       [state]="splashState()"

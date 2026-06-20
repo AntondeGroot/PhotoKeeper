@@ -1,0 +1,9 @@
+@if (message(); as msg) {
+  <button class="heads-up" [class.shown]="shown()" (click)="dismiss()" type="button">
+    <span class="hu-icon">{{ msg.icon }}</span>
+    <span class="hu-body">
+      <span class="hu-title">{{ msg.title }}</span>
+      <span class="hu-text">{{ msg.text }}</span>
+    </span>
+  </button>
+}
