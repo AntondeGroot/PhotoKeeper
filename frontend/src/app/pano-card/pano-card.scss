@@ -4,22 +4,46 @@
   gap: 12px;
 }
 
+// Horizontal pan: strip beside nothing (slider sits below). Vertical pan: strip + vertical slider in a row.
+.pano-viewport {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &.vertical {
+    flex-direction: row;
+    align-items: stretch;
+  }
+}
+
 .pano-strip {
   display: flex;
   gap: 3px;
   height: 220px;
   border-radius: 14px;
-  overflow: hidden;
   border: 1px solid var(--c-line);
+  // Frames keep a real size and the strip scrolls, rather than squashing many frames to invisibility.
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; // hide the native bar — the big slider below is the affordance
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
-  // A vertical pan stacks its frames top-to-bottom instead of left-to-right.
+  // A vertical pan stacks its frames top-to-bottom and scrolls vertically.
   &.vertical {
+    flex: 1;
     flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 }
 
 .pano-frame {
-  flex: 1;
+  // Grow to fill when there are only a few frames, but never shrink below a visible width, so a
+  // 10-frame pano overflows into the scroll area instead of becoming slivers.
+  flex: 1 0 108px;
   background: var(--c-panel);
   position: relative;
   display: flex;
@@ -35,9 +59,28 @@
     border-right: 1px solid rgba(255, 255, 255, 0.06);
   }
 
+  .pano-strip.vertical & {
+    flex: 1 0 108px; // a real height per frame in the vertical strip
+  }
+
   .pano-strip.vertical &:not(:last-child) {
     border-right: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+// Large, always-visible scroll slider — the mobile affordance for a long sweep.
+.pano-slider {
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--c-amber);
+  cursor: pointer;
+
+  &.vertical {
+    width: 22px;
+    height: auto;
+    writing-mode: vertical-lr;
   }
 }
 
