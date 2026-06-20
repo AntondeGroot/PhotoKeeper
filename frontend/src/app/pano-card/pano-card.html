@@ -1,13 +1,28 @@
 <div class="pano-card">
-  <div class="pano-strip" [class.vertical]="pano.orientation === 'vertical'">
-    @for (frame of pano.frames; track frame.id) {
-      <div class="pano-frame" [class.blur]="frame.blur">
-        @if (imageUrls.get(frame.id); as url) {
-          <img class="pano-frame-img" [src]="url" alt="" draggable="false" />
-        } @else {
-          <div class="frame-name">{{ frame.name }}{{ frame.ext ? '.' + frame.ext : '' }}</div>
-        }
-      </div>
+  <div class="pano-viewport" [class.vertical]="vertical">
+    <div #strip class="pano-strip" [class.vertical]="vertical" (scroll)="onScroll()">
+      @for (frame of pano.frames; track frame.id) {
+        <div class="pano-frame" [class.blur]="frame.blur">
+          @if (imageUrls.get(frame.id); as url) {
+            <img class="pano-frame-img" [src]="url" alt="" draggable="false" />
+          } @else {
+            <div class="frame-name">{{ frame.name }}{{ frame.ext ? '.' + frame.ext : '' }}</div>
+          }
+        </div>
+      }
+    </div>
+    @if (overflowing()) {
+      <input
+        class="pano-slider"
+        [class.vertical]="vertical"
+        type="range"
+        min="0"
+        max="100"
+        step="0.1"
+        [value]="scrollPct()"
+        (input)="onSlider($event)"
+        aria-label="scroll through panorama frames"
+      />
     }
   </div>
   <div class="pano-info">
