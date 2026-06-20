@@ -48,6 +48,7 @@ export interface DetectedGroup {
 export interface AssetMeta {
   albumId: string;
   name: string; // display name without extension
+  ext?: string; // original file extension without the dot, e.g. 'CR2'
   taken: string; // ISO 8601 capture time, '' if unknown
 }
 

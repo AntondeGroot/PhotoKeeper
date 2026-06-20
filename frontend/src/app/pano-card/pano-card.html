@@ -5,7 +5,7 @@
         @if (imageUrls.get(frame.id); as url) {
           <img class="pano-frame-img" [src]="url" alt="" draggable="false" />
         } @else {
-          <div class="frame-name">{{ frame.name }}</div>
+          <div class="frame-name">{{ frame.name }}{{ frame.ext ? '.' + frame.ext : '' }}</div>
         }
       </div>
     }

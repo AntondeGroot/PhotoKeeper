@@ -33,6 +33,7 @@ import {
   MOCK_BURST,
   MOCK_PANO,
   MOCK_STEREO,
+  splitFileName,
 } from './photo';
 import { GroupOverrideStore } from './storage/group-override-store';
 import { ReviewSortComponent } from './review-sort/review-sort';
@@ -720,10 +721,11 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private assetToPhoto(asset: PhotoAsset): Photo {
-    const fileName = asset.payload?.importSource?.fileName ?? asset.id;
+    const { name, ext } = splitFileName(asset.payload?.importSource?.fileName ?? asset.id);
     return {
       id: asset.id,
-      name: fileName.replace(/\.[^.]+$/, ''),
+      name,
+      ext,
       album: asset.album ?? null,
       taken: asset.payload?.captureDate ?? '',
       status: 'backlog',

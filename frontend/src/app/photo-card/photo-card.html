@@ -33,7 +33,7 @@
   </div>
   <div class="photo-bottom">
     <div>
-      <div class="photo-name">{{ photo.name }}{{ photo.source === 'device' ? '' : '.RAW' }}</div>
+      <div class="photo-name">{{ photo.name }}{{ photo.ext ? '.' + photo.ext : '' }}</div>
       <div class="photo-meta">{{ photo.taken }}</div>
     </div>
     @if (photo.starred) {

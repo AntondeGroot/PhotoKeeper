@@ -72,6 +72,33 @@ export class FullscreenViewerComponent {
     if (i >= 0 && i < this.imagesSig().length) this.index.set(i);
   }
 
+  /** Step to the next/previous image, wrapping around the ends ("overflow"). */
+  private step(delta: number): void {
+    const n = this.imagesSig().length;
+    if (n === 0) return;
+    this.index.set((this.index() + delta + n) % n);
+  }
+
+  next(): void {
+    this.step(1);
+  }
+
+  prev(): void {
+    this.step(-1);
+  }
+
+  // Arrow keys page through the images (wrapping), so you can flip A↔B at the same spot by holding a
+  // key. Only when there's more than one image and we're not in single-photo review mode.
+  @HostListener('document:keydown.arrowright')
+  onArrowRight(): void {
+    if (this.multi() && !this.reviewMode) this.next();
+  }
+
+  @HostListener('document:keydown.arrowleft')
+  onArrowLeft(): void {
+    if (this.multi() && !this.reviewMode) this.prev();
+  }
+
   chooseVerdict(v: ReviewVerdict): void {
     this.verdict.emit(v);
   }
