@@ -6,14 +6,13 @@ import {
   effect,
   inject,
   signal,
-  untracked,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService, PhotoAsset } from './lightroom.service';
 import { ReviewStore } from './storage/review/review-store';
-import { PreviewStore } from './storage/review/preview-store';
+import { PreviewCacheService } from './review/preview-cache.service';
 import { StoredVerdict, Tag } from './storage/photokeeper-db';
 import { DailyUnitsService } from './review/selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
@@ -62,9 +61,6 @@ import { DEFAULT_TAG_DIRECTIONS, SWIPE_DIRS, SwipeDir, TagDirections } from './t
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
 
-// Preview size requested + cached (Lightroom 2048px preview).
-const PREVIEW_SIZE = '2048';
-
 // Minimum time the launch splash stays up before the app takes over, so the print finishes developing
 // and the slogan is readable even when boot data loads faster than the animation. Covers the ~1s
 // develop + wordmark reveal plus a beat to read "for the photos you'll keep".
@@ -76,13 +72,6 @@ const SCAN_BUFFER_TARGET = 100;
 
 // Debounce before a review-triggered scan refill, so a flurry of swipes coalesces into one pass.
 const SCAN_REFILL_DEBOUNCE_MS = 4000;
-
-// A cached preview keeps both the raw object URL (so it can be revoked on eviction) and the
-// sanitized SafeUrl (stable reference, so re-reads don't re-trigger the <img> binding).
-interface CachedPreview {
-  objectUrl: string;
-  safeUrl: SafeUrl;
-}
 
 // Local-date key (YYYY-MM-DD) used to scope the daily selection — local so it doesn't flip a day
 // early/late at UTC midnight.
@@ -200,9 +189,8 @@ function unitAssetIds(item: ReviewItem): string[] {
 })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
-  private readonly sanitizer = inject(DomSanitizer);
   private readonly reviewStore = inject(ReviewStore);
-  private readonly previewStore = inject(PreviewStore);
+  private readonly previews = inject(PreviewCacheService);
   private readonly dailyUnits = inject(DailyUnitsService);
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
@@ -284,23 +272,18 @@ export class AppComponent implements OnInit, OnDestroy {
   // Which frame the viewer opens on (the tapped one, for burst compare).
   fullscreenStartIndex = signal(0);
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
-  // Cache of fetched 2048px previews (assetId → preview), filled ahead of the cursor so
-  // navigating never waits, and evicted once a photo falls behind the window. currentReviewPhotoUrl
-  // simply reads the current photo's entry.
-  private readonly previewCache = signal<Map<string, CachedPreview>>(new Map());
+  // Preview URLs come from PreviewCacheService (the in-memory window cache); these computeds read it
+  // reactively so the cards re-render as previews arrive.
   currentReviewPhotoUrl = computed(() => {
     const current = this.currentReviewPhoto();
-    return current?.kind === 'photo'
-      ? (this.previewCache().get(current.id)?.safeUrl ?? null)
-      : null;
+    return current?.kind === 'photo' ? this.previews.url(current.id) : null;
   });
   // Frame-id → preview URL for the current unit (e.g. a burst's frames), passed to the group cards.
   currentUnitImageUrls = computed(() => {
     const current = this.currentReviewPhoto();
-    const cache = this.previewCache();
     const urls = new Map<string, SafeUrl>();
     for (const id of current ? unitAssetIds(current) : []) {
-      const url = cache.get(id)?.safeUrl;
+      const url = this.previews.url(id);
       if (url) urls.set(id, url);
     }
     return urls;
@@ -317,7 +300,7 @@ export class AppComponent implements OnInit, OnDestroy {
   // The current Tag-step photo's preview, and the tag ids applied to it.
   currentTagPhotoUrl = computed(() => {
     const photo = this.currentTagPhoto();
-    return photo ? (this.previewCache().get(photo.id)?.safeUrl ?? null) : null;
+    return photo ? this.previews.url(photo.id) : null;
   });
   currentTagPhotoTagIds = computed(() => {
     const photo = this.currentTagPhoto();
@@ -348,8 +331,6 @@ export class AppComponent implements OnInit, OnDestroy {
   );
   toEditByAlbum = computed(() => this.groupByAlbum(this.toEditQueue()));
   toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
-  // Asset ids whose preview is mid-flight, so we never fire a duplicate request.
-  private readonly inFlight = new Set<string>();
   // Debounce handle: the goal slider emits continuously, so we resample once it settles.
   private goalResampleTimer: ReturnType<typeof setTimeout> | null = null;
   // Debounce handle for the burst-window slider, which forces a (heavy) library re-scan on change.
@@ -397,10 +378,10 @@ export class AppComponent implements OnInit, OnDestroy {
         if (isDevicePhoto(item)) continue; // device photos have no Lightroom rendition to warm
         for (const id of unitAssetIds(item)) {
           windowIds.add(id);
-          void this.ensurePreview(id);
+          void this.previews.ensure(id);
         }
       }
-      this.evictOutsideWindow(windowIds);
+      this.previews.evictOutside(windowIds);
     });
   }
 
@@ -662,7 +643,7 @@ export class AppComponent implements OnInit, OnDestroy {
         const keep = new Set(withVerdicts.map((p) => p.id));
         const tomorrow = await this.reviewStore.getDailyFeed(tomorrowKey());
         tomorrow?.forEach((p) => keep.add(p.id));
-        void this.previewStore.evictExcept(keep);
+        void this.previews.evictDurableExcept(keep);
         // Likewise drop stored selections for days other than today/tomorrow so they don't pile up.
         void this.reviewStore.pruneDailyFeedExcept(new Set([today, tomorrowKey()]));
       }
@@ -762,18 +743,12 @@ export class AppComponent implements OnInit, OnDestroy {
         if (units.length === 0) return;
         await this.reviewStore.setDailyFeed(tomorrow, units);
       }
-      // Fetch previews one at a time — background work, no need to flood the network. Warms every
-      // frame id of each unit (a single photo, or all the frames of a burst/pano/stereo) so group
-      // cards render their images instantly tomorrow, just like single photos.
+      // Warm previews into the durable store one at a time — background work, no need to flood the
+      // network. Every frame id of each unit (a single photo, or all the frames of a burst/pano/stereo)
+      // so group cards render their images instantly tomorrow, just like single photos.
       for (const unit of units) {
         for (const id of unitAssetIds(unit)) {
-          if (await this.previewStore.get(id, PREVIEW_SIZE)) continue;
-          try {
-            const blob = await firstValueFrom(this.svc.getPhotoBlob(id, PREVIEW_SIZE));
-            await this.previewStore.put(id, PREVIEW_SIZE, blob);
-          } catch {
-            // Leave it; tomorrow's session will fetch this preview on demand.
-          }
+          await this.previews.warmDurable(id);
         }
       }
     } catch {
@@ -838,60 +813,6 @@ export class AppComponent implements OnInit, OnDestroy {
       starred: false,
       keepsake: false,
     };
-  }
-
-  // Makes a photo's preview available in the in-memory window cache. Idempotent (skips ids already
-  // cached or in flight). Reads the durable IndexedDB store first — so on a reload the image is
-  // already there with no network — and only fetches + stores it when it's genuinely missing. The
-  // cache read is untracked so the prefetch effect doesn't re-run on every load.
-  private async ensurePreview(assetId: string): Promise<void> {
-    const alreadyHave = untracked(
-      () => this.previewCache().has(assetId) || this.inFlight.has(assetId),
-    );
-    if (alreadyHave) return;
-
-    this.inFlight.add(assetId);
-    try {
-      let blob = await this.previewStore.get(assetId, PREVIEW_SIZE);
-      if (!blob) {
-        blob = await firstValueFrom(this.svc.getPhotoBlob(assetId, PREVIEW_SIZE));
-        await this.previewStore.put(assetId, PREVIEW_SIZE, blob);
-      }
-      const objectUrl = URL.createObjectURL(blob);
-      // Safe: objectUrl is a blob: URL we just minted from our own fetched blob, not user input.
-      // eslint-disable-next-line sonarjs/no-angular-bypass-sanitization
-      const safeUrl = this.sanitizer.bypassSecurityTrustUrl(objectUrl);
-      this.previewCache.update((cache) => new Map(cache).set(assetId, { objectUrl, safeUrl }));
-    } catch {
-      // Leave the gradient placeholder if the preview can't be fetched.
-    } finally {
-      this.inFlight.delete(assetId);
-    }
-  }
-
-  // Drops cached previews outside the current window, revoking their object URLs so memory doesn't
-  // grow without bound. (Read untracked so this never re-triggers the prefetch effect.)
-  private evictOutsideWindow(keep: Set<string>): void {
-    const cache = untracked(() => this.previewCache());
-    const next = new Map(cache);
-    let changed = false;
-    for (const [id, preview] of cache) {
-      if (!keep.has(id)) {
-        URL.revokeObjectURL(preview.objectUrl);
-        next.delete(id);
-        changed = true;
-      }
-    }
-    if (changed) {
-      this.previewCache.set(next);
-    }
-  }
-
-  private revokeAllPreviews(): void {
-    for (const preview of this.previewCache().values()) {
-      URL.revokeObjectURL(preview.objectUrl);
-    }
-    this.previewCache.set(new Map());
   }
 
   prevReviewPhoto(): void {
@@ -1219,14 +1140,13 @@ export class AppComponent implements OnInit, OnDestroy {
     this.authenticated.set(false);
     this.connecting.set(false);
     this.photosLoaded.set(false);
-    this.revokeAllPreviews();
-    this.inFlight.clear();
+    this.previews.revokeAll();
     this.reviewPhotos.set([]); // drop Lightroom photos; device photos (if any) are re-added below
     await this.refreshDeviceDeck();
   }
 
   ngOnDestroy(): void {
-    this.revokeAllPreviews();
+    this.previews.revokeAll();
     if (this.goalResampleTimer) clearTimeout(this.goalResampleTimer);
     if (this.burstRescanTimer) clearTimeout(this.burstRescanTimer);
     if (this.scanRefillTimer) clearTimeout(this.scanRefillTimer);
