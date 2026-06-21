@@ -58,6 +58,21 @@ export class ReviewFeedService {
   readonly loaded = signal(false);
   readonly canLoadMore = signal(true);
 
+  /** The unit at the cursor. */
+  current(): ReviewItem | undefined {
+    return this.photos()[this.index()];
+  }
+
+  /** Advance the cursor to the next unit (bounded). */
+  advance(): void {
+    if (this.index() < this.photos().length - 1) this.index.update((i) => i + 1);
+  }
+
+  /** Step the cursor back (bounded). */
+  back(): void {
+    if (this.index() > 0) this.index.update((i) => i - 1);
+  }
+
   /**
    * Loads today's deck: reuse today's already-chosen selection if present, else sample a fresh one and
    * store it (so the same units come back across reloads). Appends enabled device photos, overlays
