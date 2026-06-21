@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { ReviewStore } from './review-store';
-import { Photo } from '../photo';
+import { Photo } from '../../photo';
 
 function photo(id: string): Photo {
   return {

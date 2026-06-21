@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { AssetMetaStore } from './asset-meta-store';
-import { AssetMeta } from './photokeeper-db';
+import { AssetMeta } from '../photokeeper-db';
 
 const meta = (albumId: string, name: string, taken = '2026-05-01T10:00:00Z'): AssetMeta => ({
   albumId,

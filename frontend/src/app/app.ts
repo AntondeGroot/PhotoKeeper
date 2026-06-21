@@ -12,14 +12,14 @@ import {
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService, PhotoAsset } from './lightroom.service';
-import { ReviewStore } from './storage/review-store';
-import { PreviewStore } from './storage/preview-store';
+import { ReviewStore } from './storage/review/review-store';
+import { PreviewStore } from './storage/review/preview-store';
 import { StoredVerdict, Tag } from './storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
-import { AlbumManifestStore } from './storage/album-manifest-store';
-import { AssetMetaStore } from './storage/asset-meta-store';
+import { AlbumManifestStore } from './storage/detection/album-manifest-store';
+import { AssetMetaStore } from './storage/review/asset-meta-store';
 import {
   Burst,
   BurstPhoto,
@@ -35,7 +35,7 @@ import {
   MOCK_STEREO,
   splitFileName,
 } from './photo';
-import { GroupOverrideStore } from './storage/group-override-store';
+import { GroupOverrideStore } from './storage/detection/group-override-store';
 import { ReviewSortComponent } from './review-sort/review-sort';
 import { SessionDoneComponent } from './session-done/session-done';
 import { ReviewEditComponent } from './review-edit/review-edit';
@@ -51,8 +51,8 @@ import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
 import { HeadsUpComponent, HeadsUp } from './heads-up/heads-up';
 import { TagManagerComponent } from './tag-manager/tag-manager';
-import { TagStore } from './storage/tag-store';
-import { AssetTagStore } from './storage/asset-tag-store';
+import { TagStore } from './storage/tags/tag-store';
+import { AssetTagStore } from './storage/tags/asset-tag-store';
 import { TagReviewComponent } from './tag-review/tag-review';
 import { DEFAULT_TAG_DIRECTIONS, SWIPE_DIRS, SwipeDir, TagDirections } from './tags';
 

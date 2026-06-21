@@ -3,15 +3,15 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AppComponent as App } from './app';
 import { Photo, ReviewItem } from './photo';
-import { ReviewStore } from './storage/review-store';
-import { PreviewStore } from './storage/preview-store';
+import { ReviewStore } from './storage/review/review-store';
+import { PreviewStore } from './storage/review/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
-import { GroupOverrideStore } from './storage/group-override-store';
-import { TagStore } from './storage/tag-store';
-import { AssetTagStore } from './storage/asset-tag-store';
+import { GroupOverrideStore } from './storage/detection/group-override-store';
+import { TagStore } from './storage/tags/tag-store';
+import { AssetTagStore } from './storage/tags/asset-tag-store';
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { PhotoKeeperDb } from './photokeeper-db';
+import { PhotoKeeperDb } from '../photokeeper-db';
 
 /**
  * Device-local index of rendition aspect ratios (assetId → width/height), the pano aspect gate's

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { PhotoKeeperDb } from './photokeeper-db';
+import { PhotoKeeperDb } from '../photokeeper-db';
 
 /**
  * Per-photo tag assignments for the Tag review step: `assetId → tagId[]`. Separate from the {@link

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { PhotoKeeperDb } from './photokeeper-db';
+import { PhotoKeeperDb } from '../photokeeper-db';
 
 /** Durable, device-local cache of preview image blobs (keyed by asset id + size). */
 @Injectable({ providedIn: 'root' })

@@ -5,10 +5,10 @@ import { of } from 'rxjs';
 import { DetectionScanService } from './detection-scan.service';
 import { ImageHasher } from './image-hasher';
 import { LightroomService, PhotoAsset } from '../lightroom.service';
-import { HashStore } from '../storage/hash-store';
-import { GroupStore } from '../storage/group-store';
-import { PreviewStore } from '../storage/preview-store';
-import { AssetMetaStore } from '../storage/asset-meta-store';
+import { HashStore } from '../storage/detection/hash-store';
+import { GroupStore } from '../storage/detection/group-store';
+import { PreviewStore } from '../storage/review/preview-store';
+import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { FrameSignature } from '../storage/photokeeper-db';
 import { SIGNATURE_SIZE } from './phash';
 
