@@ -524,6 +524,20 @@ describe('App', () => {
       expect(app.tagDirections().up).toBe('animals');
       expect(app.tagDirections().left).toBeUndefined();
     });
+
+    it('tracks tagged keepers against the tagging goal', () => {
+      const app = TestBed.createComponent(App).componentInstance;
+      app.reviewPhotos.set([
+        { ...photo('a'), status: 'kept' },
+        { ...photo('b'), status: 'kept' },
+      ]);
+      app.tagGoal.set(8);
+      expect(app.taggedCount()).toBe(0);
+
+      app.swipeTag('left'); // tags photo 'a'
+      expect(app.taggedCount()).toBe(1);
+      expect(app.progressTagPercent()).toBeCloseTo((1 / 8) * 100);
+    });
   });
 
   describe('manage-albums sub-screen', () => {

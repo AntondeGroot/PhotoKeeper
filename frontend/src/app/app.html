@@ -75,16 +75,9 @@
           } @else {
             <div class="progress-bar-section">
               <span>Tag keepers</span>
-              <span>{{ taggablePhotos().length }} sorted</span>
+              <span>{{ taggedCount() }} / {{ tagGoal() }} today</span>
               <div class="progress-track">
-                <div
-                  class="progress-fill"
-                  [style.width.%]="
-                    taggablePhotos().length
-                      ? ((tagReviewIndex() + 1) / taggablePhotos().length) * 100
-                      : 0
-                  "
-                ></div>
+                <div class="progress-fill" [style.width.%]="progressTagPercent()"></div>
               </div>
             </div>
           }
@@ -207,6 +200,7 @@
           <app-settings
             [dailyGoal]="dailyGoal()"
             [editGoal]="editGoal()"
+            [tagGoal]="tagGoal()"
             [morningReminder]="morningReminder()"
             [reminderTime]="reminderTime()"
             [silentTime]="silentTime()"
@@ -221,6 +215,7 @@
             (dailyGoalChange)="setDailyGoal($event)"
             (burstWindowSecondsChange)="setBurstWindowSeconds($event)"
             (editGoalChange)="editGoal.set($event)"
+            (tagGoalChange)="tagGoal.set($event)"
             (morningReminderChange)="morningReminder.set($event)"
             (reminderTimeChange)="reminderTime.set($event)"
             (silentTimeChange)="silentTime.set($event)"

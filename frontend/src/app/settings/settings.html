@@ -141,6 +141,40 @@
       (input)="onEditGoalChange($event)"
     />
 
+    @if (taggingEnabled) {
+      <!-- tagging row (same scale as sorting — quick, not intensive like editing) -->
+      <div class="goal-row">
+        <span class="goal-label">Tagging</span>
+        <span class="goal-value">{{ tagGoal }} / day</span>
+      </div>
+      <div class="preset-buttons">
+        <button class="preset-btn" [class.active]="tagGoal === 8" (click)="tagGoalChange.emit(8)">
+          <span>Light</span>
+          <span class="preset-num">8</span>
+        </button>
+        <button class="preset-btn" [class.active]="tagGoal === 15" (click)="tagGoalChange.emit(15)">
+          <span>Steady</span>
+          <span class="preset-num">15</span>
+        </button>
+        <button class="preset-btn" [class.active]="tagGoal === 20" (click)="tagGoalChange.emit(20)">
+          <span>Focused</span>
+          <span class="preset-num">20</span>
+        </button>
+        <button class="preset-btn" [class.active]="tagGoal === 25" (click)="tagGoalChange.emit(25)">
+          <span>Deep</span>
+          <span class="preset-num">25</span>
+        </button>
+      </div>
+      <input
+        class="goal-slider"
+        type="range"
+        min="5"
+        max="40"
+        [value]="tagGoal"
+        (input)="onTagGoalChange($event)"
+      />
+    }
+
     <p class="goal-hint">Keep editing lower — it's slower than sorting.</p>
   </div>
   <div class="settings-card">
