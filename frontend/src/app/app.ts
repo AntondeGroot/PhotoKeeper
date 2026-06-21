@@ -18,7 +18,7 @@ import { StoredVerdict } from './storage/photokeeper-db';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { AlbumManifestStore } from './storage/detection/album-manifest-store';
-import { AssetMetaStore } from './storage/review/asset-meta-store';
+import { BackgroundScanService } from './detection/background-scan.service';
 import { Burst, BurstPhoto, Pano, Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
 import { GroupOverrideStore } from './storage/detection/group-override-store';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
@@ -51,13 +51,6 @@ const PREFETCH_AHEAD = 5;
 // and the slogan is readable even when boot data loads faster than the animation. Covers the ~1s
 // develop + wordmark reveal plus a beat to read "for the photos you'll keep".
 const SPLASH_MIN_MS = 1800;
-
-// Target size of the "scanned but not yet reviewed" buffer the background detection scan maintains.
-// Each pass tops the buffer back up to this; as the user reviews and it falls under, the app refills.
-const SCAN_BUFFER_TARGET = 100;
-
-// Debounce before a review-triggered scan refill, so a flurry of swipes coalesces into one pass.
-const SCAN_REFILL_DEBOUNCE_MS = 4000;
 
 /** Turns a dissolved burst's frame into a standalone review photo, carrying over the burst's album. */
 function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
@@ -133,7 +126,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
   private readonly albumManifests = inject(AlbumManifestStore);
-  private readonly meta = inject(AssetMetaStore);
+  private readonly scan = inject(BackgroundScanService);
   private readonly groupOverrides = inject(GroupOverrideStore);
   private readonly tagState = inject(TagState);
   private readonly prefs = inject(PreferencesService);
@@ -266,8 +259,6 @@ export class AppComponent implements OnInit, OnDestroy {
   private goalResampleTimer: ReturnType<typeof setTimeout> | null = null;
   // Debounce handle for the burst-window slider, which forces a (heavy) library re-scan on change.
   private burstRescanTimer: ReturnType<typeof setTimeout> | null = null;
-  // Debounce handle for the review-triggered scan refill.
-  private scanRefillTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     // Keep the current unit's previews plus the next PREFETCH_AHEAD ones loaded, so swiping never
@@ -370,7 +361,7 @@ export class AppComponent implements OnInit, OnDestroy {
       await this.loadPhotos();
       await this.loadAlbums();
       void this.feed.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
-      void this.runBackgroundScan(); // populate detection stores for future sessions
+      void this.scan.run(this.authenticated); // populate detection stores for future sessions
     } catch {
       // Token couldn't be validated/refreshed — fall back to onboarding.
       this.svc.clearTokens();
@@ -494,42 +485,6 @@ export class AppComponent implements OnInit, OnDestroy {
   /** "Review more" — pull a fresh batch of unseen units (delegated to ReviewFeedService). */
   loadMore(): Promise<void> {
     return this.feed.loadMore();
-  }
-
-  // Background detection pass: tops the scanned-ahead buffer back up to SCAN_BUFFER_TARGET, populating
-  // the metadata and group stores selectUnits reads. Best-effort; never blocks the UI. Only
-  // scans the deficit, so a full buffer means no work — and a depleted one pulls in just what's missing.
-  private async runBackgroundScan(): Promise<void> {
-    if (!this.authenticated()) return; // no Lightroom session → nothing to scan
-    try {
-      const budget = await this.scanRefillBudget();
-      if (budget > 0) await this.catalogScan.scanAllAlbums(budget);
-    } catch {
-      // Background work; a failure just means the next session falls back to the server sample.
-    }
-  }
-
-  // How many more images to scan to refill the buffer: SCAN_BUFFER_TARGET minus the images already
-  // scanned but not yet reviewed. (Group members reviewed only at the unit level — panos/stereos —
-  // count as un-reviewed here, so the buffer can read a touch high; harmless, it just scans less.)
-  private async scanRefillBudget(): Promise<number> {
-    const [metaById, verdicts] = await Promise.all([
-      this.meta.getAll(),
-      this.reviewStore.getVerdicts(),
-    ]);
-    let unreviewed = 0;
-    for (const id of metaById.keys()) {
-      if (!verdicts.has(id)) unreviewed++;
-    }
-    return Math.max(0, SCAN_BUFFER_TARGET - unreviewed);
-  }
-
-  // Schedules a buffer top-up a short while after review activity, debounced so rapid swipes trigger
-  // just one pass. Fired from the verdict-persist path, so any decision keeps the buffer replenished.
-  private scheduleScanRefill(): void {
-    if (!this.authenticated()) return;
-    if (this.scanRefillTimer) clearTimeout(this.scanRefillTimer);
-    this.scanRefillTimer = setTimeout(() => void this.runBackgroundScan(), SCAN_REFILL_DEBOUNCE_MS);
   }
 
   prevReviewPhoto(): void {
@@ -804,7 +759,7 @@ export class AppComponent implements OnInit, OnDestroy {
       /* ignore */
     }
     // A review decision shrinks the scanned-ahead buffer — top it back up (debounced).
-    this.scheduleScanRefill();
+    this.scan.scheduleRefill(this.authenticated);
     // A decision may have just carried the day's count over the sorting goal — celebrate it.
     this.maybeCelebrateGoal();
   }
@@ -855,8 +810,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.previews.revokeAll();
+    this.scan.dispose();
     if (this.goalResampleTimer) clearTimeout(this.goalResampleTimer);
     if (this.burstRescanTimer) clearTimeout(this.burstRescanTimer);
-    if (this.scanRefillTimer) clearTimeout(this.scanRefillTimer);
   }
 }
