@@ -197,6 +197,27 @@
     </div>
   </div>
 
+  <div class="settings-section-label">Features</div>
+
+  <div class="settings-card">
+    <div class="reminder-row">
+      <div class="reminder-text">
+        <div class="reminder-label">Tagging</div>
+        <div class="reminder-description">
+          Adds a Tag step to Daily review for labelling sorted keepers (Animals, Family…)
+        </div>
+      </div>
+      <div class="toggle-group">
+        <button
+          class="toggle"
+          [class.on]="taggingEnabled"
+          (click)="taggingEnabledChange.emit(!taggingEnabled)"
+          aria-label="toggle tagging"
+        ></button>
+      </div>
+    </div>
+  </div>
+
   <div class="settings-section-label">Detection</div>
 
   <div class="settings-card">

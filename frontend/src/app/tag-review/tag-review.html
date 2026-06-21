@@ -1,0 +1,60 @@
+@if (photo; as p) {
+  <div class="tag-review">
+    <div
+      class="tag-card"
+      [style.transform]="dragTransform()"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp()"
+      (pointercancel)="onPointerUp()"
+    >
+      @if (imageUrl) {
+        <img class="tag-card-img" [src]="imageUrl" alt="" draggable="false" />
+      }
+
+      @for (dir of dirs; track dir) {
+        @if (directionTag(dir); as t) {
+          <div class="edge edge-{{ dir }}" [class.active]="edgeActive(dir)">
+            {{ arrow[dir] }} {{ t.name }}
+          </div>
+        }
+      }
+
+      <div class="tag-card-name">{{ p.name }}{{ p.ext ? '.' + p.ext : '' }}</div>
+    </div>
+
+    @if (appliedTags.length) {
+      <div class="applied-row">
+        @for (t of appliedTags; track t.id) {
+          <button class="applied-chip" (click)="tagToggled.emit(t.id)">{{ t.name }} ✕</button>
+        }
+      </div>
+    }
+
+    @if (otherTags.length) {
+      <div class="other-tags">
+        <span class="other-label">More tags</span>
+        @for (t of otherTags; track t.id) {
+          <button class="other-chip" [class.on]="isApplied(t.id)" (click)="tagToggled.emit(t.id)">
+            {{ isApplied(t.id) ? '✓ ' : '' }}{{ t.name }}
+          </button>
+        }
+      </div>
+    }
+
+    <div class="tag-nav">
+      <button class="tag-nav-btn" [disabled]="position <= 1" (click)="prev.emit()">‹ Prev</button>
+      <span class="tag-nav-count">{{ position }} / {{ total }}</span>
+      <button class="tag-nav-btn" [disabled]="position >= total" (click)="next.emit()">
+        Skip ›
+      </button>
+    </div>
+  </div>
+} @else {
+  <div class="tag-empty">
+    <div class="tag-empty-title">Nothing to tag yet</div>
+    <p class="tag-empty-text">
+      Sort some photos first — your keepers show up here, ready to label.
+    </p>
+  </div>
+}

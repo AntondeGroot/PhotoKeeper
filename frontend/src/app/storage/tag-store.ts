@@ -75,9 +75,12 @@ export class TagStore {
   private async seedIfNeeded(): Promise<void> {
     if (localStorage.getItem(SEEDED_KEY) === 'true') return;
     const db = await this.db.open();
-    const tx = db.transaction('tags', 'readwrite');
-    for (const tag of DEFAULT_TAGS) await tx.store.put(tag, tag.id);
-    await tx.done;
-    localStorage.setItem(SEEDED_KEY, 'true');
+    // One independent put per default (not a shared transaction with awaits in a loop): real
+    // IndexedDB auto-commits a transaction between awaited operations, which would throw on the
+    // second put. Puts are keyed by id, so this is idempotent and safe to retry.
+    for (const tag of DEFAULT_TAGS) await db.put('tags', tag, tag.id);
+    // Only mark "seeded" once the writes are verifiably in the store — so a silent write failure
+    // retries next load instead of leaving the flag stranded true over an empty catalog.
+    if ((await db.count('tags')) > 0) localStorage.setItem(SEEDED_KEY, 'true');
   }
 }

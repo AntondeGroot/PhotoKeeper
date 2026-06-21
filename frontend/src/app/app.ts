@@ -52,6 +52,9 @@ import { OnboardingComponent } from './onboarding/onboarding';
 import { HeadsUpComponent, HeadsUp } from './heads-up/heads-up';
 import { TagManagerComponent } from './tag-manager/tag-manager';
 import { TagStore } from './storage/tag-store';
+import { AssetTagStore } from './storage/asset-tag-store';
+import { TagReviewComponent } from './tag-review/tag-review';
+import { DEFAULT_TAG_DIRECTIONS, SWIPE_DIRS, SwipeDir, TagDirections } from './tags';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
@@ -88,6 +91,17 @@ function dateKey(d: Date): string {
 
 function todayKey(): string {
   return dateKey(new Date());
+}
+
+/** Reads + parses a JSON localStorage value, or null if absent/corrupt. */
+function readJson(key: string): unknown {
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 function tomorrowKey(): string {
@@ -175,6 +189,7 @@ function unitAssetIds(item: ReviewItem): string[] {
     OnboardingComponent,
     HeadsUpComponent,
     TagManagerComponent,
+    TagReviewComponent,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -192,6 +207,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly meta = inject(AssetMetaStore);
   private readonly groupOverrides = inject(GroupOverrideStore);
   private readonly tagStore = inject(TagStore);
+  private readonly assetTags = inject(AssetTagStore);
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
@@ -220,8 +236,15 @@ export class AppComponent implements OnInit, OnDestroy {
   // Developer detection lab, reached via the ?lab query param. Replaces the review UI when set.
   labMode = signal(false);
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
-  reviewMode = signal<'sort' | 'edit'>('sort');
+  reviewMode = signal<'sort' | 'edit' | 'tag'>('sort');
   reviewIndex = signal(0);
+  // Tag review (optional, off by default): a third review mode that labels already-sorted keepers.
+  taggingEnabled = signal(false);
+  tagReviewIndex = signal(0);
+  // Which tag each swipe direction applies in Tag mode (reassignable in Settings → Tags).
+  tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
+  // assetId → applied tag ids, loaded from the assignment store and updated as you tag.
+  private readonly tagAssignments = signal<Record<string, string[]>>({});
   // Album list (from the backend) + the ids the user has tagged as "vacation", and whether the
   // Manage-albums sub-screen is open. Vacation tags persist to localStorage like the other settings.
   albums = signal<Album[]>([]);
@@ -279,6 +302,22 @@ export class AppComponent implements OnInit, OnDestroy {
   });
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
   sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
+  // The Tag-step pool: single photos already sorted into a keeper status (not backlog, not rejected).
+  taggablePhotos = computed(() =>
+    this.reviewPhotos().filter(
+      (p): p is Photo => p.kind === 'photo' && p.status !== 'backlog' && p.status !== 'rejected',
+    ),
+  );
+  currentTagPhoto = computed(() => this.taggablePhotos()[this.tagReviewIndex()]);
+  // The current Tag-step photo's preview, and the tag ids applied to it.
+  currentTagPhotoUrl = computed(() => {
+    const photo = this.currentTagPhoto();
+    return photo ? (this.previewCache().get(photo.id)?.safeUrl ?? null) : null;
+  });
+  currentTagPhotoTagIds = computed(() => {
+    const photo = this.currentTagPhoto();
+    return photo ? (this.tagAssignments()[photo.id] ?? []) : [];
+  });
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
   rejectedCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'rejected').length);
   toEditCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit').length);
@@ -315,6 +354,8 @@ export class AppComponent implements OnInit, OnDestroy {
       localStorage.setItem('reminderTime', this.reminderTime());
       localStorage.setItem('silentTime', this.silentTime());
       localStorage.setItem('silentEvening', String(this.silentEvening()));
+      localStorage.setItem('taggingEnabled', String(this.taggingEnabled()));
+      localStorage.setItem('tagDirections', JSON.stringify(this.tagDirections()));
       localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
       localStorage.setItem('onboarded', String(this.onboarded()));
       localStorage.setItem('deviceEnabled', String(this.deviceEnabled()));
@@ -332,8 +373,11 @@ export class AppComponent implements OnInit, OnDestroy {
     // photosLoaded so the mock fallback (whose ids aren't real assets) is skipped.
     effect(() => {
       if (!this.photosLoaded()) return;
-      const photos = this.reviewPhotos();
-      const start = this.reviewIndex();
+      // In the Tag step the cursor runs over the keepers pool, not the sort feed — warm around that
+      // so the photo you're tagging is already loaded.
+      const tagMode = this.reviewMode() === 'tag';
+      const photos = tagMode ? this.taggablePhotos() : this.reviewPhotos();
+      const start = tagMode ? this.tagReviewIndex() : this.reviewIndex();
       const windowIds = new Set<string>();
       for (let i = 0; i <= PREFETCH_AHEAD; i++) {
         const item = photos[start + i];
@@ -361,35 +405,47 @@ export class AppComponent implements OnInit, OnDestroy {
     if (savedSilentTime) this.silentTime.set(savedSilentTime);
     const savedSilentEvening = localStorage.getItem('silentEvening');
     if (savedSilentEvening) this.silentEvening.set(savedSilentEvening === 'true');
-    const savedVacation = localStorage.getItem('vacationAlbumIds');
-    if (savedVacation) {
-      const parsed: unknown = JSON.parse(savedVacation);
-      if (Array.isArray(parsed)) {
-        this.vacationAlbumIds.set(parsed.filter((id): id is string => typeof id === 'string'));
-      }
-    }
+    this.taggingEnabled.set(localStorage.getItem('taggingEnabled') === 'true');
     this.onboarded.set(localStorage.getItem('onboarded') === 'true');
     this.deviceEnabled.set(localStorage.getItem('deviceEnabled') === 'true');
-    const savedFolders = localStorage.getItem('deviceFolders');
-    if (savedFolders) {
-      const parsed: unknown = JSON.parse(savedFolders);
-      if (Array.isArray(parsed)) {
-        const on = new Set(parsed.filter((n): n is string => typeof n === 'string'));
-        this.deviceFolders.update((folders) =>
-          folders.map((f) => ({ ...f, enabled: on.has(f.name) })),
-        );
-      }
-    }
+    this.restoreJsonSettings();
     void this.refreshTags(); // load the content-tag catalog (seeds defaults on first run)
     void this.init();
   }
 
-  /** Reloads the content-tag catalog into the `tags` signal. Best-effort; never breaks the app. */
+  /** Restores the JSON-encoded settings (tag directions, vacation ids, device folders) from storage. */
+  private restoreJsonSettings(): void {
+    const dirs: unknown = readJson('tagDirections');
+    if (dirs && typeof dirs === 'object') this.tagDirections.set(dirs);
+
+    const vacation: unknown = readJson('vacationAlbumIds');
+    if (Array.isArray(vacation)) {
+      this.vacationAlbumIds.set(vacation.filter((id): id is string => typeof id === 'string'));
+    }
+
+    const folders: unknown = readJson('deviceFolders');
+    if (Array.isArray(folders)) {
+      const on = new Set(folders.filter((n): n is string => typeof n === 'string'));
+      this.deviceFolders.update((list) => list.map((f) => ({ ...f, enabled: on.has(f.name) })));
+    }
+  }
+
+  /**
+   * Reloads the content-tag catalog and per-photo assignments — independently, so a failure loading
+   * one never hides the other (and so an error is visible rather than silently swallowed).
+   */
   private async refreshTags(): Promise<void> {
     try {
       this.tags.set(await this.tagStore.getAll());
-    } catch {
-      // Storage unavailable — leave the current list; the manager just shows what we have.
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Tag catalog failed to load', e);
+    }
+    try {
+      this.tagAssignments.set(await this.assetTags.getAll());
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Tag assignments failed to load', e);
     }
   }
 
@@ -920,8 +976,63 @@ export class AppComponent implements OnInit, OnDestroy {
     void this.persistVerdict(current.id);
   }
 
-  setReviewMode(mode: 'sort' | 'edit'): void {
+  setReviewMode(mode: 'sort' | 'edit' | 'tag'): void {
+    if (mode === 'tag') this.tagReviewIndex.set(0); // start the tag pass at the first keeper
     this.reviewMode.set(mode);
+  }
+
+  /** Settings toggle for the optional Tag step. Turning it off while in Tag mode falls back to Sort. */
+  setTaggingEnabled(enabled: boolean): void {
+    this.taggingEnabled.set(enabled);
+    if (!enabled && this.reviewMode() === 'tag') this.reviewMode.set('sort');
+  }
+
+  /** Swipe in Tag mode: apply that direction's bound tag to the current photo, then advance. */
+  swipeTag(dir: SwipeDir): void {
+    const tagId = this.tagDirections()[dir];
+    const photo = this.currentTagPhoto();
+    if (!tagId || !photo) return;
+    const current = this.tagAssignments()[photo.id] ?? [];
+    if (!current.includes(tagId)) {
+      const next = [...current, tagId];
+      this.tagAssignments.update((map) => ({ ...map, [photo.id]: next }));
+      void this.assetTags.set(photo.id, next);
+    }
+    this.nextTagPhoto();
+  }
+
+  /** Bind (or clear) a swipe direction to a tag. A tag lives on at most one direction. */
+  setTagDirection(change: { dir: SwipeDir; tagId: string | null }): void {
+    this.tagDirections.update((dirs) => {
+      const next: TagDirections = { ...dirs };
+      if (change.tagId) {
+        for (const d of SWIPE_DIRS) if (next[d] === change.tagId) delete next[d]; // unique per tag
+        next[change.dir] = change.tagId;
+      } else {
+        delete next[change.dir];
+      }
+      return next;
+    });
+  }
+
+  /** Apply or remove a tag on the current Tag-step photo, persisting the change. */
+  toggleTag(tagId: string): void {
+    const photo = this.currentTagPhoto();
+    if (!photo) return;
+    const current = this.tagAssignments()[photo.id] ?? [];
+    const next = current.includes(tagId) ? current.filter((t) => t !== tagId) : [...current, tagId];
+    this.tagAssignments.update((map) => ({ ...map, [photo.id]: next }));
+    void this.assetTags.set(photo.id, next);
+  }
+
+  nextTagPhoto(): void {
+    if (this.tagReviewIndex() < this.taggablePhotos().length - 1) {
+      this.tagReviewIndex.update((i) => i + 1);
+    }
+  }
+
+  prevTagPhoto(): void {
+    if (this.tagReviewIndex() > 0) this.tagReviewIndex.update((i) => i - 1);
   }
 
   // Resolves a burst's duel: the winning frame is kept, every other frame rejected. Marks the burst

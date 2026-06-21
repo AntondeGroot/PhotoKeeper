@@ -64,12 +64,27 @@
                 <div class="progress-fill" [style.width.%]="progressReviewPercent()"></div>
               </div>
             </div>
-          } @else {
+          } @else if (reviewMode() === 'edit') {
             <div class="progress-bar-section">
               <span>Edit queue</span>
               <span>{{ editedToday() }} / {{ editGoal() }} today</span>
               <div class="progress-track">
                 <div class="progress-fill" [style.width.%]="progressEditPercent()"></div>
+              </div>
+            </div>
+          } @else {
+            <div class="progress-bar-section">
+              <span>Tag keepers</span>
+              <span>{{ taggablePhotos().length }} sorted</span>
+              <div class="progress-track">
+                <div
+                  class="progress-fill"
+                  [style.width.%]="
+                    taggablePhotos().length
+                      ? ((tagReviewIndex() + 1) / taggablePhotos().length) * 100
+                      : 0
+                  "
+                ></div>
               </div>
             </div>
           }
@@ -88,6 +103,15 @@
             >
               Edit
             </button>
+            @if (taggingEnabled()) {
+              <button
+                class="tab-btn"
+                (click)="setReviewMode('tag')"
+                [class.active]="reviewMode() === 'tag'"
+              >
+                Tag
+              </button>
+            }
           </div>
           @if (reviewMode() === 'sort') {
             @if (!sessionDone()) {
@@ -139,11 +163,25 @@
                 (loadMore)="loadMore()"
               />
             }
-          } @else {
+          } @else if (reviewMode() === 'edit') {
             <app-review-edit
               [queue]="toEditQueue()"
               [editDone]="editDone()"
               (promoted)="promoteToPrint($event)"
+            />
+          } @else {
+            <app-tag-review
+              [photo]="currentTagPhoto()"
+              [imageUrl]="currentTagPhotoUrl()"
+              [tags]="tags()"
+              [directions]="tagDirections()"
+              [appliedTagIds]="currentTagPhotoTagIds()"
+              [position]="taggablePhotos().length ? tagReviewIndex() + 1 : 0"
+              [total]="taggablePhotos().length"
+              (swiped)="swipeTag($event)"
+              (tagToggled)="toggleTag($event)"
+              (next)="nextTagPhoto()"
+              (prev)="prevTagPhoto()"
             />
           }
         } @else if (activeTab() === 'pipeline') {
@@ -158,9 +196,11 @@
         } @else if (tagsManagerOpen()) {
           <app-tag-manager
             [tags]="tags()"
+            [directions]="tagDirections()"
             (added)="addTag($event)"
             (renamed)="renameTag($event)"
             (removed)="removeTag($event)"
+            (directionChanged)="setTagDirection($event)"
             (back)="tagsManagerOpen.set(false)"
           />
         } @else {
@@ -171,6 +211,7 @@
             [reminderTime]="reminderTime()"
             [silentTime]="silentTime()"
             [silentEvening]="silentEvening()"
+            [taggingEnabled]="taggingEnabled()"
             [burstWindowSeconds]="burstWindowSeconds()"
             [deviceEnabled]="deviceEnabled()"
             [deviceFolders]="deviceFolders()"
@@ -184,6 +225,7 @@
             (reminderTimeChange)="reminderTime.set($event)"
             (silentTimeChange)="silentTime.set($event)"
             (silentEveningChange)="silentEvening.set($event)"
+            (taggingEnabledChange)="setTaggingEnabled($event)"
             (manageAlbums)="manageAlbumsOpen.set(true)"
             (manageTags)="tagsManagerOpen.set(true)"
             (deviceToggled)="toggleDevice($event)"

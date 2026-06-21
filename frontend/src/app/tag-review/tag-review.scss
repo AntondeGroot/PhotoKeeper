@@ -1,0 +1,195 @@
+.tag-review {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tag-card {
+  position: relative;
+  height: 340px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  background: linear-gradient(160deg, var(--c-panel2) 0%, var(--c-bg) 100%);
+  touch-action: none; // we own the drag gesture
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.tag-card-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* ── Direction edge labels ── */
+.edge {
+  position: absolute;
+  z-index: 2;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(19, 17, 16, 0.9);
+  backdrop-filter: blur(4px);
+  color: var(--c-amber);
+  border: 1px solid var(--c-amber);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  transition:
+    background 0.12s,
+    color 0.12s;
+
+  // While dragging toward it, the edge fills in to confirm which tag will apply.
+  &.active {
+    background: var(--c-amber);
+    color: #131110;
+  }
+}
+
+.edge-left {
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.edge-right {
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.edge-up {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.edge-down {
+  bottom: 44px; // clears the filename strip
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tag-card-name {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 22px 14px 12px;
+  background: linear-gradient(transparent, rgba(10, 9, 8, 0.85));
+  font-size: 12px;
+  color: var(--c-dim);
+  pointer-events: none;
+}
+
+/* ── Applied tags (removable) ── */
+.applied-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.applied-chip {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--c-amber);
+  color: var(--c-amber);
+  background: color-mix(in srgb, var(--c-amber) 16%, transparent);
+}
+
+/* ── Other (non-direction) tags ── */
+.other-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.other-label {
+  width: 100%;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--c-faint);
+}
+
+.other-chip {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--c-line);
+  color: var(--c-dim);
+  background: transparent;
+
+  &.on {
+    border-color: var(--c-amber);
+    color: var(--c-amber);
+    background: color-mix(in srgb, var(--c-amber) 14%, transparent);
+  }
+}
+
+/* ── Nav ── */
+.tag-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tag-nav-btn {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel);
+  color: var(--c-text);
+  cursor: pointer;
+
+  &:disabled {
+    color: var(--c-faint);
+    cursor: not-allowed;
+  }
+}
+
+.tag-nav-count {
+  font-size: 12.5px;
+  color: var(--c-faint);
+}
+
+.tag-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.tag-empty-title {
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 20px;
+  color: var(--c-text);
+  margin-bottom: 8px;
+}
+
+.tag-empty-text {
+  font-size: 13px;
+  color: var(--c-dim);
+  line-height: 1.6;
+  max-width: 260px;
+  margin: 0 auto;
+}

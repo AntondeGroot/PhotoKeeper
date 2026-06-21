@@ -11,6 +11,7 @@ import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { GroupOverrideStore } from './storage/group-override-store';
 import { TagStore } from './storage/tag-store';
+import { AssetTagStore } from './storage/asset-tag-store';
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -68,6 +69,10 @@ describe('App', () => {
         { provide: DailyUnitsService, useValue: { buildUnits: () => Promise.resolve([]) } },
         { provide: CatalogScanService, useValue: { scanAllAlbums: () => Promise.resolve() } },
         { provide: TagStore, useValue: { getAll: () => Promise.resolve([]) } },
+        {
+          provide: AssetTagStore,
+          useValue: { getAll: () => Promise.resolve({}), set: () => Promise.resolve() },
+        },
       ],
     }).compileComponents();
   });
@@ -472,6 +477,52 @@ describe('App', () => {
 
       expect(app.burstWindowSeconds()).toBe(12);
       expect(settings.burstOptions().windowMs).toBe(12_000);
+    });
+  });
+
+  describe('tag review mode', () => {
+    it('lists only sorted keepers (not backlog or rejected) as taggable', () => {
+      const app = TestBed.createComponent(App).componentInstance;
+      app.reviewPhotos.set([
+        { ...photo('a'), status: 'kept' },
+        { ...photo('b'), status: 'rejected' },
+        { ...photo('c'), status: 'toEdit' },
+        { ...photo('d'), status: 'backlog' },
+        { ...photo('e'), status: 'maybe' },
+      ]);
+      expect(app.taggablePhotos().map((p) => p.id)).toEqual(['a', 'c', 'e']);
+    });
+
+    it('toggleTag applies then removes a tag on the current photo', () => {
+      const app = TestBed.createComponent(App).componentInstance;
+      app.reviewPhotos.set([{ ...photo('a'), status: 'kept' }]);
+
+      app.toggleTag('animals');
+      expect(app.currentTagPhotoTagIds()).toEqual(['animals']);
+      app.toggleTag('animals');
+      expect(app.currentTagPhotoTagIds()).toEqual([]);
+    });
+
+    it('disabling tagging while in Tag mode falls back to Sort', () => {
+      const app = TestBed.createComponent(App).componentInstance;
+      app.setReviewMode('tag');
+      app.setTaggingEnabled(false);
+      expect(app.reviewMode()).toBe('sort');
+    });
+
+    it('swiping a direction applies that direction’s tag to the current photo', () => {
+      const app = TestBed.createComponent(App).componentInstance;
+      app.reviewPhotos.set([{ ...photo('a'), status: 'kept' }]);
+      app.swipeTag('left'); // default binding: left → 'animals'
+      expect(app.currentTagPhotoTagIds()).toEqual(['animals']);
+    });
+
+    it('binding a tag to a direction moves it off any other direction (unique per tag)', () => {
+      const app = TestBed.createComponent(App).componentInstance;
+      // 'animals' starts on left by default; rebind it to up.
+      app.setTagDirection({ dir: 'up', tagId: 'animals' });
+      expect(app.tagDirections().up).toBe('animals');
+      expect(app.tagDirections().left).toBeUndefined();
     });
   });
 
