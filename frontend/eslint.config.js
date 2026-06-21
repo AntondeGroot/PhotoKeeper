@@ -27,6 +27,13 @@ export default tseslint.config(
     },
     rules: {
       'no-console': 'error',
+      // Size caps that stop a class growing into a god object one harmless method at a time. The
+      // cognitive-complexity rule already guards individual methods; these guard the file/function/class
+      // as a whole. Two legacy components exceed 400 and are pinned (not exempted) just below — a frozen
+      // ceiling they can only ratchet *down* from. New files get 400 from the start.
+      'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
+      'max-classes-per-file': ['error', 1],
       'sonarjs/cognitive-complexity': ['error', 15],
       eqeqeq: ['error', 'always'],
       '@typescript-eslint/no-explicit-any': 'error',
@@ -42,6 +49,28 @@ export default tseslint.config(
         'error',
         { type: 'element', prefix: 'app', style: 'kebab-case' },
       ],
+    },
+  },
+  {
+    // Debt ceiling for the two files that predate the 400-line cap. Pinned at their *current* counted
+    // size so they can only shrink, never grow — every PR that touches them must leave them smaller or
+    // the same. Lower these numbers as the files are slimmed; delete the entry once it drops under 400.
+    // TODO(god-object): bring both under the global 400 cap (app.ts: finish the service-extraction
+    // campaign; detection-lab.ts: split the dev lab into sub-panels).
+    files: ['src/app/app.ts'],
+    rules: { 'max-lines': ['error', { max: 470, skipBlankLines: true, skipComments: true }] },
+  },
+  {
+    files: ['src/app/detection/detection-lab/detection-lab.ts'],
+    rules: { 'max-lines': ['error', { max: 418, skipBlankLines: true, skipComments: true }] },
+  },
+  {
+    // Specs are legitimately long and repetitive (fixtures, provider setup) — the god-object caps
+    // don't apply to them.
+    files: ['**/*.spec.ts'],
+    rules: {
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
     },
   },
   {
