@@ -15,6 +15,7 @@ import { ReviewStore } from './storage/review/review-store';
 import { PreviewCacheService } from './review/preview-cache.service';
 import { ReviewFeedService } from './review/review-feed.service';
 import { ReviewDecisionsService } from './review/review-decisions.service';
+import { FullscreenViewerService } from './review/fullscreen-viewer.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { AlbumManifestStore } from './storage/detection/album-manifest-store';
@@ -30,10 +31,7 @@ import { PanoCardComponent } from './review/pano-card/pano-card';
 import { StereoCardComponent } from './review/stereo-card/stereo-card';
 import { AlbumManagerComponent } from './album-manager/album-manager';
 import { DetectionLabComponent } from './detection/detection-lab/detection-lab';
-import {
-  FullscreenViewerComponent,
-  ViewerImage,
-} from './review/fullscreen-viewer/fullscreen-viewer';
+import { FullscreenViewerComponent } from './review/fullscreen-viewer/fullscreen-viewer';
 import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
 import { HeadsUpComponent } from './notifications/heads-up/heads-up';
@@ -86,6 +84,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly albumManifests = inject(AlbumManifestStore);
   private readonly scan = inject(BackgroundScanService);
   private readonly decisions = inject(ReviewDecisionsService);
+  private readonly viewer = inject(FullscreenViewerService);
   private readonly tagState = inject(TagState);
   private readonly tagReview = inject(TagReviewService);
   private readonly prefs = inject(PreferencesService);
@@ -158,12 +157,11 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly reviewIndex = this.feed.index;
   readonly photosLoaded = this.feed.loaded;
   readonly canLoadMore = this.feed.canLoadMore;
-  // Images shown in the full-screen viewer, or null when it's closed.
-  fullscreenImages = signal<ViewerImage[] | null>(null);
-  // Single-photo (review) mode shows verdict buttons in the viewer; burst compare shows A/B switching.
-  fullscreenReviewMode = signal(false);
-  // Which frame the viewer opens on (the tapped one, for burst compare).
-  fullscreenStartIndex = signal(0);
+  // The full-screen viewer overlay (open/close state + the open/verdict flow) lives in
+  // FullscreenViewerService; these reference its signals so the viewer's template bindings are unchanged.
+  readonly fullscreenImages = this.viewer.images;
+  readonly fullscreenReviewMode = this.viewer.reviewMode;
+  readonly fullscreenStartIndex = this.viewer.startIndex;
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
   // Preview URLs come from PreviewCacheService (the in-memory window cache); these computeds read it
   // reactively so the cards re-render as previews arrive.
@@ -454,43 +452,23 @@ export class AppComponent implements OnInit, OnDestroy {
     this.tagsManagerOpen.set(false);
   }
 
-  // Opens the current single photo full screen (true orientation) with verdict buttons to review it.
+  /** Open the current single photo full screen with verdict buttons (delegated to FullscreenViewerService). */
   openPhotoFullscreen(): void {
-    const current = this.currentReviewPhoto();
-    if (current?.kind !== 'photo') return;
-    this.fullscreenReviewMode.set(true);
-    this.fullscreenStartIndex.set(0);
-    this.fullscreenImages.set([{ label: current.name, url: this.currentReviewPhotoUrl() }]);
+    this.viewer.openPhoto();
   }
 
-  // Opens the given burst frames (the current duel pair) full screen, labelled A/B, starting on the
-  // tapped frame.
+  /** Open the current burst's frames as an A/B compare (delegated). The cards' URL map is passed through. */
   openBurstCompare(event: { ids: string[]; start: number }): void {
-    const urls = this.currentUnitImageUrls();
-    const images = event.ids.map((id, i) => ({
-      label: String.fromCharCode(65 + i),
-      url: urls.get(id),
-    }));
-    if (images.length === 0) return;
-    this.fullscreenReviewMode.set(false);
-    this.fullscreenStartIndex.set(event.start);
-    this.fullscreenImages.set(images);
+    this.viewer.openBurstCompare(event, this.currentUnitImageUrls());
   }
 
-  // A verdict from the full-screen viewer's buttons: decide the current photo, then show the next one
-  // full screen (or close if the next isn't a single photo, or the session is done).
+  /** A verdict from the viewer's buttons (delegated). */
   fullscreenVerdict(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {
-    this.decisions.decide(verdict);
-    const current = this.currentReviewPhoto();
-    if (!this.sessionDone() && current?.kind === 'photo') {
-      this.fullscreenImages.set([{ label: current.name, url: this.currentReviewPhotoUrl() }]);
-    } else {
-      this.closeFullscreen();
-    }
+    this.viewer.verdict(verdict);
   }
 
   closeFullscreen(): void {
-    this.fullscreenImages.set(null);
+    this.viewer.close();
   }
 
   /** Swipe verdict on the current unit (delegated to ReviewDecisionsService). */
