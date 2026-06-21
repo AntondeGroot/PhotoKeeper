@@ -241,6 +241,8 @@ export class AppComponent implements OnInit, OnDestroy {
   // Tag review (optional, off by default): a third review mode that labels already-sorted keepers.
   taggingEnabled = signal(false);
   tagReviewIndex = signal(0);
+  // Daily tagging goal — same scale as sorting (quick, not intensive like editing).
+  tagGoal = signal(15);
   // Which tag each swipe direction applies in Tag mode (reassignable in Settings → Tags).
   tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
   // assetId → applied tag ids, loaded from the assignment store and updated as you tag.
@@ -318,6 +320,12 @@ export class AppComponent implements OnInit, OnDestroy {
     const photo = this.currentTagPhoto();
     return photo ? (this.tagAssignments()[photo.id] ?? []) : [];
   });
+  // How many keepers have at least one tag — the Tag-mode progress against the tagging goal.
+  taggedCount = computed(
+    () =>
+      this.taggablePhotos().filter((p) => (this.tagAssignments()[p.id]?.length ?? 0) > 0).length,
+  );
+  progressTagPercent = computed(() => Math.min(100, (this.taggedCount() / this.tagGoal()) * 100));
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
   rejectedCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'rejected').length);
   toEditCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit').length);
@@ -350,6 +358,7 @@ export class AppComponent implements OnInit, OnDestroy {
     effect(() => {
       localStorage.setItem('dailyGoal', String(this.dailyGoal()));
       localStorage.setItem('editGoal', String(this.editGoal()));
+      localStorage.setItem('tagGoal', String(this.tagGoal()));
       localStorage.setItem('morningReminder', String(this.morningReminder()));
       localStorage.setItem('reminderTime', this.reminderTime());
       localStorage.setItem('silentTime', this.silentTime());
@@ -395,6 +404,8 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     const savedDailyGoal = localStorage.getItem('dailyGoal');
     if (savedDailyGoal) this.dailyGoal.set(Number(savedDailyGoal));
+    const savedTagGoal = localStorage.getItem('tagGoal');
+    if (savedTagGoal) this.tagGoal.set(Number(savedTagGoal));
     const savedEditGoal = localStorage.getItem('editGoal');
     if (savedEditGoal) this.editGoal.set(Number(savedEditGoal));
     const savedMorningReminder = localStorage.getItem('morningReminder');
