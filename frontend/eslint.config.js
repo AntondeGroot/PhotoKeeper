@@ -58,7 +58,7 @@ export default tseslint.config(
     // TODO(god-object): bring both under the global 400 cap (app.ts: finish the service-extraction
     // campaign; detection-lab.ts: split the dev lab into sub-panels).
     files: ['src/app/app.ts'],
-    rules: { 'max-lines': ['error', { max: 470, skipBlankLines: true, skipComments: true }] },
+    rules: { 'max-lines': ['error', { max: 444, skipBlankLines: true, skipComments: true }] },
   },
   {
     files: ['src/app/detection/detection-lab/detection-lab.ts'],

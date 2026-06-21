@@ -39,8 +39,9 @@ import { OnboardingComponent } from './onboarding/onboarding';
 import { HeadsUpComponent } from './notifications/heads-up/heads-up';
 import { TagManagerComponent } from './tagging/tag-manager/tag-manager';
 import { TagState } from './tagging/tag-state.service';
+import { TagReviewService } from './tagging/tag-review.service';
 import { TagReviewComponent } from './tagging/tag-review/tag-review';
-import { SWIPE_DIRS, SwipeDir, TagDirections } from './tagging/tags';
+import { SwipeDir } from './tagging/tags';
 import { PreferencesService } from './preferences.service';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
@@ -86,6 +87,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly scan = inject(BackgroundScanService);
   private readonly decisions = inject(ReviewDecisionsService);
   private readonly tagState = inject(TagState);
+  private readonly tagReview = inject(TagReviewService);
   private readonly prefs = inject(PreferencesService);
 
   // The review decisions (verdicts + burst/pano corrections) live in ReviewDecisionsService; these
@@ -130,8 +132,15 @@ export class AppComponent implements OnInit, OnDestroy {
   labMode = signal(false);
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
   reviewMode = signal<'sort' | 'edit' | 'tag'>('sort');
-  // Cursor over the keepers pool while in the Tag review step.
-  tagReviewIndex = signal(0);
+  // The Tag review step (cursor + its derived state + swipe/tag actions) lives in TagReviewService;
+  // these reference its members so existing template bindings keep working unchanged.
+  readonly tagReviewIndex = this.tagReview.cursor;
+  readonly taggablePhotos = this.tagReview.taggablePhotos;
+  readonly currentTagPhoto = this.tagReview.currentPhoto;
+  readonly currentTagPhotoUrl = this.tagReview.currentPhotoUrl;
+  readonly currentTagPhotoTagIds = this.tagReview.currentPhotoTagIds;
+  readonly taggedCount = this.tagReview.taggedCount;
+  readonly progressTagPercent = this.tagReview.progressPercent;
   // Album list (from the backend) + the ids the user has tagged as "vacation", and whether the
   // Manage-albums sub-screen is open. Vacation tags persist to localStorage like the other settings.
   albums = signal<Album[]>([]);
@@ -174,27 +183,6 @@ export class AppComponent implements OnInit, OnDestroy {
   });
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
   sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
-  // The Tag-step pool: single photos already sorted into a keeper status (not backlog, not rejected).
-  taggablePhotos = computed(() =>
-    this.reviewPhotos().filter(
-      (p): p is Photo => p.kind === 'photo' && p.status !== 'backlog' && p.status !== 'rejected',
-    ),
-  );
-  currentTagPhoto = computed(() => this.taggablePhotos()[this.tagReviewIndex()]);
-  // The current Tag-step photo's preview, and the tag ids applied to it.
-  currentTagPhotoUrl = computed(() => {
-    const photo = this.currentTagPhoto();
-    return photo ? this.previews.url(photo.id) : null;
-  });
-  currentTagPhotoTagIds = computed(() => {
-    const photo = this.currentTagPhoto();
-    return photo ? this.tagState.tagsFor(photo.id) : [];
-  });
-  // How many keepers have at least one tag — the Tag-mode progress against the tagging goal.
-  taggedCount = computed(
-    () => this.taggablePhotos().filter((p) => this.tagState.tagsFor(p.id).length > 0).length,
-  );
-  progressTagPercent = computed(() => Math.min(100, (this.taggedCount() / this.tagGoal()) * 100));
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
   rejectedCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'rejected').length);
   toEditCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit').length);
@@ -519,7 +507,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   setReviewMode(mode: 'sort' | 'edit' | 'tag'): void {
-    if (mode === 'tag') this.tagReviewIndex.set(0); // start the tag pass at the first keeper
+    if (mode === 'tag') this.tagReview.reset(); // start the tag pass at the first keeper
     this.reviewMode.set(mode);
   }
 
@@ -529,43 +517,27 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!enabled && this.reviewMode() === 'tag') this.reviewMode.set('sort');
   }
 
-  /** Swipe in Tag mode: apply that direction's bound tag to the current photo, then advance. */
+  /** Swipe in Tag mode: apply the direction's bound tag and advance (delegated to TagReviewService). */
   swipeTag(dir: SwipeDir): void {
-    const tagId = this.tagDirections()[dir];
-    const photo = this.currentTagPhoto();
-    if (!tagId || !photo) return;
-    this.tagState.apply(photo.id, tagId);
-    this.nextTagPhoto();
+    this.tagReview.swipe(dir);
   }
 
-  /** Bind (or clear) a swipe direction to a tag. A tag lives on at most one direction. */
+  /** Bind (or clear) a swipe direction to a tag (delegated). */
   setTagDirection(change: { dir: SwipeDir; tagId: string | null }): void {
-    this.tagDirections.update((dirs) => {
-      const next: TagDirections = { ...dirs };
-      if (change.tagId) {
-        for (const d of SWIPE_DIRS) if (next[d] === change.tagId) delete next[d]; // unique per tag
-        next[change.dir] = change.tagId;
-      } else {
-        delete next[change.dir];
-      }
-      return next;
-    });
+    this.tagReview.setDirection(change);
   }
 
-  /** Apply or remove a tag on the current Tag-step photo, persisting the change. */
+  /** Apply or remove a tag on the current Tag-step photo (delegated). */
   toggleTag(tagId: string): void {
-    const photo = this.currentTagPhoto();
-    if (photo) this.tagState.toggle(photo.id, tagId);
+    this.tagReview.toggle(tagId);
   }
 
   nextTagPhoto(): void {
-    if (this.tagReviewIndex() < this.taggablePhotos().length - 1) {
-      this.tagReviewIndex.update((i) => i + 1);
-    }
+    this.tagReview.next();
   }
 
   prevTagPhoto(): void {
-    if (this.tagReviewIndex() > 0) this.tagReviewIndex.update((i) => i - 1);
+    this.tagReview.prev();
   }
 
   /** Burst duel: keep the winner, reject the rest (delegated to ReviewDecisionsService). */
