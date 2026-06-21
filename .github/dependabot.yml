@@ -5,14 +5,52 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    # Group related packages into one PR. Order matters: a package joins the first group it matches, so
+    # the specific (angular) group must come before the broad minor/patch catch-alls. Majors are excluded
+    # from the catch-alls, so a major bump still gets its own PR to review.
+    groups:
+      angular:
+        # The Angular packages are versioned in lockstep — bumped together or CI breaks on peer-version
+        # constraints (e.g. @angular/core ahead of @angular/common won't install). One PR keeps them coherent.
+        patterns:
+          - "@angular*"
+          - "@angular-devkit*"
+          - "angular-eslint"
+          - "ng-packagr"
+          - "zone.js"
+      dev-minor-patch:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: maven
     directory: /backend
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    # Spring packages move together too; group them, then bundle the remaining minor/patch bumps.
+    groups:
+      spring:
+        patterns:
+          - "org.springframework*"
+          - "io.spring*"
+      maven-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    # Roll all action bumps into a single weekly PR.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
