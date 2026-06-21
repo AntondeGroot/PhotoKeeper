@@ -155,6 +155,14 @@
             (toggleVacation)="toggleVacationAlbum($event)"
             (back)="manageAlbumsOpen.set(false)"
           />
+        } @else if (tagsManagerOpen()) {
+          <app-tag-manager
+            [tags]="tags()"
+            (added)="addTag($event)"
+            (renamed)="renameTag($event)"
+            (removed)="removeTag($event)"
+            (back)="tagsManagerOpen.set(false)"
+          />
         } @else {
           <app-settings
             [dailyGoal]="dailyGoal()"
@@ -177,6 +185,7 @@
             (silentTimeChange)="silentTime.set($event)"
             (silentEveningChange)="silentEvening.set($event)"
             (manageAlbums)="manageAlbumsOpen.set(true)"
+            (manageTags)="tagsManagerOpen.set(true)"
             (deviceToggled)="toggleDevice($event)"
             (folderToggled)="toggleDeviceFolder($event)"
             (lightroomDisconnect)="disconnectLightroom()"

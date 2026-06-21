@@ -7,35 +7,43 @@
     </p>
   </div>
 
-  @if (duel(); as d) {
+  @if (duel(); as photo) {
     <div class="burst-frames">
-      <button class="burst-frame" (click)="compare.emit({ ids: [d.a.id, d.b.id], start: 0 })">
-        @if (imageUrls.get(d.a.id); as url) {
+      <button
+        class="burst-frame"
+        (click)="compare.emit({ ids: [photo.a.id, photo.b.id], start: 0 })"
+      >
+        @if (imageUrls.get(photo.a.id); as url) {
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
         <div class="frame-label">A</div>
-        <div class="frame-name">{{ d.a.name }}{{ d.a.ext ? '.' + d.a.ext : '' }}</div>
+        <div class="frame-name">{{ photo.a.name }}{{ photo.a.ext ? '.' + photo.a.ext : '' }}</div>
       </button>
-      <button class="burst-frame" (click)="compare.emit({ ids: [d.a.id, d.b.id], start: 1 })">
-        @if (imageUrls.get(d.b.id); as url) {
+      <button
+        class="burst-frame"
+        (click)="compare.emit({ ids: [photo.a.id, photo.b.id], start: 1 })"
+      >
+        @if (imageUrls.get(photo.b.id); as url) {
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
         <div class="frame-label">B</div>
-        <div class="frame-name">{{ d.b.name }}{{ d.b.ext ? '.' + d.b.ext : '' }}</div>
+        <div class="frame-name">{{ photo.b.name }}{{ photo.b.ext ? '.' + photo.b.ext : '' }}</div>
       </button>
     </div>
     <div class="burst-pick">
-      <button class="pick-btn" (click)="chooseWinner(d.a.id)">Keep A</button>
-      <button class="pick-btn" (click)="chooseWinner(d.b.id)">Keep B</button>
+      <button class="pick-btn" (click)="chooseWinner(photo.a.id)">Keep A</button>
+      <button class="pick-btn" (click)="chooseWinner(photo.b.id)">Keep B</button>
     </div>
     <p class="burst-progress">Duel {{ challengerIdx() }} of {{ totalDuels() }}</p>
-  } @else if (champion(); as champ) {
+  } @else if (champion(); as champion) {
     <div class="burst-frames">
-      <button class="burst-frame" (click)="compare.emit({ ids: [champ.id], start: 0 })">
-        @if (imageUrls.get(champ.id); as url) {
+      <button class="burst-frame" (click)="compare.emit({ ids: [champion.id], start: 0 })">
+        @if (imageUrls.get(champion.id); as url) {
           <img class="burst-frame-img" [src]="url" alt="" draggable="false" />
         }
-        <div class="frame-name">{{ champ.name }}{{ champ.ext ? '.' + champ.ext : '' }}</div>
+        <div class="frame-name">
+          {{ champion.name }}{{ champion.ext ? '.' + champion.ext : '' }}
+        </div>
       </button>
     </div>
     <div class="burst-pick">

@@ -14,7 +14,7 @@ import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService, PhotoAsset } from './lightroom.service';
 import { ReviewStore } from './storage/review-store';
 import { PreviewStore } from './storage/preview-store';
-import { StoredVerdict } from './storage/photokeeper-db';
+import { StoredVerdict, Tag } from './storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
@@ -50,6 +50,8 @@ import { FullscreenViewerComponent, ViewerImage } from './fullscreen-viewer/full
 import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
 import { HeadsUpComponent, HeadsUp } from './heads-up/heads-up';
+import { TagManagerComponent } from './tag-manager/tag-manager';
+import { TagStore } from './storage/tag-store';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
@@ -172,6 +174,7 @@ function unitAssetIds(item: ReviewItem): string[] {
     SplashComponent,
     OnboardingComponent,
     HeadsUpComponent,
+    TagManagerComponent,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -188,6 +191,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly albumManifests = inject(AlbumManifestStore);
   private readonly meta = inject(AssetMetaStore);
   private readonly groupOverrides = inject(GroupOverrideStore);
+  private readonly tagStore = inject(TagStore);
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
@@ -223,6 +227,9 @@ export class AppComponent implements OnInit, OnDestroy {
   albums = signal<Album[]>([]);
   vacationAlbumIds = signal<string[]>([]);
   manageAlbumsOpen = signal(false);
+  // User-defined content tags (Animals, Family…) and whether the Tags sub-screen is open.
+  tags = signal<Tag[]>([]);
+  tagsManagerOpen = signal(false);
   error = signal<string | null>(null);
   dailyGoal = signal(15);
   // Burst-detection window in seconds (the persisted threshold lives in DetectionSettingsService).
@@ -373,7 +380,35 @@ export class AppComponent implements OnInit, OnDestroy {
         );
       }
     }
+    void this.refreshTags(); // load the content-tag catalog (seeds defaults on first run)
     void this.init();
+  }
+
+  /** Reloads the content-tag catalog into the `tags` signal. Best-effort; never breaks the app. */
+  private async refreshTags(): Promise<void> {
+    try {
+      this.tags.set(await this.tagStore.getAll());
+    } catch {
+      // Storage unavailable — leave the current list; the manager just shows what we have.
+    }
+  }
+
+  /** Settings → Tags: add a new content tag (de-duplicated by name in the store), then refresh. */
+  async addTag(name: string): Promise<void> {
+    await this.tagStore.add(name);
+    await this.refreshTags();
+  }
+
+  /** Rename a content tag in place. */
+  async renameTag(change: { id: string; name: string }): Promise<void> {
+    await this.tagStore.rename(change.id, change.name);
+    await this.refreshTags();
+  }
+
+  /** Delete a content tag from the catalog (a removed default stays removed). */
+  async removeTag(id: string): Promise<void> {
+    await this.tagStore.remove(id);
+    await this.refreshTags();
   }
 
   private async init(): Promise<void> {
@@ -803,9 +838,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {
     this.activeTab.set(tab);
-    // Switching tabs closes the Manage-albums sub-screen, so returning to Settings lands on the main
-    // page rather than stranding anyone who missed its back arrow.
+    // Switching tabs closes the Settings sub-screens, so returning to Settings lands on the main page
+    // rather than stranding anyone who missed a back arrow.
     this.manageAlbumsOpen.set(false);
+    this.tagsManagerOpen.set(false);
   }
 
   // Opens the current single photo full screen (true orientation) with verdict buttons to review it.

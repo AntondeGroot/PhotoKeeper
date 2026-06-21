@@ -8,6 +8,14 @@
     <span class="manage-albums-chevron">&#8250;</span>
   </button>
 
+  <button class="manage-albums-card" (click)="manageTags.emit()">
+    <div class="manage-albums-text">
+      <div class="manage-albums-title">Tags</div>
+      <div class="manage-albums-sub">Label photos (Animals, Family…) to find them later</div>
+    </div>
+    <span class="manage-albums-chevron">&#8250;</span>
+  </button>
+
   <div class="settings-section-label">Sources</div>
   <div class="lightroom-card" [class.connected]="lightroomConnected">
     <div class="lightroom-head">
