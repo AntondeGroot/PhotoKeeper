@@ -7,6 +7,25 @@ export type ReviewStatus = 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint
 
 export type ReviewItem = Photo | Burst | Pano | Stereo;
 
+/** A single photo pulled from a local device folder (no Lightroom rendition to fetch). */
+export function isDevicePhoto(item: ReviewItem): boolean {
+  return item.kind === 'photo' && item.source === 'device';
+}
+
+/** Every real asset id a review unit references — its own, or all the frames of a group. */
+export function unitAssetIds(item: ReviewItem): string[] {
+  switch (item.kind) {
+    case 'photo':
+      return [item.id];
+    case 'burst':
+      return item.photos.map((p) => p.id);
+    case 'pano':
+      return item.frames.map((f) => f.id);
+    case 'stereo':
+      return [...item.left, ...item.baselines.flatMap((b) => b.frames)].map((f) => f.id);
+  }
+}
+
 /**
  * Splits an original filename into its display name and extension (without the dot). A name with no
  * usable extension (no dot, a leading dot, or a trailing dot) yields no `ext`. Used so the cards can

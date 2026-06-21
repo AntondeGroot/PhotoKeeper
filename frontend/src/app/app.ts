@@ -10,28 +10,16 @@ import {
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
-import { Album, LightroomService, PhotoAsset } from './lightroom.service';
+import { Album, LightroomService } from './lightroom.service';
 import { ReviewStore } from './storage/review/review-store';
 import { PreviewCacheService } from './review/preview-cache.service';
+import { ReviewFeedService, todayKey } from './review/review-feed.service';
 import { StoredVerdict } from './storage/photokeeper-db';
-import { DailyUnitsService } from './review/selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { AlbumManifestStore } from './storage/detection/album-manifest-store';
 import { AssetMetaStore } from './storage/review/asset-meta-store';
-import {
-  Burst,
-  BurstPhoto,
-  Pano,
-  Photo,
-  ReviewItem,
-  DEVICE_PHOTOS,
-  MOCK_PHOTOS,
-  MOCK_BURST,
-  MOCK_PANO,
-  MOCK_STEREO,
-  splitFileName,
-} from './photo';
+import { Burst, BurstPhoto, Pano, Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
 import { GroupOverrideStore } from './storage/detection/group-override-store';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
 import { SessionDoneComponent } from './review/session-done/session-done';
@@ -70,24 +58,6 @@ const SCAN_BUFFER_TARGET = 100;
 
 // Debounce before a review-triggered scan refill, so a flurry of swipes coalesces into one pass.
 const SCAN_REFILL_DEBOUNCE_MS = 4000;
-
-// Local-date key (YYYY-MM-DD) used to scope the daily selection — local so it doesn't flip a day
-// early/late at UTC midnight.
-function dateKey(d: Date): string {
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${month}-${day}`;
-}
-
-function todayKey(): string {
-  return dateKey(new Date());
-}
-
-function tomorrowKey(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return dateKey(d);
-}
 
 /** Turns a dissolved burst's frame into a standalone review photo, carrying over the burst's album. */
 function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
@@ -131,25 +101,6 @@ function panoToBurst(pano: Pano): Burst {
   };
 }
 
-/** A single photo pulled from a local device folder (no Lightroom rendition to fetch). */
-function isDevicePhoto(item: ReviewItem): boolean {
-  return item.kind === 'photo' && item.source === 'device';
-}
-
-/** Every real asset id a review unit references — its own, or all the frames of a group. */
-function unitAssetIds(item: ReviewItem): string[] {
-  switch (item.kind) {
-    case 'photo':
-      return [item.id];
-    case 'burst':
-      return item.photos.map((p) => p.id);
-    case 'pano':
-      return item.frames.map((f) => f.id);
-    case 'stereo':
-      return [...item.left, ...item.baselines.flatMap((b) => b.frames)].map((f) => f.id);
-  }
-}
-
 @Component({
   selector: 'app-root',
   imports: [
@@ -178,7 +129,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
   private readonly reviewStore = inject(ReviewStore);
   private readonly previews = inject(PreviewCacheService);
-  private readonly dailyUnits = inject(DailyUnitsService);
+  private readonly feed = inject(ReviewFeedService);
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
   private readonly albumManifests = inject(AlbumManifestStore);
@@ -224,7 +175,6 @@ export class AppComponent implements OnInit, OnDestroy {
   labMode = signal(false);
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
   reviewMode = signal<'sort' | 'edit' | 'tag'>('sort');
-  reviewIndex = signal(0);
   // Cursor over the keepers pool while in the Tag review step.
   tagReviewIndex = signal(0);
   // Album list (from the backend) + the ids the user has tagged as "vacation", and whether the
@@ -241,12 +191,12 @@ export class AppComponent implements OnInit, OnDestroy {
   // The current in-app celebration heads-up (or null). Celebrations only — earned, in-the-moment wins.
   celebration = signal<HeadsUp | null>(null);
 
-  // Lightroom photos replace the mock list once they load; until then the mock data acts as a
-  // fallback so the UI still works offline / before auth.
-  reviewPhotos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO]);
-  photosLoaded = signal(false);
-  // Whether "Review more" can still pull fresh photos; false once the population is exhausted.
-  canLoadMore = signal(true);
+  // The review deck + its loading live in ReviewFeedService; these reference its signals so existing
+  // reads/writes (decisions, computeds, template bindings) keep working unchanged.
+  readonly reviewPhotos = this.feed.photos;
+  readonly reviewIndex = this.feed.index;
+  readonly photosLoaded = this.feed.loaded;
+  readonly canLoadMore = this.feed.canLoadMore;
   // Images shown in the full-screen viewer, or null when it's closed.
   fullscreenImages = signal<ViewerImage[] | null>(null);
   // Single-photo (review) mode shows verdict buttons in the viewer; burst compare shows A/B switching.
@@ -397,7 +347,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // Device-only returning user (onboarded, no Lightroom session): the deck is just device photos.
     if (!this.authenticated() && this.onboarded()) {
       this.reviewPhotos.set([]); // drop the design-time mock fallback
-      await this.refreshDeviceDeck();
+      await this.feed.refreshDeviceDeck();
     }
     if (!returningFromLogin) await this.revealAfterSplash();
   }
@@ -419,7 +369,7 @@ export class AppComponent implements OnInit, OnDestroy {
       }
       await this.loadPhotos();
       await this.loadAlbums();
-      void this.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
+      void this.feed.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
       void this.runBackgroundScan(); // populate detection stores for future sessions
     } catch {
       // Token couldn't be validated/refreshed — fall back to onboarding.
@@ -454,42 +404,19 @@ export class AppComponent implements OnInit, OnDestroy {
     // No update channel yet; wired so the button is live the moment one lands.
   }
 
-  /** The enabled-folder device photos that should be in the deck right now (empty if device is off). */
-  private deviceDeck(): Photo[] {
-    if (!this.deviceReady()) return [];
-    const on = new Set(
-      this.deviceFolders()
-        .filter((f) => f.enabled)
-        .map((f) => f.name),
-    );
-    return DEVICE_PHOTOS.filter((p) => p.album && on.has(p.album));
-  }
-
-  // Reconciles the device photos in the deck with the current device settings: strips the existing
-  // device photos and re-appends the ones the settings now call for, with stored verdicts overlaid so
-  // swipes survive. Keeps Lightroom photos and the review index intact.
-  private async refreshDeviceDeck(): Promise<void> {
-    const verdicts = await this.reviewStore.getVerdicts();
-    const base = this.reviewPhotos().filter((p) => !isDevicePhoto(p));
-    const device = this.deviceDeck().map((p) => this.applyVerdict(p, verdicts.get(p.id)));
-    const deck = [...base, ...device];
-    this.reviewPhotos.set(deck);
-    if (this.reviewIndex() >= deck.length) this.reviewIndex.set(Math.max(0, deck.length - 1));
-  }
-
   /** Onboarding "Continue" — record setup as done and enter the app with the chosen sources. */
   async completeOnboarding(): Promise<void> {
     this.onboarded.set(true);
     // An authenticated user already had loadPhotos build the deck during init; a device-only user
     // starts from an empty base. Either way, reconcile device photos against the final settings.
     if (!this.authenticated()) this.reviewPhotos.set([]);
-    await this.refreshDeviceDeck();
+    await this.feed.refreshDeviceDeck();
   }
 
   /** Flip the master "review photos from this device" toggle, then re-sync the deck. */
   toggleDevice(enabled: boolean): void {
     this.deviceEnabled.set(enabled);
-    void this.refreshDeviceDeck();
+    void this.feed.refreshDeviceDeck();
   }
 
   /** Toggle one device folder's inclusion, then re-sync the deck. */
@@ -497,7 +424,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.deviceFolders.update((folders) =>
       folders.map((f) => (f.name === name ? { ...f, enabled: !f.enabled } : f)),
     );
-    void this.refreshDeviceDeck();
+    void this.feed.refreshDeviceDeck();
   }
 
   private async loadAlbums(): Promise<void> {
@@ -514,41 +441,10 @@ export class AppComponent implements OnInit, OnDestroy {
     );
   }
 
+  // Loads today's review deck via ReviewFeedService, surfacing any failure as a user-visible error.
   private async loadPhotos(): Promise<void> {
     try {
-      // Reuse today's already-chosen selection if we have one; otherwise sample a fresh feed and
-      // store it, so the same units come back across reloads instead of re-randomizing.
-      const today = todayKey();
-      let photos = await this.reviewStore.getDailyFeed(today);
-      if (!photos) {
-        photos = await this.selectDailyUnits();
-        if (photos.length > 0) {
-          await this.reviewStore.setDailyFeed(today, photos);
-        }
-      }
-      if (photos.length > 0) {
-        // Overlay stored verdicts so in-progress swipes survive a reload, and append any enabled
-        // device photos to the deck (device photos aren't persisted in the feed — they're rebuilt
-        // from settings each load).
-        const verdicts = await this.reviewStore.getVerdicts();
-        const deck = [...photos, ...this.deviceDeck()];
-        const withVerdicts = deck.map((p) => this.applyVerdict(p, verdicts.get(p.id)));
-        this.reviewPhotos.set(withVerdicts);
-        // Resume at the first un-reviewed photo, so a reload continues where you left off instead of
-        // re-showing photos you already decided. (Done ones stay in the set for the progress count.)
-        const firstUndone = withVerdicts.findIndex((p) => p.status === 'backlog');
-        this.reviewIndex.set(firstUndone === -1 ? 0 : firstUndone);
-        this.photosLoaded.set(true);
-        this.canLoadMore.set(true);
-        // Drop cached previews from earlier days, but keep today's selection AND tomorrow's
-        // precomputed selection — otherwise we'd evict the previews precomputeTomorrow warmed ahead.
-        const keep = new Set(withVerdicts.map((p) => p.id));
-        const tomorrow = await this.reviewStore.getDailyFeed(tomorrowKey());
-        tomorrow?.forEach((p) => keep.add(p.id));
-        void this.previews.evictDurableExcept(keep);
-        // Likewise drop stored selections for days other than today/tomorrow so they don't pile up.
-        void this.reviewStore.pruneDailyFeedExcept(new Set([today, tomorrowKey()]));
-      }
+      await this.feed.loadToday();
     } catch (e: unknown) {
       this.error.set(
         'Could not load photos: ' + (e instanceof Error ? e.message : 'unknown error'),
@@ -573,8 +469,8 @@ export class AppComponent implements OnInit, OnDestroy {
   // verdicts are re-applied on reload, so decisions for photos that survive the new sample persist.
   private async resampleDailyFeed(): Promise<void> {
     await this.reviewStore.pruneDailyFeedExcept(new Set());
-    await this.loadPhotos();
-    void this.precomputeTomorrow();
+    await this.loadPhotos(); // app wrapper surfaces any load error
+    void this.feed.precomputeTomorrow();
   }
 
   // Updates the burst-detection window (seconds) and, debounced, re-detects the whole library at the
@@ -595,71 +491,13 @@ export class AppComponent implements OnInit, OnDestroy {
     await this.resampleDailyFeed();
   }
 
-  // Appends a fresh batch of unseen photos when the user is caught up but wants to keep going. Samples
-  // generously and keeps only units no asset of which is already in the queue or already decided; if
-  // nothing new remains, the population is exhausted and the "Review more" button hides.
-  async loadMore(): Promise<void> {
-    const verdicts = await this.reviewStore.getVerdicts();
-    const inQueue = new Set(this.reviewPhotos().flatMap(unitAssetIds));
-    const isFresh = (unit: ReviewItem): boolean =>
-      unitAssetIds(unit).every(
-        (id) => !inQueue.has(id) && (verdicts.get(id)?.status ?? 'backlog') === 'backlog',
-      );
-
-    const more = (await this.selectDailyUnits(this.dailyGoal() * 3))
-      .filter(isFresh)
-      .slice(0, this.dailyGoal());
-    if (more.length === 0) {
-      this.canLoadMore.set(false);
-      return;
-    }
-    // Insert the new Lightroom units ahead of any device photos, and persist only the Lightroom feed
-    // (device photos are rebuilt from settings, never stored).
-    const base = this.reviewPhotos().filter((p) => !isDevicePhoto(p));
-    const newBase = [...base, ...more];
-    void this.reviewStore.setDailyFeed(todayKey(), newBase);
-    this.reviewPhotos.set(newBase);
-    await this.refreshDeviceDeck();
-    const next = this.reviewPhotos().findIndex((p) => p.status === 'backlog');
-    if (next !== -1) this.reviewIndex.set(next);
-  }
-
-  private async selectDailyUnits(limit: number = this.dailyGoal()): Promise<ReviewItem[]> {
-    const units = await this.dailyUnits.buildUnits(this.vacationAlbumIds(), limit);
-    if (units.length > 0) return units;
-    const data = await firstValueFrom(this.svc.getFeed(this.vacationAlbumIds(), limit));
-    return (data?.resources ?? [])
-      .filter((a) => a.subtype === 'image')
-      .map((a) => this.assetToPhoto(a));
-  }
-
-  // Warm-ahead: pick tomorrow's selection and fetch its previews into the durable store now, so
-  // opening the app tomorrow needs no feed sample and no image downloads. Idempotent (skips if
-  // tomorrow is already chosen) and best-effort (a failure just means tomorrow fetches live).
-  private async precomputeTomorrow(): Promise<void> {
-    try {
-      const tomorrow = tomorrowKey();
-      let units = await this.reviewStore.getDailyFeed(tomorrow);
-      if (!units) {
-        units = await this.selectDailyUnits();
-        if (units.length === 0) return;
-        await this.reviewStore.setDailyFeed(tomorrow, units);
-      }
-      // Warm previews into the durable store one at a time — background work, no need to flood the
-      // network. Every frame id of each unit (a single photo, or all the frames of a burst/pano/stereo)
-      // so group cards render their images instantly tomorrow, just like single photos.
-      for (const unit of units) {
-        for (const id of unitAssetIds(unit)) {
-          await this.previews.warmDurable(id);
-        }
-      }
-    } catch {
-      // Precompute is best-effort; never surface an error to the user.
-    }
+  /** "Review more" — pull a fresh batch of unseen units (delegated to ReviewFeedService). */
+  loadMore(): Promise<void> {
+    return this.feed.loadMore();
   }
 
   // Background detection pass: tops the scanned-ahead buffer back up to SCAN_BUFFER_TARGET, populating
-  // the metadata and group stores that selectDailyUnits reads. Best-effort; never blocks the UI. Only
+  // the metadata and group stores selectUnits reads. Best-effort; never blocks the UI. Only
   // scans the deficit, so a full buffer means no work — and a depleted one pulls in just what's missing.
   private async runBackgroundScan(): Promise<void> {
     if (!this.authenticated()) return; // no Lightroom session → nothing to scan
@@ -692,29 +530,6 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!this.authenticated()) return;
     if (this.scanRefillTimer) clearTimeout(this.scanRefillTimer);
     this.scanRefillTimer = setTimeout(() => void this.runBackgroundScan(), SCAN_REFILL_DEBOUNCE_MS);
-  }
-
-  private applyVerdict(item: ReviewItem, verdict: StoredVerdict | undefined): ReviewItem {
-    if (!verdict) return item;
-    // starred/keepsake only exist on single photos; groups carry just a status.
-    return item.kind === 'photo'
-      ? { ...item, status: verdict.status, starred: verdict.starred, keepsake: verdict.keepsake }
-      : { ...item, status: verdict.status };
-  }
-
-  private assetToPhoto(asset: PhotoAsset): Photo {
-    const { name, ext } = splitFileName(asset.payload?.importSource?.fileName ?? asset.id);
-    return {
-      id: asset.id,
-      name,
-      ext,
-      album: asset.album ?? null,
-      taken: asset.payload?.captureDate ?? '',
-      status: 'backlog',
-      kind: 'photo',
-      starred: false,
-      keepsake: false,
-    };
   }
 
   prevReviewPhoto(): void {
@@ -1035,7 +850,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.photosLoaded.set(false);
     this.previews.revokeAll();
     this.reviewPhotos.set([]); // drop Lightroom photos; device photos (if any) are re-added below
-    await this.refreshDeviceDeck();
+    await this.feed.refreshDeviceDeck();
   }
 
   ngOnDestroy(): void {
