@@ -1,0 +1,39 @@
+<div class="tag-manager">
+  <div class="manager-header">
+    <button class="back-btn" (click)="back.emit()" aria-label="Back to settings">&#8592;</button>
+    <h2 class="manager-title">Tags</h2>
+  </div>
+
+  <div class="tag-add">
+    <input
+      class="tag-add-input"
+      type="text"
+      placeholder="Add a tag"
+      [value]="draft()"
+      (input)="setDraft($event)"
+      (keydown.enter)="commitAdd()"
+    />
+    <button class="tag-add-btn" [disabled]="!draft().trim()" (click)="commitAdd()">Add</button>
+  </div>
+
+  <div class="tag-list">
+    @for (tag of tags; track tag.id) {
+      <div class="tag-row">
+        <input
+          class="tag-name"
+          type="text"
+          [value]="tag.name"
+          (change)="onRename(tag.id, $event)"
+        />
+        <button class="tag-delete" (click)="removed.emit(tag.id)" aria-label="Delete tag">✕</button>
+      </div>
+    } @empty {
+      <div class="tag-empty">No tags yet — add one above.</div>
+    }
+  </div>
+
+  <p class="manager-hint">
+    Tags label individual photos (e.g. Animals) so you can find them later — separate from an
+    album’s vacation/stereo profile.
+  </p>
+</div>

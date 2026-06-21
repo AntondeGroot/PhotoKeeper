@@ -37,6 +37,7 @@ export class SettingsComponent {
   @Output() silentTimeChange = new EventEmitter<string>();
   @Output() silentEveningChange = new EventEmitter<boolean>();
   @Output() manageAlbums = new EventEmitter<void>();
+  @Output() manageTags = new EventEmitter<void>();
   @Output() deviceToggled = new EventEmitter<boolean>();
   @Output() folderToggled = new EventEmitter<string>();
   @Output() lightroomDisconnect = new EventEmitter<void>();

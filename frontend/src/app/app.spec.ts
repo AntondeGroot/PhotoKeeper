@@ -10,6 +10,7 @@ import { DailyUnitsService } from './selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { GroupOverrideStore } from './storage/group-override-store';
+import { TagStore } from './storage/tag-store';
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -66,6 +67,7 @@ describe('App', () => {
         // path these tests already drive. The background scan is made inert.
         { provide: DailyUnitsService, useValue: { buildUnits: () => Promise.resolve([]) } },
         { provide: CatalogScanService, useValue: { scanAllAlbums: () => Promise.resolve() } },
+        { provide: TagStore, useValue: { getAll: () => Promise.resolve([]) } },
       ],
     }).compileComponents();
   });

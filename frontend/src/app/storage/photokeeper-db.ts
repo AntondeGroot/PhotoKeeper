@@ -14,6 +14,18 @@ export interface StoredVerdict {
 /** How an album is classified. Room to grow (e.g. 'stereo') alongside 'vacation'. */
 export type AlbumTag = 'vacation';
 
+/**
+ * A user-defined content tag (e.g. "Animals", "Family") — a per-photo label for later querying, kept
+ * in a small catalog the user edits in Settings. Distinct from {@link AlbumTag}, which is an album
+ * *profile* that changes review behaviour. `id` is stable so a rename updates every assignment for
+ * free. Eventually maps to a Lightroom keyword.
+ */
+export interface Tag {
+  id: string;
+  name: string;
+  color?: string; // optional chip colour
+}
+
 /** One asset's identity for change detection: its id plus the Lightroom `updated` revision stamp. */
 export interface AssetFingerprint {
   id: string;
@@ -104,6 +116,7 @@ export interface AlbumManifest {
  * - groupReclass: member-set signature → a "this is actually a burst/pano" user correction
  * - frameSignature: assetId → grayscale signature (Uint8Array), the pano matcher's input
  * - frameAspect: assetId → rendition width/height, the pano aspect gate's input
+ * - tags: tagId → a user-defined content tag (the editable catalog)
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -118,6 +131,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   groupReclass: { key: string; value: GroupReclass };
   frameSignature: { key: string; value: FrameSignature };
   frameAspect: { key: string; value: number };
+  tags: { key: string; value: Tag };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -129,8 +143,9 @@ export class PhotoKeeperDb {
     // v2–v8 grew the store set (see history). v9 replaced the fixed 'edgeHash' store with
     // 'frameSignature'. v10 added 'frameAspect' (the aspect gate's input) and clears signatures +
     // manifests so every album re-scans. v11 added 'groupReclass' (burst↔pano user corrections).
-    // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 11, {
+    // v12 added 'tags' (the user-defined content-tag catalog). Create-if-missing so other stores keep
+    // their data.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 12, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -152,6 +167,7 @@ export class PhotoKeeperDb {
           'groupReclass',
           'frameSignature',
           'frameAspect',
+          'tags',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);
