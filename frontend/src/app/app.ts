@@ -13,14 +13,13 @@ import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService } from './lightroom.service';
 import { ReviewStore } from './storage/review/review-store';
 import { PreviewCacheService } from './review/preview-cache.service';
-import { ReviewFeedService, todayKey } from './review/review-feed.service';
-import { StoredVerdict } from './storage/photokeeper-db';
+import { ReviewFeedService } from './review/review-feed.service';
+import { ReviewDecisionsService } from './review/review-decisions.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { AlbumManifestStore } from './storage/detection/album-manifest-store';
 import { BackgroundScanService } from './detection/background-scan.service';
-import { Burst, BurstPhoto, Pano, Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
-import { GroupOverrideStore } from './storage/detection/group-override-store';
+import { Photo, isDevicePhoto, unitAssetIds } from './photo';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
 import { SessionDoneComponent } from './review/session-done/session-done';
 import { ReviewEditComponent } from './review/review-edit/review-edit';
@@ -37,7 +36,7 @@ import {
 } from './review/fullscreen-viewer/fullscreen-viewer';
 import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
-import { HeadsUpComponent, HeadsUp } from './notifications/heads-up/heads-up';
+import { HeadsUpComponent } from './notifications/heads-up/heads-up';
 import { TagManagerComponent } from './tagging/tag-manager/tag-manager';
 import { TagState } from './tagging/tag-state.service';
 import { TagReviewComponent } from './tagging/tag-review/tag-review';
@@ -51,48 +50,6 @@ const PREFETCH_AHEAD = 5;
 // and the slogan is readable even when boot data loads faster than the animation. Covers the ~1s
 // develop + wordmark reveal plus a beat to read "for the photos you'll keep".
 const SPLASH_MIN_MS = 1800;
-
-/** Turns a dissolved burst's frame into a standalone review photo, carrying over the burst's album. */
-function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
-  return {
-    id: frame.id,
-    name: frame.name,
-    album: burst.album,
-    taken: burst.taken,
-    status: 'backlog',
-    kind: 'photo',
-    starred: false,
-    keepsake: false,
-    ai: frame.ai,
-  };
-}
-
-/** Re-types a burst as a (horizontal) pano in place, keeping its frames, album, time and status. */
-function burstToPano(burst: Burst): Pano {
-  return {
-    id: `pano:${burst.id}`,
-    name: `Panorama · ${burst.photos.length} frames`,
-    album: burst.album,
-    taken: burst.taken,
-    status: burst.status,
-    kind: 'pano',
-    orientation: 'horizontal',
-    frames: burst.photos.map((p) => ({ id: p.id, name: p.name, blur: p.blur })),
-  };
-}
-
-/** Re-types a pano as a burst in place, keeping its frames, album, time and status. */
-function panoToBurst(pano: Pano): Burst {
-  return {
-    id: `burst:${pano.id}`,
-    name: `Burst · ${pano.frames.length} frames`,
-    album: pano.album,
-    taken: pano.taken,
-    status: pano.status,
-    kind: 'burst',
-    photos: pano.frames.map((f) => ({ id: f.id, name: f.name, blur: f.blur })),
-  };
-}
 
 @Component({
   selector: 'app-root',
@@ -127,9 +84,14 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly detectionSettings = inject(DetectionSettingsService);
   private readonly albumManifests = inject(AlbumManifestStore);
   private readonly scan = inject(BackgroundScanService);
-  private readonly groupOverrides = inject(GroupOverrideStore);
+  private readonly decisions = inject(ReviewDecisionsService);
   private readonly tagState = inject(TagState);
   private readonly prefs = inject(PreferencesService);
+
+  // The review decisions (verdicts + burst/pano corrections) live in ReviewDecisionsService; these
+  // reference its signals so the celebration heads-up + edit progress bar keep working unchanged.
+  readonly celebration = this.decisions.celebration;
+  readonly editedToday = this.decisions.editedToday;
 
   // Persisted preferences live in PreferencesService; these are references to its signals so existing
   // reads/writes (and template bindings) keep working unchanged.
@@ -180,9 +142,6 @@ export class AppComponent implements OnInit, OnDestroy {
   error = signal<string | null>(null);
   // Burst-detection window in seconds (the persisted threshold lives in DetectionSettingsService).
   burstWindowSeconds = computed(() => this.detectionSettings.burstOptions().windowMs / 1000);
-  editedToday = signal(0);
-  // The current in-app celebration heads-up (or null). Celebrations only — earned, in-the-moment wins.
-  celebration = signal<HeadsUp | null>(null);
 
   // The review deck + its loading live in ReviewFeedService; these reference its signals so existing
   // reads/writes (decisions, computeds, template bindings) keep working unchanged.
@@ -261,6 +220,10 @@ export class AppComponent implements OnInit, OnDestroy {
   private burstRescanTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    // The decisions service refills the background-scan buffer after each verdict; let it re-check the
+    // live session at fire time (a disconnect mid-debounce should cancel the scan).
+    this.decisions.bindAuth(this.authenticated);
+
     // Keep the current unit's previews plus the next PREFETCH_AHEAD ones loaded, so swiping never
     // waits, and evict anything outside that window (we only ever move forward). Warms every frame id
     // of each unit — a single photo, or all the frames of a burst/pano/stereo. Guarded by
@@ -488,15 +451,11 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   prevReviewPhoto(): void {
-    if (this.reviewIndex() !== 0) {
-      this.reviewIndex.set(this.reviewIndex() - 1);
-    }
+    this.feed.back();
   }
 
   nextReviewPhoto(): void {
-    if (this.reviewIndex() < this.reviewPhotos().length - 1) {
-      this.reviewIndex.set(this.reviewIndex() + 1);
-    }
+    this.feed.advance();
   }
 
   setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {
@@ -533,7 +492,7 @@ export class AppComponent implements OnInit, OnDestroy {
   // A verdict from the full-screen viewer's buttons: decide the current photo, then show the next one
   // full screen (or close if the next isn't a single photo, or the session is done).
   fullscreenVerdict(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {
-    this.decide(verdict);
+    this.decisions.decide(verdict);
     const current = this.currentReviewPhoto();
     if (!this.sessionDone() && current?.kind === 'photo') {
       this.fullscreenImages.set([{ label: current.name, url: this.currentReviewPhotoUrl() }]);
@@ -546,41 +505,17 @@ export class AppComponent implements OnInit, OnDestroy {
     this.fullscreenImages.set(null);
   }
 
+  /** Swipe verdict on the current unit (delegated to ReviewDecisionsService). */
   decide(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {
-    const current = this.currentReviewPhoto();
-    if (!current) return;
-
-    this.reviewPhotos.update((list) =>
-      list.map((item) => (item.id === current.id ? { ...item, status: verdict } : item)),
-    );
-    void this.persistVerdict(current.id);
-    this.nextReviewPhoto();
+    this.decisions.decide(verdict);
   }
 
   toggleStar(): void {
-    const current = this.currentReviewPhoto();
-    if (!current) return;
-    this.reviewPhotos.update((list) =>
-      list.map((item) =>
-        item.id === current.id && item.kind === 'photo'
-          ? { ...item, starred: !item.starred }
-          : item,
-      ),
-    );
-    void this.persistVerdict(current.id);
+    this.decisions.toggleStar();
   }
 
   toggleKeepsake(): void {
-    const current = this.currentReviewPhoto();
-    if (!current) return;
-    this.reviewPhotos.update((list) =>
-      list.map((item) =>
-        item.id === current.id && item.kind === 'photo'
-          ? { ...item, keepsake: !item.keepsake }
-          : item,
-      ),
-    );
-    void this.persistVerdict(current.id);
+    this.decisions.toggleKeepsake();
   }
 
   setReviewMode(mode: 'sort' | 'edit' | 'tag'): void {
@@ -633,151 +568,32 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.tagReviewIndex() > 0) this.tagReviewIndex.update((i) => i - 1);
   }
 
-  // Resolves a burst's duel: the winning frame is kept, every other frame rejected. Marks the burst
-  // unit done (so it leaves the queue and counts toward the goal) and persists per-frame verdicts.
+  /** Burst duel: keep the winner, reject the rest (delegated to ReviewDecisionsService). */
   resolveBurst(winnerId: string): void {
-    const current = this.currentReviewPhoto();
-    if (current?.kind !== 'burst') return;
-    this.reviewPhotos.update((list) =>
-      list.map((item) => (item.id === current.id ? { ...item, status: 'kept' as const } : item)),
-    );
-    void this.persistVerdict(current.id); // burst unit itself: done, survives reload
-    for (const frame of current.photos) {
-      const status = frame.id === winnerId ? ('kept' as const) : ('rejected' as const);
-      void this.reviewStore.setVerdict(frame.id, { status, starred: false, keepsake: false });
-    }
-    this.nextReviewPhoto();
+    this.decisions.resolveBurst(winnerId);
   }
 
   rejectBurst(): void {
-    const current = this.currentReviewPhoto();
-    if (!current) return;
-    this.reviewPhotos.update((list) =>
-      list.map((item) =>
-        item.id === current.id ? { ...item, status: 'rejected' as const } : item,
-      ),
-    );
-    void this.persistVerdict(current.id);
-    this.nextReviewPhoto();
+    this.decisions.rejectBurst();
   }
 
-  // "Not a burst" — the user says these frames aren't a real group. Replace the burst with its frames
-  // as individual photos to review now, and record an override so the group stays dissolved across
-  // reloads and re-scans (selection drops it). Stays put on the first frame.
+  /** "Not a burst" — dissolve the group into individual photos (delegated). */
   dissolveBurst(): void {
-    const current = this.currentReviewPhoto();
-    if (current?.kind !== 'burst') return;
-    const singles = current.photos.map((frame) => burstFrameToPhoto(frame, current));
-    this.reviewPhotos.update((list) =>
-      list.flatMap((item) => (item.id === current.id ? singles : [item])),
-    );
-    void this.reviewStore.setDailyFeed(todayKey(), this.reviewPhotos());
-    void this.recordDissolve(current);
+    this.decisions.dissolveBurst();
   }
 
-  // Persists the "not a group" override so the group stays dissolved across reloads and re-scans.
-  // Deliberately records no threshold-calibration signal: a dissolve can mean "I want both" just as
-  // much as "detection was wrong", so it isn't reliable evidence the threshold is too loose.
-  private async recordDissolve(burst: Burst): Promise<void> {
-    try {
-      await this.groupOverrides.dissolve({
-        memberIds: burst.photos.map((p) => p.id),
-        dissolvedAt: Date.now(),
-      });
-    } catch {
-      // Best-effort correction; never break the review flow.
-    }
-  }
-
-  // "This is actually a pano" — relabel the current burst, swap its card in place, and persist the
-  // correction so it survives reloads + re-scans. Orientation defaults to horizontal (the user can't
-  // pick one from a single button). Stays put on the same unit.
+  /** "This is actually a pano" — relabel the current burst (delegated). */
   markBurstAsPano(): void {
-    const current = this.currentReviewPhoto();
-    if (current?.kind !== 'burst') return;
-    const pano = burstToPano(current);
-    this.replaceCurrentUnit(current, pano);
-    void this.recordReclassify(
-      current.photos.map((p) => p.id),
-      'pano',
-      'horizontal',
-    );
+    this.decisions.markBurstAsPano();
   }
 
-  // "This is actually a burst" — relabel the current pano and swap its card in place.
+  /** "This is actually a burst" — relabel the current pano (delegated). */
   markPanoAsBurst(): void {
-    const current = this.currentReviewPhoto();
-    if (current?.kind !== 'pano') return;
-    const burst = panoToBurst(current);
-    this.replaceCurrentUnit(current, burst);
-    void this.recordReclassify(
-      current.frames.map((f) => f.id),
-      'burst',
-    );
-  }
-
-  // Swaps one review unit for a re-typed version of itself (burst↔pano), keeping its place + status,
-  // and re-persists the day's feed so the relabel survives a reload.
-  private replaceCurrentUnit(from: ReviewItem, to: ReviewItem): void {
-    this.reviewPhotos.update((list) => list.map((item) => (item.id === from.id ? to : item)));
-    void this.reviewStore.setDailyFeed(todayKey(), this.reviewPhotos());
-  }
-
-  private async recordReclassify(
-    memberIds: string[],
-    type: 'burst' | 'pano',
-    orientation?: 'horizontal' | 'vertical',
-  ): Promise<void> {
-    try {
-      await this.groupOverrides.reclassify({ memberIds, type, orientation, at: Date.now() });
-    } catch {
-      // Best-effort correction; never break the review flow.
-    }
+    this.decisions.markPanoAsBurst();
   }
 
   promoteToPrint(id: string): void {
-    this.reviewPhotos.update((list) =>
-      list.map((item) => (item.id === id ? { ...item, status: 'toPrint' as const } : item)),
-    );
-    void this.persistVerdict(id);
-    this.editedToday.update((n) => n + 1);
-  }
-
-  // Saves the (already-updated) review item's verdict to IndexedDB so it survives a reload.
-  // Best-effort: a storage failure must not break the review flow.
-  private async persistVerdict(id: string): Promise<void> {
-    const item = this.reviewPhotos().find((p) => p.id === id);
-    if (!item) return;
-    const verdict: StoredVerdict = {
-      status: item.status,
-      starred: item.kind === 'photo' ? item.starred : false,
-      keepsake: item.kind === 'photo' ? item.keepsake : false,
-    };
-    try {
-      await this.reviewStore.setVerdict(id, verdict);
-    } catch {
-      /* ignore */
-    }
-    // A review decision shrinks the scanned-ahead buffer — top it back up (debounced).
-    this.scan.scheduleRefill(this.authenticated);
-    // A decision may have just carried the day's count over the sorting goal — celebrate it.
-    this.maybeCelebrateGoal();
-  }
-
-  // Fires the in-app "goal hit" celebration the moment the day's reviewed count reaches the sorting
-  // goal — once per day (persisted), so reopening the app after finishing doesn't re-congratulate you.
-  private maybeCelebrateGoal(): void {
-    if (!this.photosLoaded()) return;
-    const goal = this.dailyGoal();
-    if (goal <= 0 || this.doneToday() < goal) return;
-    const today = todayKey();
-    if (localStorage.getItem('celebratedGoal') === today) return;
-    localStorage.setItem('celebratedGoal', today);
-    this.celebration.set({
-      icon: '🎉',
-      title: `That's ${goal} — daily goal done`,
-      text: 'Lovely work. Everything from here is a bonus.',
-    });
+    this.decisions.promoteToPrint(id);
   }
 
   private groupByAlbum(photos: Photo[]): { album: string; photos: Photo[] }[] {
