@@ -15,7 +15,7 @@ import { Album, LightroomService, PhotoAsset } from './lightroom.service';
 import { ReviewStore } from './storage/review/review-store';
 import { PreviewStore } from './storage/review/preview-store';
 import { StoredVerdict, Tag } from './storage/photokeeper-db';
-import { DailyUnitsService } from './selection/daily-units.service';
+import { DailyUnitsService } from './review/selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { AlbumManifestStore } from './storage/detection/album-manifest-store';
@@ -36,25 +36,28 @@ import {
   splitFileName,
 } from './photo';
 import { GroupOverrideStore } from './storage/detection/group-override-store';
-import { ReviewSortComponent } from './review-sort/review-sort';
-import { SessionDoneComponent } from './session-done/session-done';
-import { ReviewEditComponent } from './review-edit/review-edit';
+import { ReviewSortComponent } from './review/review-sort/review-sort';
+import { SessionDoneComponent } from './review/session-done/session-done';
+import { ReviewEditComponent } from './review/review-edit/review-edit';
 import { PipelineComponent } from './pipeline/pipeline';
 import { SettingsComponent } from './settings/settings';
-import { BurstCardComponent } from './burst-card/burst-card';
-import { PanoCardComponent } from './pano-card/pano-card';
-import { StereoCardComponent } from './stereo-card/stereo-card';
+import { BurstCardComponent } from './review/burst-card/burst-card';
+import { PanoCardComponent } from './review/pano-card/pano-card';
+import { StereoCardComponent } from './review/stereo-card/stereo-card';
 import { AlbumManagerComponent } from './album-manager/album-manager';
-import { DetectionLabComponent } from './detection-lab/detection-lab';
-import { FullscreenViewerComponent, ViewerImage } from './fullscreen-viewer/fullscreen-viewer';
+import { DetectionLabComponent } from './detection/detection-lab/detection-lab';
+import {
+  FullscreenViewerComponent,
+  ViewerImage,
+} from './review/fullscreen-viewer/fullscreen-viewer';
 import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
-import { HeadsUpComponent, HeadsUp } from './heads-up/heads-up';
-import { TagManagerComponent } from './tag-manager/tag-manager';
+import { HeadsUpComponent, HeadsUp } from './notifications/heads-up/heads-up';
+import { TagManagerComponent } from './tagging/tag-manager/tag-manager';
 import { TagStore } from './storage/tags/tag-store';
 import { AssetTagStore } from './storage/tags/asset-tag-store';
-import { TagReviewComponent } from './tag-review/tag-review';
-import { DEFAULT_TAG_DIRECTIONS, SWIPE_DIRS, SwipeDir, TagDirections } from './tags';
+import { TagReviewComponent } from './tagging/tag-review/tag-review';
+import { DEFAULT_TAG_DIRECTIONS, SWIPE_DIRS, SwipeDir, TagDirections } from './tagging/tags';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;

@@ -6,7 +6,7 @@ import { Photo, ReviewItem } from './photo';
 import { ReviewStore } from './storage/review/review-store';
 import { PreviewStore } from './storage/review/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
-import { DailyUnitsService } from './selection/daily-units.service';
+import { DailyUnitsService } from './review/selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { GroupOverrideStore } from './storage/detection/group-override-store';
