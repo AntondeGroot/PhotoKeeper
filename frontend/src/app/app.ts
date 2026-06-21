@@ -13,7 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService, PhotoAsset } from './lightroom.service';
 import { ReviewStore } from './storage/review/review-store';
 import { PreviewCacheService } from './review/preview-cache.service';
-import { StoredVerdict, Tag } from './storage/photokeeper-db';
+import { StoredVerdict } from './storage/photokeeper-db';
 import { DailyUnitsService } from './review/selection/daily-units.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
@@ -51,8 +51,7 @@ import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
 import { HeadsUpComponent, HeadsUp } from './notifications/heads-up/heads-up';
 import { TagManagerComponent } from './tagging/tag-manager/tag-manager';
-import { TagStore } from './storage/tags/tag-store';
-import { AssetTagStore } from './storage/tags/asset-tag-store';
+import { TagState } from './tagging/tag-state.service';
 import { TagReviewComponent } from './tagging/tag-review/tag-review';
 import { SWIPE_DIRS, SwipeDir, TagDirections } from './tagging/tags';
 import { PreferencesService } from './preferences.service';
@@ -185,8 +184,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly albumManifests = inject(AlbumManifestStore);
   private readonly meta = inject(AssetMetaStore);
   private readonly groupOverrides = inject(GroupOverrideStore);
-  private readonly tagStore = inject(TagStore);
-  private readonly assetTags = inject(AssetTagStore);
+  private readonly tagState = inject(TagState);
   private readonly prefs = inject(PreferencesService);
 
   // Persisted preferences live in PreferencesService; these are references to its signals so existing
@@ -229,14 +227,12 @@ export class AppComponent implements OnInit, OnDestroy {
   reviewIndex = signal(0);
   // Cursor over the keepers pool while in the Tag review step.
   tagReviewIndex = signal(0);
-  // assetId → applied tag ids, loaded from the assignment store and updated as you tag.
-  private readonly tagAssignments = signal<Record<string, string[]>>({});
   // Album list (from the backend) + the ids the user has tagged as "vacation", and whether the
   // Manage-albums sub-screen is open. Vacation tags persist to localStorage like the other settings.
   albums = signal<Album[]>([]);
   manageAlbumsOpen = signal(false);
-  // User-defined content tags (Animals, Family…) and whether the Tags sub-screen is open.
-  tags = signal<Tag[]>([]);
+  // Content-tag catalog + assignments live in TagState; `tags` is referenced for template bindings.
+  readonly tags = this.tagState.tags;
   tagsManagerOpen = signal(false);
   error = signal<string | null>(null);
   // Burst-detection window in seconds (the persisted threshold lives in DetectionSettingsService).
@@ -290,12 +286,11 @@ export class AppComponent implements OnInit, OnDestroy {
   });
   currentTagPhotoTagIds = computed(() => {
     const photo = this.currentTagPhoto();
-    return photo ? (this.tagAssignments()[photo.id] ?? []) : [];
+    return photo ? this.tagState.tagsFor(photo.id) : [];
   });
   // How many keepers have at least one tag — the Tag-mode progress against the tagging goal.
   taggedCount = computed(
-    () =>
-      this.taggablePhotos().filter((p) => (this.tagAssignments()[p.id]?.length ?? 0) > 0).length,
+    () => this.taggablePhotos().filter((p) => this.tagState.tagsFor(p.id).length > 0).length,
   );
   progressTagPercent = computed(() => Math.min(100, (this.taggedCount() / this.tagGoal()) * 100));
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
@@ -352,45 +347,21 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     // Persisted preferences are loaded by PreferencesService on construction; just kick off the rest.
-    void this.refreshTags(); // load the content-tag catalog (seeds defaults on first run)
+    void this.tagState.refresh(); // load the content-tag catalog (seeds defaults on first run)
     void this.init();
   }
 
-  /**
-   * Reloads the content-tag catalog and per-photo assignments — independently, so a failure loading
-   * one never hides the other (and so an error is visible rather than silently swallowed).
-   */
-  private async refreshTags(): Promise<void> {
-    try {
-      this.tags.set(await this.tagStore.getAll());
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Tag catalog failed to load', e);
-    }
-    try {
-      this.tagAssignments.set(await this.assetTags.getAll());
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Tag assignments failed to load', e);
-    }
+  /** Settings → Tags: add / rename / delete a content tag (delegated to TagState). */
+  addTag(name: string): void {
+    void this.tagState.add(name);
   }
 
-  /** Settings → Tags: add a new content tag (de-duplicated by name in the store), then refresh. */
-  async addTag(name: string): Promise<void> {
-    await this.tagStore.add(name);
-    await this.refreshTags();
+  renameTag(change: { id: string; name: string }): void {
+    void this.tagState.rename(change.id, change.name);
   }
 
-  /** Rename a content tag in place. */
-  async renameTag(change: { id: string; name: string }): Promise<void> {
-    await this.tagStore.rename(change.id, change.name);
-    await this.refreshTags();
-  }
-
-  /** Delete a content tag from the catalog (a removed default stays removed). */
-  async removeTag(id: string): Promise<void> {
-    await this.tagStore.remove(id);
-    await this.refreshTags();
+  removeTag(id: string): void {
+    void this.tagState.remove(id);
   }
 
   private async init(): Promise<void> {
@@ -858,12 +829,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const tagId = this.tagDirections()[dir];
     const photo = this.currentTagPhoto();
     if (!tagId || !photo) return;
-    const current = this.tagAssignments()[photo.id] ?? [];
-    if (!current.includes(tagId)) {
-      const next = [...current, tagId];
-      this.tagAssignments.update((map) => ({ ...map, [photo.id]: next }));
-      void this.assetTags.set(photo.id, next);
-    }
+    this.tagState.apply(photo.id, tagId);
     this.nextTagPhoto();
   }
 
@@ -884,11 +850,7 @@ export class AppComponent implements OnInit, OnDestroy {
   /** Apply or remove a tag on the current Tag-step photo, persisting the change. */
   toggleTag(tagId: string): void {
     const photo = this.currentTagPhoto();
-    if (!photo) return;
-    const current = this.tagAssignments()[photo.id] ?? [];
-    const next = current.includes(tagId) ? current.filter((t) => t !== tagId) : [...current, tagId];
-    this.tagAssignments.update((map) => ({ ...map, [photo.id]: next }));
-    void this.assetTags.set(photo.id, next);
+    if (photo) this.tagState.toggle(photo.id, tagId);
   }
 
   nextTagPhoto(): void {
