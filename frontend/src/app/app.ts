@@ -22,11 +22,9 @@ import { AssetMetaStore } from './storage/review/asset-meta-store';
 import {
   Burst,
   BurstPhoto,
-  DeviceFolder,
   Pano,
   Photo,
   ReviewItem,
-  DEVICE_FOLDERS,
   DEVICE_PHOTOS,
   MOCK_PHOTOS,
   MOCK_BURST,
@@ -56,7 +54,8 @@ import { TagManagerComponent } from './tagging/tag-manager/tag-manager';
 import { TagStore } from './storage/tags/tag-store';
 import { AssetTagStore } from './storage/tags/asset-tag-store';
 import { TagReviewComponent } from './tagging/tag-review/tag-review';
-import { DEFAULT_TAG_DIRECTIONS, SWIPE_DIRS, SwipeDir, TagDirections } from './tagging/tags';
+import { SWIPE_DIRS, SwipeDir, TagDirections } from './tagging/tags';
+import { PreferencesService } from './preferences.service';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
@@ -83,17 +82,6 @@ function dateKey(d: Date): string {
 
 function todayKey(): string {
   return dateKey(new Date());
-}
-
-/** Reads + parses a JSON localStorage value, or null if absent/corrupt. */
-function readJson(key: string): unknown {
-  const raw = localStorage.getItem(key);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
 }
 
 function tomorrowKey(): string {
@@ -199,6 +187,23 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly groupOverrides = inject(GroupOverrideStore);
   private readonly tagStore = inject(TagStore);
   private readonly assetTags = inject(AssetTagStore);
+  private readonly prefs = inject(PreferencesService);
+
+  // Persisted preferences live in PreferencesService; these are references to its signals so existing
+  // reads/writes (and template bindings) keep working unchanged.
+  readonly dailyGoal = this.prefs.dailyGoal;
+  readonly editGoal = this.prefs.editGoal;
+  readonly tagGoal = this.prefs.tagGoal;
+  readonly morningReminder = this.prefs.morningReminder;
+  readonly reminderTime = this.prefs.reminderTime;
+  readonly silentTime = this.prefs.silentTime;
+  readonly silentEvening = this.prefs.silentEvening;
+  readonly taggingEnabled = this.prefs.taggingEnabled;
+  readonly tagDirections = this.prefs.tagDirections;
+  readonly vacationAlbumIds = this.prefs.vacationAlbumIds;
+  readonly onboarded = this.prefs.onboarded;
+  readonly deviceEnabled = this.prefs.deviceEnabled;
+  readonly deviceFolders = this.prefs.deviceFolders;
 
   readonly loginHref = this.svc.loginHref();
   loading = signal(true);
@@ -209,16 +214,9 @@ export class AppComponent implements OnInit, OnDestroy {
   // yet, and an offline mode that keeps a valid session needs its own auth-flow change).
   splashState = signal<SplashState>('normal');
   authenticated = signal(false);
-  // First-run setup is done (Lightroom connected and/or this device accepted). Until then the
-  // onboarding screen shows instead of the app. Persisted so it's a true first-run-only gate.
-  onboarded = signal(false);
   // True while a Lightroom token is being verified (after the OAuth redirect) — drives the golden
   // spinner on the onboarding connect button.
   connecting = signal(false);
-  // "This device" photo source: a master toggle plus which local folders to include. Mock data in the
-  // web PoC (see DEVICE_FOLDERS); persisted to localStorage like the other settings.
-  deviceEnabled = signal(false);
-  deviceFolders = signal<DeviceFolder[]>(DEVICE_FOLDERS.map((f) => ({ ...f })));
   // Device source is "ready" (contributes photos / satisfies onboarding) only when it's on AND at
   // least one folder is selected.
   deviceReady = computed(() => this.deviceEnabled() && this.deviceFolders().some((f) => f.enabled));
@@ -229,35 +227,23 @@ export class AppComponent implements OnInit, OnDestroy {
   activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
   reviewMode = signal<'sort' | 'edit' | 'tag'>('sort');
   reviewIndex = signal(0);
-  // Tag review (optional, off by default): a third review mode that labels already-sorted keepers.
-  taggingEnabled = signal(false);
+  // Cursor over the keepers pool while in the Tag review step.
   tagReviewIndex = signal(0);
-  // Daily tagging goal — same scale as sorting (quick, not intensive like editing).
-  tagGoal = signal(15);
-  // Which tag each swipe direction applies in Tag mode (reassignable in Settings → Tags).
-  tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
   // assetId → applied tag ids, loaded from the assignment store and updated as you tag.
   private readonly tagAssignments = signal<Record<string, string[]>>({});
   // Album list (from the backend) + the ids the user has tagged as "vacation", and whether the
   // Manage-albums sub-screen is open. Vacation tags persist to localStorage like the other settings.
   albums = signal<Album[]>([]);
-  vacationAlbumIds = signal<string[]>([]);
   manageAlbumsOpen = signal(false);
   // User-defined content tags (Animals, Family…) and whether the Tags sub-screen is open.
   tags = signal<Tag[]>([]);
   tagsManagerOpen = signal(false);
   error = signal<string | null>(null);
-  dailyGoal = signal(15);
   // Burst-detection window in seconds (the persisted threshold lives in DetectionSettingsService).
   burstWindowSeconds = computed(() => this.detectionSettings.burstOptions().windowMs / 1000);
-  editGoal = signal(3);
   editedToday = signal(0);
   // The current in-app celebration heads-up (or null). Celebrations only — earned, in-the-moment wins.
   celebration = signal<HeadsUp | null>(null);
-  morningReminder = signal(true);
-  reminderTime = signal('09:00');
-  silentTime = signal('21:00');
-  silentEvening = signal(true);
 
   // Lightroom photos replace the mock list once they load; until then the mock data acts as a
   // fallback so the UI still works offline / before auth.
@@ -339,27 +325,6 @@ export class AppComponent implements OnInit, OnDestroy {
   private scanRefillTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    effect(() => {
-      localStorage.setItem('dailyGoal', String(this.dailyGoal()));
-      localStorage.setItem('editGoal', String(this.editGoal()));
-      localStorage.setItem('tagGoal', String(this.tagGoal()));
-      localStorage.setItem('morningReminder', String(this.morningReminder()));
-      localStorage.setItem('reminderTime', this.reminderTime());
-      localStorage.setItem('silentTime', this.silentTime());
-      localStorage.setItem('silentEvening', String(this.silentEvening()));
-      localStorage.setItem('taggingEnabled', String(this.taggingEnabled()));
-      localStorage.setItem('tagDirections', JSON.stringify(this.tagDirections()));
-      localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
-      localStorage.setItem('onboarded', String(this.onboarded()));
-      localStorage.setItem('deviceEnabled', String(this.deviceEnabled()));
-      // Persist only the per-folder enabled flags by name, so changing the folder catalogue later
-      // doesn't strand stale entries.
-      const enabledFolders = this.deviceFolders()
-        .filter((f) => f.enabled)
-        .map((f) => f.name);
-      localStorage.setItem('deviceFolders', JSON.stringify(enabledFolders));
-    });
-
     // Keep the current unit's previews plus the next PREFETCH_AHEAD ones loaded, so swiping never
     // waits, and evict anything outside that window (we only ever move forward). Warms every frame id
     // of each unit — a single photo, or all the frames of a burst/pano/stereo. Guarded by
@@ -386,43 +351,9 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    const savedDailyGoal = localStorage.getItem('dailyGoal');
-    if (savedDailyGoal) this.dailyGoal.set(Number(savedDailyGoal));
-    const savedTagGoal = localStorage.getItem('tagGoal');
-    if (savedTagGoal) this.tagGoal.set(Number(savedTagGoal));
-    const savedEditGoal = localStorage.getItem('editGoal');
-    if (savedEditGoal) this.editGoal.set(Number(savedEditGoal));
-    const savedMorningReminder = localStorage.getItem('morningReminder');
-    if (savedMorningReminder) this.morningReminder.set(savedMorningReminder === 'true');
-    const savedReminderTime = localStorage.getItem('reminderTime');
-    if (savedReminderTime) this.reminderTime.set(savedReminderTime);
-    const savedSilentTime = localStorage.getItem('silentTime');
-    if (savedSilentTime) this.silentTime.set(savedSilentTime);
-    const savedSilentEvening = localStorage.getItem('silentEvening');
-    if (savedSilentEvening) this.silentEvening.set(savedSilentEvening === 'true');
-    this.taggingEnabled.set(localStorage.getItem('taggingEnabled') === 'true');
-    this.onboarded.set(localStorage.getItem('onboarded') === 'true');
-    this.deviceEnabled.set(localStorage.getItem('deviceEnabled') === 'true');
-    this.restoreJsonSettings();
+    // Persisted preferences are loaded by PreferencesService on construction; just kick off the rest.
     void this.refreshTags(); // load the content-tag catalog (seeds defaults on first run)
     void this.init();
-  }
-
-  /** Restores the JSON-encoded settings (tag directions, vacation ids, device folders) from storage. */
-  private restoreJsonSettings(): void {
-    const dirs: unknown = readJson('tagDirections');
-    if (dirs && typeof dirs === 'object') this.tagDirections.set(dirs);
-
-    const vacation: unknown = readJson('vacationAlbumIds');
-    if (Array.isArray(vacation)) {
-      this.vacationAlbumIds.set(vacation.filter((id): id is string => typeof id === 'string'));
-    }
-
-    const folders: unknown = readJson('deviceFolders');
-    if (Array.isArray(folders)) {
-      const on = new Set(folders.filter((n): n is string => typeof n === 'string'));
-      this.deviceFolders.update((list) => list.map((f) => ({ ...f, enabled: on.has(f.name) })));
-    }
   }
 
   /**
