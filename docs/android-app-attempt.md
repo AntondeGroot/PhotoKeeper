@@ -53,12 +53,12 @@ const config: CapacitorConfig = {
 
 ### 2. CORS (backend `CorsConfig.java`)
 
-The native WebView makes API calls from a non-localhost-4200 origin, so the backend must
+The native WebView makes API calls from a non-localhost-6200 origin, so the backend must
 allow the WebView origins:
 
 ```java
 .allowedOrigins(
-    "http://localhost:4200",   // Angular dev server
+    "http://localhost:6200",   // Angular dev server
     "https://localhost",       // Capacitor WebView (androidScheme: 'https')
     "capacitor://localhost")   // Capacitor WebView (default scheme)
 ```

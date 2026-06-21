@@ -45,7 +45,7 @@ class AuthControllerTest {
 
     @Test
     void callbackWithErrorRedirectsToFrontendWithError() throws Exception {
-        when(config.getFrontendUrl()).thenReturn("http://localhost:4200");
+        when(config.getFrontendUrl()).thenReturn("http://localhost:6200");
 
         mockMvc.perform(get("/api/auth/callback").param("error", "access_denied"))
                 .andExpect(status().is3xxRedirection())
@@ -56,18 +56,18 @@ class AuthControllerTest {
     void callbackWithCodeRedirectsWithTokensInFragment() throws Exception {
         when(imsTokenService.exchangeCode("test-code"))
                 .thenReturn(new TokenResponse("acc", "ref", 3599));
-        when(config.getFrontendUrl()).thenReturn("http://localhost:4200");
+        when(config.getFrontendUrl()).thenReturn("http://localhost:6200");
 
         mockMvc.perform(get("/api/auth/callback").param("code", "test-code"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(header().string(
-                        "Location", "http://localhost:4200#access_token=acc&refresh_token=ref&expires_in=3599"));
+                        "Location", "http://localhost:6200#access_token=acc&refresh_token=ref&expires_in=3599"));
     }
 
     @Test
     void callbackWhenExchangeFailsRedirectsWithError() throws Exception {
         when(imsTokenService.exchangeCode(any())).thenThrow(new RuntimeException("exchange failed"));
-        when(config.getFrontendUrl()).thenReturn("http://localhost:4200");
+        when(config.getFrontendUrl()).thenReturn("http://localhost:6200");
 
         mockMvc.perform(get("/api/auth/callback").param("code", "bad-code"))
                 .andExpect(status().is3xxRedirection())
