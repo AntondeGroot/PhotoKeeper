@@ -117,6 +117,7 @@ export interface AlbumManifest {
  * - frameSignature: assetId → grayscale signature (Uint8Array), the pano matcher's input
  * - frameAspect: assetId → rendition width/height, the pano aspect gate's input
  * - tags: tagId → a user-defined content tag (the editable catalog)
+ * - assetTags: assetId → the tag ids applied to that photo (the Tag-mode assignments)
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -132,6 +133,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   frameSignature: { key: string; value: FrameSignature };
   frameAspect: { key: string; value: number };
   tags: { key: string; value: Tag };
+  assetTags: { key: string; value: string[] };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -143,9 +145,9 @@ export class PhotoKeeperDb {
     // v2–v8 grew the store set (see history). v9 replaced the fixed 'edgeHash' store with
     // 'frameSignature'. v10 added 'frameAspect' (the aspect gate's input) and clears signatures +
     // manifests so every album re-scans. v11 added 'groupReclass' (burst↔pano user corrections).
-    // v12 added 'tags' (the user-defined content-tag catalog). Create-if-missing so other stores keep
-    // their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 12, {
+    // v12 added 'tags' (the user-defined content-tag catalog); v13 added 'assetTags' (Tag-mode
+    // per-photo assignments). Create-if-missing so other stores keep their data.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 13, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -168,6 +170,7 @@ export class PhotoKeeperDb {
           'frameSignature',
           'frameAspect',
           'tags',
+          'assetTags',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

@@ -23,6 +23,7 @@ export class SettingsComponent {
   @Input() reminderTime: string = '09:00';
   @Input() silentTime: string = '21:00';
   @Input() silentEvening: boolean = false;
+  @Input() taggingEnabled: boolean = false;
   @Input() burstWindowSeconds = 3;
   @Input() deviceEnabled = false;
   @Input() deviceFolders: DeviceFolder[] = [];
@@ -36,6 +37,7 @@ export class SettingsComponent {
   @Output() reminderTimeChange = new EventEmitter<string>();
   @Output() silentTimeChange = new EventEmitter<string>();
   @Output() silentEveningChange = new EventEmitter<boolean>();
+  @Output() taggingEnabledChange = new EventEmitter<boolean>();
   @Output() manageAlbums = new EventEmitter<void>();
   @Output() manageTags = new EventEmitter<void>();
   @Output() deviceToggled = new EventEmitter<boolean>();

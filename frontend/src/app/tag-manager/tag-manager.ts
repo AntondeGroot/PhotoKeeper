@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { Tag } from '../storage/photokeeper-db';
+import { DIR_ARROW, DIR_LABEL, SWIPE_DIRS, SwipeDir, TagDirections } from '../tags';
 
 /**
  * The content-tag catalog editor (Settings → Tags). Presentational: the host owns the {@link TagStore}
@@ -21,13 +22,25 @@ import { Tag } from '../storage/photokeeper-db';
 })
 export class TagManagerComponent {
   @Input() tags: Tag[] = [];
+  @Input() directions: TagDirections = {};
   @Output() added = new EventEmitter<string>();
   @Output() renamed = new EventEmitter<{ id: string; name: string }>();
   @Output() removed = new EventEmitter<string>();
+  /** A swipe direction was bound to a tag id (or unbound when null). */
+  @Output() directionChanged = new EventEmitter<{ dir: SwipeDir; tagId: string | null }>();
   @Output() back = new EventEmitter<void>();
+
+  protected readonly dirs = SWIPE_DIRS;
+  protected readonly arrow = DIR_ARROW;
+  protected readonly dirLabel = DIR_LABEL;
 
   /** The draft name in the "add a tag" field. */
   protected readonly draft = signal('');
+
+  protected onDirectionChange(dir: SwipeDir, event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.directionChanged.emit({ dir, tagId: value || null });
+  }
 
   protected setDraft(event: Event): void {
     this.draft.set((event.target as HTMLInputElement).value);

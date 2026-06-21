@@ -32,6 +32,22 @@
     }
   </div>
 
+  <div class="dir-section">
+    <div class="dir-title">Swipe directions</div>
+    <p class="dir-sub">In the Tag step, swipe a photo to apply that direction’s tag.</p>
+    @for (dir of dirs; track dir) {
+      <div class="dir-row">
+        <span class="dir-label">{{ arrow[dir] }} {{ dirLabel[dir] }}</span>
+        <select class="dir-select" (change)="onDirectionChange(dir, $event)">
+          <option value="" [selected]="!directions[dir]">— none —</option>
+          @for (tag of tags; track tag.id) {
+            <option [value]="tag.id" [selected]="directions[dir] === tag.id">{{ tag.name }}</option>
+          }
+        </select>
+      </div>
+    }
+  </div>
+
   <p class="manager-hint">
     Tags label individual photos (e.g. Animals) so you can find them later — separate from an
     album’s vacation/stereo profile.
