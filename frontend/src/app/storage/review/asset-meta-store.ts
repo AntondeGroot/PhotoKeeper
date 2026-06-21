@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { AssetMeta, PhotoKeeperDb } from './photokeeper-db';
+import { AssetMeta, PhotoKeeperDb } from '../photokeeper-db';
 
 /**
  * Device-local index of lightweight asset metadata (assetId → {@link AssetMeta}). Written by the

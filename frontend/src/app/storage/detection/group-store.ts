@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { DetectedGroup, PhotoKeeperDb } from './photokeeper-db';
+import { DetectedGroup, PhotoKeeperDb } from '../photokeeper-db';
 
 /** Stable, idempotent key for a group: its album plus its first member, so a re-scan overwrites. */
 function groupId(group: DetectedGroup): string {

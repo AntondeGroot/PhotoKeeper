@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { ReviewItem } from '../photo';
-import { AlbumTag, PhotoKeeperDb, StoredVerdict } from './photokeeper-db';
+import { ReviewItem } from '../../photo';
+import { AlbumTag, PhotoKeeperDb, StoredVerdict } from '../photokeeper-db';
 
 /** Device-local structured review state: verdicts, the per-day selection, and album tags. */
 @Injectable({ providedIn: 'root' })

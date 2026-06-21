@@ -3,9 +3,9 @@ import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { DailyUnitsService } from './daily-units.service';
-import { AssetMetaStore } from '../storage/asset-meta-store';
-import { GroupStore } from '../storage/group-store';
-import { GroupOverrideStore } from '../storage/group-override-store';
+import { AssetMetaStore } from '../storage/review/asset-meta-store';
+import { GroupStore } from '../storage/detection/group-store';
+import { GroupOverrideStore } from '../storage/detection/group-override-store';
 import { Album, LightroomService } from '../lightroom.service';
 import { Burst, ReviewItem } from '../photo';
 

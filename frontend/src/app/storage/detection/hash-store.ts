@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { PhotoKeeperDb } from './photokeeper-db';
+import { PhotoKeeperDb } from '../photokeeper-db';
 
 /**
  * Device-local index of perceptual hashes (assetId → hex hash). Tiny (~16 bytes/asset) and durable,

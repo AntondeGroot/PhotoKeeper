@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { GroupOverride, GroupReclass, PhotoKeeperDb } from './photokeeper-db';
+import { GroupOverride, GroupReclass, PhotoKeeperDb } from '../photokeeper-db';
 
 /**
  * Order-independent key for a group's member set, so an override matches a re-detected group however

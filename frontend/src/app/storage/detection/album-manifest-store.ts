@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { AlbumManifest, AssetFingerprint, PhotoKeeperDb } from './photokeeper-db';
+import { AlbumManifest, AssetFingerprint, PhotoKeeperDb } from '../photokeeper-db';
 
 /** The outcome of comparing a fresh album population against its stored manifest. */
 export interface ManifestDiff {
