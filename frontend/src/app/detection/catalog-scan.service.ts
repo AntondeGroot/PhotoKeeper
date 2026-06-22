@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../lightroom.service';
 import { DetectionScanService } from './detection-scan.service';
+import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
 
 /** Default soft cap on images scanned per pass — the "keep ~100 ready" buffer the app tops up. */
 const DEFAULT_IMAGE_BUDGET = 100;
@@ -30,6 +31,16 @@ export interface CatalogScanSummary {
 export class CatalogScanService {
   private readonly svc = inject(LightroomService);
   private readonly scan = inject(DetectionScanService);
+  private readonly manifests = inject(AlbumManifestStore);
+
+  /**
+   * Forces a full re-detection: clears the per-album change-gate manifests so every album re-detects
+   * from scratch (e.g. after the burst-window threshold changes), then scans the whole catalogue.
+   */
+  async rescanAllForcingRedetection(): Promise<CatalogScanSummary> {
+    await this.manifests.clear();
+    return this.scanAllAlbums();
+  }
 
   async scanAllAlbums(imageBudget: number = DEFAULT_IMAGE_BUDGET): Promise<CatalogScanSummary> {
     const albums = await firstValueFrom(this.svc.getAlbums());
