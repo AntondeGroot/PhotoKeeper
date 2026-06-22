@@ -3,7 +3,7 @@ import { SafeUrl } from '@angular/platform-browser';
 import { ReviewFeedService } from './review-feed.service';
 import { PreviewCacheService } from './preview-cache.service';
 import { ReviewDecisionsService } from './review-decisions.service';
-import { ViewerImage } from './fullscreen-viewer/fullscreen-viewer';
+import { ViewerImage } from './fullscreen-viewer/viewer-image';
 
 /**
  * The full-screen viewer overlay: its open/closed state and the two ways it opens — a single review

@@ -1,3 +1,15 @@
+/**
+ * A user-defined content tag (e.g. "Animals", "Family") — a per-photo label for later querying, kept
+ * in a small catalog the user edits in Settings. Distinct from `AlbumTag`, which is an album *profile*
+ * that changes review behaviour. `id` is stable so a rename updates every assignment for free.
+ * Eventually maps to a Lightroom keyword. (Persisted by the `tags` store in photokeeper-db.)
+ */
+export interface Tag {
+  id: string;
+  name: string;
+  color?: string; // optional chip colour
+}
+
 /** The four swipe directions a tag can be bound to in Tag mode. */
 export type SwipeDir = 'left' | 'right' | 'up' | 'down';
 

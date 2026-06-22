@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { Photo } from '../../photo';
-import { Tag } from '../../storage/photokeeper-db';
+import { Tag } from '../tags';
 import { DIR_ARROW, SWIPE_DIRS, SwipeDir, TagDirections } from '../tags';
 
 /** Drag distance (px) past which a release counts as a directional swipe. */

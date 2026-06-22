@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { TagState } from './tag-state.service';
 import { TagStore } from '../storage/tags/tag-store';
 import { AssetTagStore } from '../storage/tags/asset-tag-store';
-import { Tag } from '../storage/photokeeper-db';
+import { Tag } from './tags';
 
 describe('TagState', () => {
   let service: TagState;

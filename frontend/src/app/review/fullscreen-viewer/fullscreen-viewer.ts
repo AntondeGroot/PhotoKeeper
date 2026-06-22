@@ -8,12 +8,7 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { SafeUrl } from '@angular/platform-browser';
-
-export interface ViewerImage {
-  label: string;
-  url: SafeUrl | null | undefined;
-}
+import { ViewerImage } from './viewer-image';
 
 export type ReviewVerdict = 'kept' | 'rejected' | 'toEdit' | 'maybe';
 

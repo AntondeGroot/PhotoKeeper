@@ -6,7 +6,7 @@ import {
   Output,
   signal,
 } from '@angular/core';
-import { Tag } from '../../storage/photokeeper-db';
+import { Tag } from '../tags';
 import { DIR_ARROW, DIR_LABEL, SWIPE_DIRS, SwipeDir, TagDirections } from '../tags';
 
 /**

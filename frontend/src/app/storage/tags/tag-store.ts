@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { PhotoKeeperDb, Tag } from '../photokeeper-db';
+import { PhotoKeeperDb } from '../photokeeper-db';
+import { Tag } from '../../tagging/tags';
 
 /** Marks that the default tags have been seeded once, so deleting a default makes it stay deleted. */
 const SEEDED_KEY = 'tagsSeeded';

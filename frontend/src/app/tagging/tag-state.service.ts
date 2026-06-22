@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Tag } from '../storage/photokeeper-db';
+import { Tag } from './tags';
 import { TagStore } from '../storage/tags/tag-store';
 import { AssetTagStore } from '../storage/tags/asset-tag-store';
 
