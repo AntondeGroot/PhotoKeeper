@@ -154,6 +154,14 @@ export class ReviewFeedService {
   }
 
   /**
+   * Discards every cached daily selection so the next {@link loadToday} re-samples from scratch — used
+   * after the daily goal changes, where the stored selection no longer matches the requested size.
+   */
+  async clearDailySelections(): Promise<void> {
+    await this.reviewStore.pruneDailyFeedExcept(new Set());
+  }
+
+  /**
    * Warm-ahead: pick tomorrow's selection and fetch its previews into the durable store now, so opening
    * the app tomorrow needs no sample and no downloads. Idempotent + best-effort.
    */

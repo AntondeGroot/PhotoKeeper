@@ -10,7 +10,6 @@ import {
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService } from './lightroom.service';
-import { ReviewStore } from './storage/review/review-store';
 import { PreviewCacheService } from './review/preview-cache.service';
 import { ReviewFeedService } from './review/review-feed.service';
 import { ReviewDecisionsService } from './review/review-decisions.service';
@@ -18,7 +17,6 @@ import { ReviewStatsService } from './review/review-stats.service';
 import { FullscreenViewerService } from './review/fullscreen-viewer.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
-import { AlbumManifestStore } from './storage/detection/album-manifest-store';
 import { BackgroundScanService } from './detection/background-scan.service';
 import { isDevicePhoto, unitAssetIds } from './photo';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
@@ -76,12 +74,10 @@ const SPLASH_MIN_MS = 1800;
 })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
-  private readonly reviewStore = inject(ReviewStore);
   private readonly previews = inject(PreviewCacheService);
   private readonly feed = inject(ReviewFeedService);
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
-  private readonly albumManifests = inject(AlbumManifestStore);
   private readonly scan = inject(BackgroundScanService);
   private readonly decisions = inject(ReviewDecisionsService);
   private readonly stats = inject(ReviewStatsService);
@@ -389,7 +385,7 @@ export class AppComponent implements OnInit, OnDestroy {
   // Discards the cached today/tomorrow selections and rebuilds them at the current goal. Stored
   // verdicts are re-applied on reload, so decisions for photos that survive the new sample persist.
   private async resampleDailyFeed(): Promise<void> {
-    await this.reviewStore.pruneDailyFeedExcept(new Set());
+    await this.feed.clearDailySelections();
     await this.loadPhotos(); // app wrapper surfaces any load error
     void this.feed.precomputeTomorrow();
   }
@@ -407,8 +403,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private async rescanForDetectionChange(): Promise<void> {
-    await this.albumManifests.clear(); // force every album to re-detect with the new threshold
-    await this.catalogScan.scanAllAlbums();
+    await this.catalogScan.rescanAllForcingRedetection();
     await this.resampleDailyFeed();
   }
 
