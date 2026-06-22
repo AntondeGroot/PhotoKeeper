@@ -2,6 +2,12 @@ import { Injectable } from '@angular/core';
 import { DBSchema, IDBPDatabase, openDB } from 'idb';
 import { Photo, ReviewItem } from '../photo';
 import { Tag } from '../tagging/tags';
+import {
+  DetectedGroup,
+  FrameSignature,
+  GroupType,
+  PanoOrientation,
+} from '../detection/detection-types';
 
 export type ReviewStatus = Photo['status'];
 
@@ -19,26 +25,6 @@ export type AlbumTag = 'vacation';
 export interface AssetFingerprint {
   id: string;
   updated: string;
-}
-
-/** Kinds of detected group. Burst + pano are produced; stereo awaits its detector. */
-export type GroupType = 'burst' | 'pano' | 'stereo';
-
-/** A panorama's pan axis: left↔right (horizontal) or top↔bottom (vertical). */
-export type PanoOrientation = 'horizontal' | 'vertical';
-
-/**
- * A whole-frame grayscale signature (SIGNATURE_SIZE² bytes, row-major) for pano detection. The matcher
- * slides one frame's signature over the next to find their overlap, so it works at any overlap amount.
- */
-export type FrameSignature = Uint8Array;
-
-/** A detected cluster of assets, ready to hydrate into a `ReviewItem` for group-aware selection. */
-export interface DetectedGroup {
-  type: GroupType;
-  sourceAlbumId: string;
-  memberIds: string[];
-  orientation?: PanoOrientation; // only set for pano groups
 }
 
 /**

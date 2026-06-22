@@ -5,7 +5,7 @@
 
 import { BurstOptions, DetectAsset, clusterBursts } from './burst';
 import { PanoAsset, PanoOptions, clusterPanos, overlapMatch } from './pano';
-import { FrameSignature, PanoOrientation } from '../storage/photokeeper-db';
+import { FrameSignature, PanoOrientation } from './detection-types';
 import { hammingDistance } from './phash';
 
 /** A frame just outside a cluster, with how far it sits from the cluster edge. */

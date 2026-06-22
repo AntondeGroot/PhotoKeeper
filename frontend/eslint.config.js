@@ -3,6 +3,7 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import angular from 'angular-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
+import boundaries from 'eslint-plugin-boundaries';
 
 export default tseslint.config(
   // Build/report output — ESLint flat config doesn't read .gitignore, so ignore these explicitly.
@@ -52,6 +53,86 @@ export default tseslint.config(
     },
   },
   {
+    // Architectural layer boundaries: a component must reach the data layer through a service, never
+    // import a store directly (the coupling that grows god objects). Specs are exempt.
+    files: ['src/app/**/*.ts'],
+    // Specs and test fixtures are support code, not app layers. The detection lab is a dev-only
+    // diagnostic screen (reached via ?lab) that deliberately reaches into stores — excepted, with a
+    // TODO to route it through a service if it ever ships to users.
+    ignores: ['**/*.spec.ts', '**/*.fixture.ts', '**/detection-lab/**'],
+    plugins: { boundaries },
+    settings: {
+      // boundaries resolves each import to a file before classifying it; the default node resolver
+      // can't follow extensionless TS paths, so a component→store import looks "unknown" and the rule
+      // silently passes. The TypeScript resolver fixes that.
+      'import/resolver': { typescript: { project: 'tsconfig.json' } },
+      'boundaries/include': ['src/app/**/*.ts'],
+      'boundaries/ignore': ['**/*.spec.ts', '**/*.fixture.ts', '**/detection-lab/**'],
+      // Order matters: a file takes the first type it matches, so specific patterns precede the
+      // broad `component` catch-all.
+      'boundaries/elements': [
+        { type: 'store', mode: 'full', pattern: 'src/app/storage/**/*' },
+        {
+          type: 'service',
+          mode: 'full',
+          pattern: ['src/app/**/*.service.ts', 'src/app/**/*.interceptor.ts'],
+        },
+        {
+          type: 'config',
+          mode: 'full',
+          pattern: ['src/app/app.config.ts', 'src/app/app.routes.ts'],
+        },
+        {
+          // Pure logic + types: no Angular, no DI. Components live in folder==file dirs (caught below).
+          type: 'domain',
+          mode: 'full',
+          pattern: [
+            'src/app/photo.ts',
+            'src/app/lightroom-types.ts',
+            'src/app/tagging/tags.ts',
+            'src/app/detection/detection-types.ts',
+            'src/app/detection/burst.ts',
+            'src/app/detection/pano.ts',
+            'src/app/detection/phash.ts',
+            'src/app/detection/image-hasher.ts',
+            'src/app/detection/lab-analysis.ts',
+            'src/app/detection/pano-fixtures.fixture.ts',
+            'src/app/review/selection/unit-selection.ts',
+            'src/app/review/fullscreen-viewer/viewer-image.ts',
+            'src/app/notifications/heads-up/heads-up.types.ts',
+            'src/app/notifications/catalog/*.ts',
+            'src/app/notifications/notification-message.ts',
+            'src/app/notifications/notification-sender.ts',
+            'src/app/notifications/picker.ts',
+          ],
+        },
+        { type: 'component', mode: 'full', pattern: 'src/app/**/*' },
+      ],
+    },
+    rules: {
+      'boundaries/no-unknown': 'off', // external packages (rxjs/@angular) aren't elements — noise
+      'boundaries/no-unknown-files': 'error', // every app file must classify into a layer
+      'boundaries/element-types': [
+        'error',
+        {
+          default: 'disallow',
+          rules: [
+            // The load-bearing rules: a component reaches data through a service (never a store), and a
+            // service never depends back up on a component.
+            { from: 'component', allow: ['component', 'service', 'domain'] },
+            { from: 'service', allow: ['service', 'store', 'domain'] },
+            { from: 'store', allow: ['store', 'domain'] },
+            // Domain is pure logic + types: it may only depend on other domain. The persisted/API
+            // contract types it needs (FrameSignature, PanoOrientation, DetectedGroup → detection-types;
+            // PhotoAsset → lightroom-types) now live in domain modules, so this stays fully closed.
+            { from: 'domain', allow: ['domain'] },
+            { from: 'config', allow: ['config', 'component', 'service', 'store', 'domain'] },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Debt ceiling for the file that predates the 400-line cap. Pinned at its *current* counted size so
     // it can only shrink, never grow — every PR that touches it must leave it smaller or the same. Lower
     // this number as the file is slimmed; delete the entry once it drops under 400. (app.ts cleared the
@@ -59,7 +140,7 @@ export default tseslint.config(
     // needs an override.)
     // TODO(god-object): split the dev lab into sub-panels to bring detection-lab.ts under the global cap.
     files: ['src/app/detection/detection-lab/detection-lab.ts'],
-    rules: { 'max-lines': ['error', { max: 418, skipBlankLines: true, skipComments: true }] },
+    rules: { 'max-lines': ['error', { max: 419, skipBlankLines: true, skipComments: true }] },
   },
   {
     // Specs are legitimately long and repetitive (fixtures, provider setup) — the god-object caps

@@ -4,12 +4,13 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { DetectionScanService } from './detection-scan.service';
 import { ImageHasher } from './image-hasher';
-import { LightroomService, PhotoAsset } from '../lightroom.service';
+import { LightroomService } from '../lightroom.service';
+import { PhotoAsset } from '../lightroom-types';
 import { HashStore } from '../storage/detection/hash-store';
 import { GroupStore } from '../storage/detection/group-store';
 import { PreviewStore } from '../storage/review/preview-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
-import { FrameSignature } from '../storage/photokeeper-db';
+import { FrameSignature } from './detection-types';
 import { SIGNATURE_SIZE } from './phash';
 
 const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => ({

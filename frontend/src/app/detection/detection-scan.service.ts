@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { LightroomService, PhotoAsset } from '../lightroom.service';
+import { LightroomService } from '../lightroom.service';
+import { PhotoAsset } from '../lightroom-types';
 import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { SignatureStore } from '../storage/detection/signature-store';
@@ -9,7 +10,8 @@ import { GroupStore } from '../storage/detection/group-store';
 import { HashStore } from '../storage/detection/hash-store';
 import { PreviewStore } from '../storage/review/preview-store';
 import { splitFileName } from '../photo';
-import { AssetMeta, DetectedGroup, FrameSignature } from '../storage/photokeeper-db';
+import { AssetMeta } from '../storage/photokeeper-db';
+import { DetectedGroup, FrameSignature } from './detection-types';
 import { DetectAsset, clusterBursts } from './burst';
 import { PanoAsset, clusterPanos } from './pano';
 import { DetectionSettingsService } from './detection-settings.service';

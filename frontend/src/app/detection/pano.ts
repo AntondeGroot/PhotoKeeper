@@ -11,7 +11,7 @@
 // (frameSignatureFromBlob).
 
 import { SIGNATURE_SIZE, hammingDistance } from './phash';
-import { PanoOrientation } from '../storage/photokeeper-db';
+import { PanoOrientation } from './detection-types';
 
 /**
  * Width of the fixed seam template, as a fraction of the frame — "the right 25% of one photo". The

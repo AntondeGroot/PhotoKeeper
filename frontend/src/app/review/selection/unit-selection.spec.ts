@@ -1,6 +1,6 @@
 import { AlbumUnits, selectUnits } from './unit-selection';
-import { PhotoAsset } from '../../lightroom.service';
-import { DetectedGroup } from '../../storage/photokeeper-db';
+import { PhotoAsset } from '../../lightroom-types';
+import { DetectedGroup } from '../../detection/detection-types';
 import { Burst, Pano, ReviewItem } from '../../photo';
 
 const asset = (

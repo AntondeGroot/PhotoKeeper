@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map, tap } from 'rxjs';
+import { PhotoAsset } from './lightroom-types';
 
 const ACCESS_KEY = 'lr-access-token';
 const REFRESH_KEY = 'lr-refresh-token';
@@ -127,18 +128,6 @@ function dedupeById(assets: readonly PhotoAsset[]): PhotoAsset[] {
     }
   }
   return unique;
-}
-
-export interface PhotoAsset {
-  id: string;
-  subtype: string;
-  updated?: string; // Lightroom revision stamp; drives the detection change-gate (album-manifest-store)
-  album?: string;
-  payload?: {
-    captureDate?: string;
-    userCreated?: string;
-    importSource?: { fileName?: string };
-  };
 }
 
 export interface Album {
