@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { FrameSignature } from '../storage/photokeeper-db';
+import { FrameSignature } from './detection-types';
 import { frameSignatureFromBlob, hashImageBlob, imageAspect } from './phash';
 
 /**

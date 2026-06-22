@@ -8,7 +8,8 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
-import { Album, LightroomService, PhotoAsset } from '../../lightroom.service';
+import { Album, LightroomService } from '../../lightroom.service';
+import { PhotoAsset } from '../../lightroom-types';
 import { ImageHasher } from '../image-hasher';
 import { PreviewStore } from '../../storage/review/preview-store';
 import { HashStore } from '../../storage/detection/hash-store';
@@ -17,7 +18,7 @@ import { DetectionSettingsService } from '../detection-settings.service';
 import { BurstOptions, DetectAsset } from '../burst';
 import { SIGNATURE_SIZE } from '../phash';
 import { PanoAsset, PanoOptions, overlapMatch } from '../pano';
-import { FrameSignature, PanoOrientation } from '../../storage/photokeeper-db';
+import { FrameSignature, PanoOrientation } from '../detection-types';
 import { LabCluster, LabPanoCluster, analyzeClusters, analyzePanoClusters } from '../lab-analysis';
 
 /** A matched region as CSS percentages, for overlaying on a lab thumbnail. */

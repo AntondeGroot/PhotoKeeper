@@ -1,10 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { LightroomService, PhotoAsset } from '../../lightroom.service';
+import { LightroomService } from '../../lightroom.service';
+import { PhotoAsset } from '../../lightroom-types';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { GroupStore } from '../../storage/detection/group-store';
 import { GroupOverrideStore, groupSignature } from '../../storage/detection/group-override-store';
-import { AssetMeta, DetectedGroup } from '../../storage/photokeeper-db';
+import { AssetMeta } from '../../storage/photokeeper-db';
+import { DetectedGroup } from '../../detection/detection-types';
 import { ReviewItem } from '../../photo';
 import { AlbumUnits, selectUnits } from './unit-selection';
 

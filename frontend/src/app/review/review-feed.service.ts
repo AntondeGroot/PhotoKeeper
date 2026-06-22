@@ -1,7 +1,8 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
-import { LightroomService, PhotoAsset } from '../lightroom.service';
+import { LightroomService } from '../lightroom.service';
+import { PhotoAsset } from '../lightroom-types';
 import { ReviewStore } from '../storage/review/review-store';
 import { StoredVerdict } from '../storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';

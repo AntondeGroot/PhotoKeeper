@@ -6,8 +6,8 @@
 // frames scattering across the sample. Mirrors the old server-side album-weighted sampling
 // (vacation albums over-represented, capped per album) but operates on whole units.
 
-import { PhotoAsset } from '../../lightroom.service';
-import { DetectedGroup } from '../../storage/photokeeper-db';
+import { PhotoAsset } from '../../lightroom-types';
+import { DetectedGroup } from '../../detection/detection-types';
 import { Burst, BurstPhoto, Pano, PanoFrame, Photo, ReviewItem, splitFileName } from '../../photo';
 
 /** One album's raw material: its assets, its detected groups, and whether it's a vacation album. */
