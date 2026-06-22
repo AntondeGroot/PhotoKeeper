@@ -1,7 +1,7 @@
 import { analyzeClusters, analyzePanoClusters } from './lab-analysis';
-import { DetectAsset } from './burst';
-import { PanoAsset, PanoOptions } from './pano';
-import { SIGNATURE_SIZE } from './phash';
+import { DetectAsset } from '../detectors/burst';
+import { PanoAsset, PanoOptions } from '../detectors/pano';
+import { SIGNATURE_SIZE } from '../detectors/phash';
 
 const asset = (id: string, taken: string): DetectAsset => ({ id, taken });
 

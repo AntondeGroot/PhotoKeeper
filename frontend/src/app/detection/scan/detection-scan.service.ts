@@ -1,21 +1,21 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { LightroomService } from '../lightroom.service';
-import { PhotoAsset } from '../lightroom-types';
-import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
-import { AssetMetaStore } from '../storage/review/asset-meta-store';
-import { SignatureStore } from '../storage/detection/signature-store';
-import { AspectStore } from '../storage/detection/aspect-store';
-import { GroupStore } from '../storage/detection/group-store';
-import { HashStore } from '../storage/detection/hash-store';
-import { PreviewStore } from '../storage/review/preview-store';
-import { splitFileName } from '../photo';
-import { AssetMeta } from '../storage/photokeeper-db';
-import { DetectedGroup, FrameSignature } from './detection-types';
-import { DetectAsset, clusterBursts } from './burst';
-import { PanoAsset, clusterPanos } from './pano';
+import { LightroomService } from '../../lightroom.service';
+import { PhotoAsset } from '../../lightroom-types';
+import { AlbumManifestStore } from '../../storage/detection/album-manifest-store';
+import { AssetMetaStore } from '../../storage/review/asset-meta-store';
+import { SignatureStore } from '../../storage/detection/signature-store';
+import { AspectStore } from '../../storage/detection/aspect-store';
+import { GroupStore } from '../../storage/detection/group-store';
+import { HashStore } from '../../storage/detection/hash-store';
+import { PreviewStore } from '../../storage/review/preview-store';
+import { splitFileName } from '../../photo';
+import { AssetMeta } from '../../storage/photokeeper-db';
+import { DetectedGroup, FrameSignature } from '../detectors/detection-types';
+import { DetectAsset, clusterBursts } from '../detectors/burst';
+import { PanoAsset, clusterPanos } from '../detectors/pano';
 import { DetectionSettingsService } from './detection-settings.service';
-import { ImageHasher } from './image-hasher';
+import { ImageHasher } from '../detectors/image-hasher';
 
 /** Smallest practical Lightroom rendition for hashing; dhash downsamples to 9×8 so detail is moot. */
 const HASH_RENDITION_SIZE = '640';

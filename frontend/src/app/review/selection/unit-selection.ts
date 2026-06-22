@@ -7,7 +7,7 @@
 // (vacation albums over-represented, capped per album) but operates on whole units.
 
 import { PhotoAsset } from '../../lightroom-types';
-import { DetectedGroup } from '../../detection/detection-types';
+import { DetectedGroup } from '../../detection/detectors/detection-types';
 import { Burst, BurstPhoto, Pano, PanoFrame, Photo, ReviewItem, splitFileName } from '../../photo';
 
 /** One album's raw material: its assets, its detected groups, and whether it's a vacation album. */

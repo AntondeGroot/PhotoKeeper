@@ -8,17 +8,17 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
-import { Album, LightroomService } from '../../lightroom.service';
-import { PhotoAsset } from '../../lightroom-types';
-import { ImageHasher } from '../image-hasher';
-import { PreviewStore } from '../../storage/review/preview-store';
-import { HashStore } from '../../storage/detection/hash-store';
-import { SignatureStore } from '../../storage/detection/signature-store';
-import { DetectionSettingsService } from '../detection-settings.service';
-import { BurstOptions, DetectAsset } from '../burst';
-import { SIGNATURE_SIZE } from '../phash';
-import { PanoAsset, PanoOptions, overlapMatch } from '../pano';
-import { FrameSignature, PanoOrientation } from '../detection-types';
+import { Album, LightroomService } from '../../../lightroom.service';
+import { PhotoAsset } from '../../../lightroom-types';
+import { ImageHasher } from '../../detectors/image-hasher';
+import { PreviewStore } from '../../../storage/review/preview-store';
+import { HashStore } from '../../../storage/detection/hash-store';
+import { SignatureStore } from '../../../storage/detection/signature-store';
+import { DetectionSettingsService } from '../../scan/detection-settings.service';
+import { BurstOptions, DetectAsset } from '../../detectors/burst';
+import { SIGNATURE_SIZE } from '../../detectors/phash';
+import { PanoAsset, PanoOptions, overlapMatch } from '../../detectors/pano';
+import { FrameSignature, PanoOrientation } from '../../detectors/detection-types';
 import { LabCluster, LabPanoCluster, analyzeClusters, analyzePanoClusters } from '../lab-analysis';
 
 /** A matched region as CSS percentages, for overlaying on a lab thumbnail. */

@@ -3,15 +3,15 @@ import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { DetectionScanService } from './detection-scan.service';
-import { ImageHasher } from './image-hasher';
-import { LightroomService } from '../lightroom.service';
-import { PhotoAsset } from '../lightroom-types';
-import { HashStore } from '../storage/detection/hash-store';
-import { GroupStore } from '../storage/detection/group-store';
-import { PreviewStore } from '../storage/review/preview-store';
-import { AssetMetaStore } from '../storage/review/asset-meta-store';
-import { FrameSignature } from './detection-types';
-import { SIGNATURE_SIZE } from './phash';
+import { ImageHasher } from '../detectors/image-hasher';
+import { LightroomService } from '../../lightroom.service';
+import { PhotoAsset } from '../../lightroom-types';
+import { HashStore } from '../../storage/detection/hash-store';
+import { GroupStore } from '../../storage/detection/group-store';
+import { PreviewStore } from '../../storage/review/preview-store';
+import { AssetMetaStore } from '../../storage/review/asset-meta-store';
+import { FrameSignature } from '../detectors/detection-types';
+import { SIGNATURE_SIZE } from '../detectors/phash';
 
 const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => ({
   id,

@@ -7,7 +7,7 @@ import {
   FrameSignature,
   GroupType,
   PanoOrientation,
-} from '../detection/detection-types';
+} from '../detection/detectors/detection-types';
 
 export type ReviewStatus = Photo['status'];
 

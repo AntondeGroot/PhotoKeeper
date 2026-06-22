@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { CatalogScanService } from './catalog-scan.service';
-import { AssetMetaStore } from '../storage/review/asset-meta-store';
-import { ReviewStore } from '../storage/review/review-store';
+import { AssetMetaStore } from '../../storage/review/asset-meta-store';
+import { ReviewStore } from '../../storage/review/review-store';
 
 /** Target size of the "scanned but not yet reviewed" buffer the background detection pass maintains. */
 const SCAN_BUFFER_TARGET = 100;

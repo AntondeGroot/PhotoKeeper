@@ -4,7 +4,7 @@ import { ReviewDecisionsService } from './review-decisions.service';
 import { ReviewFeedService, todayKey } from './review-feed.service';
 import { ReviewStore } from '../storage/review/review-store';
 import { GroupOverrideStore } from '../storage/detection/group-override-store';
-import { BackgroundScanService } from '../detection/background-scan.service';
+import { BackgroundScanService } from '../detection/scan/background-scan.service';
 import { PreferencesService } from '../preferences.service';
 import { Burst, Pano, Photo, ReviewItem } from '../photo';
 import { StoredVerdict } from '../storage/photokeeper-db';
