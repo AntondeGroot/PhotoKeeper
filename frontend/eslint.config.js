@@ -52,17 +52,12 @@ export default tseslint.config(
     },
   },
   {
-    // Debt ceilings for the two files that predate the 400-line cap. Pinned at their *current* counted
-    // size so they can only shrink, never grow — every PR that touches them must leave them smaller or
-    // the same. Lower these numbers as the files are slimmed; delete the entry once it drops under 400.
-    // app.ts is mid-campaign (was 470 → 444 → 425 as cohesive clusters are extracted into services);
-    // one more small extraction clears it.
-    // TODO(god-object): app.ts under 400 (extract the current-unit preview computeds or the
-    // session/onboarding cluster); detection-lab.ts under 400 (split the dev lab into sub-panels).
-    files: ['src/app/app.ts'],
-    rules: { 'max-lines': ['error', { max: 403, skipBlankLines: true, skipComments: true }] },
-  },
-  {
+    // Debt ceiling for the file that predates the 400-line cap. Pinned at its *current* counted size so
+    // it can only shrink, never grow — every PR that touches it must leave it smaller or the same. Lower
+    // this number as the file is slimmed; delete the entry once it drops under 400. (app.ts cleared the
+    // cap via the service-extraction campaign — 470 → 444 → 425 → 413 → 403 → under 400 — and no longer
+    // needs an override.)
+    // TODO(god-object): split the dev lab into sub-panels to bring detection-lab.ts under the global cap.
     files: ['src/app/detection/detection-lab/detection-lab.ts'],
     rules: { 'max-lines': ['error', { max: 418, skipBlankLines: true, skipComments: true }] },
   },
