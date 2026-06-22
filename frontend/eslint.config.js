@@ -60,7 +60,7 @@ export default tseslint.config(
     // TODO(god-object): app.ts under 400 (extract the current-unit preview computeds or the
     // session/onboarding cluster); detection-lab.ts under 400 (split the dev lab into sub-panels).
     files: ['src/app/app.ts'],
-    rules: { 'max-lines': ['error', { max: 425, skipBlankLines: true, skipComments: true }] },
+    rules: { 'max-lines': ['error', { max: 403, skipBlankLines: true, skipComments: true }] },
   },
   {
     files: ['src/app/detection/detection-lab/detection-lab.ts'],

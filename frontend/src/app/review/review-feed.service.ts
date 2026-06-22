@@ -1,4 +1,5 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService, PhotoAsset } from '../lightroom.service';
 import { ReviewStore } from '../storage/review/review-store';
@@ -72,6 +73,23 @@ export class ReviewFeedService {
   back(): void {
     if (this.index() > 0) this.index.update((i) => i - 1);
   }
+
+  /** The current unit's preview URL when it's a single photo (null otherwise). Reacts as previews load. */
+  readonly currentUrl = computed(() => {
+    const current = this.current();
+    return current?.kind === 'photo' ? this.previews.url(current.id) : null;
+  });
+
+  /** Frame-id → preview URL for the current unit (e.g. a burst's frames), passed to the group cards. */
+  readonly currentUnitUrls = computed(() => {
+    const current = this.current();
+    const urls = new Map<string, SafeUrl>();
+    for (const id of current ? unitAssetIds(current) : []) {
+      const url = this.previews.url(id);
+      if (url) urls.set(id, url);
+    }
+    return urls;
+  });
 
   /**
    * Loads today's deck: reuse today's already-chosen selection if present, else sample a fresh one and

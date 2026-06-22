@@ -8,20 +8,23 @@ function inputEvent(value: string): Event {
 }
 
 describe('SettingsComponent', () => {
+  let fixture: ComponentFixture<SettingsComponent>;
   let component: SettingsComponent;
 
-  beforeEach(() => {
-    component = new SettingsComponent();
+  beforeEach(async () => {
+    localStorage.clear(); // PreferencesService seeds from localStorage on construction
+    await TestBed.configureTestingModule({ imports: [SettingsComponent] }).compileComponents();
+    fixture = TestBed.createComponent(SettingsComponent);
+    component = fixture.componentInstance;
   });
 
-  it('has sensible default inputs', () => {
-    expect(component.dailyGoal).toBe(15);
-    expect(component.editGoal).toBe(3);
-    expect(component.reminderTime).toBe('09:00');
-    expect(component.silentTime).toBe('21:00');
-    expect(component.silentEvening).toBe(false);
+  it('keeps the host-owned inputs with sensible defaults', () => {
+    expect(component.burstWindowSeconds).toBe(3);
+    expect(component.lightroomConnected).toBe(false);
   });
 
+  // The sorting goal still emits — the host debounces it into a resample. The editing/tagging goals
+  // and reminder times now write straight to PreferencesService (no host involvement).
   it('onDailyGoalChange emits the value parsed as a number', () => {
     let emitted: number | undefined;
     component.dailyGoalChange.subscribe((value) => (emitted = value));
@@ -31,31 +34,19 @@ describe('SettingsComponent', () => {
     expect(emitted).toBe(20);
   });
 
-  it('onEditGoalChange emits the value parsed as a number', () => {
-    let emitted: number | undefined;
-    component.editGoalChange.subscribe((value) => (emitted = value));
-
+  it('onEditGoalChange writes the editing goal straight to preferences', () => {
     component.onEditGoalChange(inputEvent('7'));
-
-    expect(emitted).toBe(7);
+    expect(component.prefs.editGoal()).toBe(7);
   });
 
-  it('onReminderTimeChange emits the raw string value', () => {
-    let emitted: string | undefined;
-    component.reminderTimeChange.subscribe((value) => (emitted = value));
-
+  it('onReminderTimeChange writes the reminder time straight to preferences', () => {
     component.onReminderTimeChange(inputEvent('08:30'));
-
-    expect(emitted).toBe('08:30');
+    expect(component.prefs.reminderTime()).toBe('08:30');
   });
 
-  it('onSilentTimeChange emits the raw string value', () => {
-    let emitted: string | undefined;
-    component.silentTimeChange.subscribe((value) => (emitted = value));
-
+  it('onSilentTimeChange writes the silent time straight to preferences', () => {
     component.onSilentTimeChange(inputEvent('22:15'));
-
-    expect(emitted).toBe('22:15');
+    expect(component.prefs.silentTime()).toBe('22:15');
   });
 });
 
