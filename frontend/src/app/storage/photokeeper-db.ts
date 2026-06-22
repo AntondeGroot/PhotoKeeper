@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { DBSchema, IDBPDatabase, openDB } from 'idb';
 import { Photo, ReviewItem } from '../photo';
+import { Tag } from '../tagging/tags';
 
 export type ReviewStatus = Photo['status'];
 
@@ -13,18 +14,6 @@ export interface StoredVerdict {
 
 /** How an album is classified. Room to grow (e.g. 'stereo') alongside 'vacation'. */
 export type AlbumTag = 'vacation';
-
-/**
- * A user-defined content tag (e.g. "Animals", "Family") — a per-photo label for later querying, kept
- * in a small catalog the user edits in Settings. Distinct from {@link AlbumTag}, which is an album
- * *profile* that changes review behaviour. `id` is stable so a rename updates every assignment for
- * free. Eventually maps to a Lightroom keyword.
- */
-export interface Tag {
-  id: string;
-  name: string;
-  color?: string; // optional chip colour
-}
 
 /** One asset's identity for change detection: its id plus the Lightroom `updated` revision stamp. */
 export interface AssetFingerprint {

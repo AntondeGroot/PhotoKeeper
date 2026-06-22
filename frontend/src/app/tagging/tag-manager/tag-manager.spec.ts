@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TagManagerComponent } from './tag-manager';
-import { Tag } from '../../storage/photokeeper-db';
+import { Tag } from '../tags';
 
 const tags: Tag[] = [
   { id: 'animals', name: 'Animals' },

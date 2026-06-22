@@ -5,7 +5,7 @@ import { GroupOverrideStore } from '../storage/detection/group-override-store';
 import { BackgroundScanService } from '../detection/background-scan.service';
 import { PreferencesService } from '../preferences.service';
 import { ReviewFeedService, todayKey } from './review-feed.service';
-import { HeadsUp } from '../notifications/heads-up/heads-up';
+import { HeadsUp } from '../notifications/heads-up/heads-up.types';
 import { Burst, BurstPhoto, Pano, Photo, ReviewItem } from '../photo';
 
 /** Turns a dissolved burst's frame into a standalone review photo, carrying over the burst's album. */

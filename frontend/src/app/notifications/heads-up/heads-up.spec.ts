@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { HeadsUpComponent, HeadsUp } from './heads-up';
+import { HeadsUpComponent } from './heads-up';
+import { HeadsUp } from './heads-up.types';
 
 const sample: HeadsUp = { icon: '🎉', title: "That's 15 — daily goal done", text: 'Lovely work.' };
 

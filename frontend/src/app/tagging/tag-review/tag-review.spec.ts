@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TagReviewComponent } from './tag-review';
 import { Photo } from '../../photo';
-import { Tag } from '../../storage/photokeeper-db';
+import { Tag } from '../tags';
 import { TagDirections } from '../tags';
 
 const photo: Photo = {

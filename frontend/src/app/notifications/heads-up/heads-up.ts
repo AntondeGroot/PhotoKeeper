@@ -1,11 +1,5 @@
 import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
-
-/** One in-app celebration: a small positive heads-up shown the moment a win happens. */
-export interface HeadsUp {
-  icon: string; // a glyph/emoji shown in the badge
-  title: string;
-  text: string;
-}
+import { HeadsUp } from './heads-up.types';
 
 /** How long the banner holds on screen before it tucks away. */
 const HOLD_MS = 3400;
