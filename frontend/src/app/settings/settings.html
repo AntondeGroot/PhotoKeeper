@@ -58,8 +58,8 @@
     }
   </div>
   <app-device-source
-    [enabled]="deviceEnabled"
-    [folders]="deviceFolders"
+    [enabled]="prefs.deviceEnabled()"
+    [folders]="prefs.deviceFolders()"
     (toggled)="deviceToggled.emit($event)"
     (folderToggled)="folderToggled.emit($event)"
   />
@@ -72,16 +72,20 @@
     <!-- sorting row -->
     <div class="goal-row">
       <span class="goal-label">Sorting</span>
-      <span class="goal-value">{{ dailyGoal }} / day</span>
+      <span class="goal-value">{{ prefs.dailyGoal() }} / day</span>
     </div>
     <div class="preset-buttons">
-      <button class="preset-btn" [class.active]="dailyGoal === 8" (click)="dailyGoalChange.emit(8)">
+      <button
+        class="preset-btn"
+        [class.active]="prefs.dailyGoal() === 8"
+        (click)="dailyGoalChange.emit(8)"
+      >
         <span>Light</span>
         <span class="preset-num">8</span>
       </button>
       <button
         class="preset-btn"
-        [class.active]="dailyGoal === 15"
+        [class.active]="prefs.dailyGoal() === 15"
         (click)="dailyGoalChange.emit(15)"
       >
         <span>Steady</span>
@@ -89,7 +93,7 @@
       </button>
       <button
         class="preset-btn"
-        [class.active]="dailyGoal === 20"
+        [class.active]="prefs.dailyGoal() === 20"
         (click)="dailyGoalChange.emit(20)"
       >
         <span>Focused</span>
@@ -97,7 +101,7 @@
       </button>
       <button
         class="preset-btn"
-        [class.active]="dailyGoal === 25"
+        [class.active]="prefs.dailyGoal() === 25"
         (click)="dailyGoalChange.emit(25)"
       >
         <span>Deep</span>
@@ -109,25 +113,37 @@
       type="range"
       min="5"
       max="40"
-      [value]="dailyGoal"
+      [value]="prefs.dailyGoal()"
       (input)="onDailyGoalChange($event)"
     />
 
     <!-- editing row -->
     <div class="goal-row">
       <span class="goal-label">Editing</span>
-      <span class="goal-value">{{ editGoal }} / day</span>
+      <span class="goal-value">{{ prefs.editGoal() }} / day</span>
     </div>
     <div class="preset-buttons">
-      <button class="preset-btn" [class.active]="editGoal === 2" (click)="editGoalChange.emit(2)">
+      <button
+        class="preset-btn"
+        [class.active]="prefs.editGoal() === 2"
+        (click)="prefs.editGoal.set(2)"
+      >
         <span>Light</span>
         <span class="preset-num">2</span>
       </button>
-      <button class="preset-btn" [class.active]="editGoal === 3" (click)="editGoalChange.emit(3)">
+      <button
+        class="preset-btn"
+        [class.active]="prefs.editGoal() === 3"
+        (click)="prefs.editGoal.set(3)"
+      >
         <span>Steady</span>
         <span class="preset-num">3</span>
       </button>
-      <button class="preset-btn" [class.active]="editGoal === 5" (click)="editGoalChange.emit(5)">
+      <button
+        class="preset-btn"
+        [class.active]="prefs.editGoal() === 5"
+        (click)="prefs.editGoal.set(5)"
+      >
         <span>Deep</span>
         <span class="preset-num">5</span>
       </button>
@@ -137,30 +153,46 @@
       type="range"
       min="1"
       max="10"
-      [value]="editGoal"
+      [value]="prefs.editGoal()"
       (input)="onEditGoalChange($event)"
     />
 
-    @if (taggingEnabled) {
+    @if (prefs.taggingEnabled()) {
       <!-- tagging row (same scale as sorting — quick, not intensive like editing) -->
       <div class="goal-row">
         <span class="goal-label">Tagging</span>
-        <span class="goal-value">{{ tagGoal }} / day</span>
+        <span class="goal-value">{{ prefs.tagGoal() }} / day</span>
       </div>
       <div class="preset-buttons">
-        <button class="preset-btn" [class.active]="tagGoal === 8" (click)="tagGoalChange.emit(8)">
+        <button
+          class="preset-btn"
+          [class.active]="prefs.tagGoal() === 8"
+          (click)="prefs.tagGoal.set(8)"
+        >
           <span>Light</span>
           <span class="preset-num">8</span>
         </button>
-        <button class="preset-btn" [class.active]="tagGoal === 15" (click)="tagGoalChange.emit(15)">
+        <button
+          class="preset-btn"
+          [class.active]="prefs.tagGoal() === 15"
+          (click)="prefs.tagGoal.set(15)"
+        >
           <span>Steady</span>
           <span class="preset-num">15</span>
         </button>
-        <button class="preset-btn" [class.active]="tagGoal === 20" (click)="tagGoalChange.emit(20)">
+        <button
+          class="preset-btn"
+          [class.active]="prefs.tagGoal() === 20"
+          (click)="prefs.tagGoal.set(20)"
+        >
           <span>Focused</span>
           <span class="preset-num">20</span>
         </button>
-        <button class="preset-btn" [class.active]="tagGoal === 25" (click)="tagGoalChange.emit(25)">
+        <button
+          class="preset-btn"
+          [class.active]="prefs.tagGoal() === 25"
+          (click)="prefs.tagGoal.set(25)"
+        >
           <span>Deep</span>
           <span class="preset-num">25</span>
         </button>
@@ -170,7 +202,7 @@
         type="range"
         min="5"
         max="40"
-        [value]="tagGoal"
+        [value]="prefs.tagGoal()"
         (input)="onTagGoalChange($event)"
       />
     }
@@ -187,18 +219,18 @@
         <div class="reminder-description">A gentle nudge to start your daily review</div>
       </div>
       <div class="toggle-group">
-        @if (morningReminder) {
+        @if (prefs.morningReminder()) {
           <input
             class="time-input"
             type="time"
-            [value]="reminderTime"
+            [value]="prefs.reminderTime()"
             (change)="onReminderTimeChange($event)"
           />
         }
         <button
           class="toggle"
-          [class.on]="morningReminder"
-          (click)="morningReminderChange.emit(!morningReminder)"
+          [class.on]="prefs.morningReminder()"
+          (click)="prefs.morningReminder.set(!prefs.morningReminder())"
           aria-label="toggle morning reminder"
         ></button>
       </div>
@@ -213,18 +245,18 @@
         </div>
       </div>
       <div class="toggle-group">
-        @if (silentEvening) {
+        @if (prefs.silentEvening()) {
           <input
             class="time-input"
             type="time"
-            [value]="silentTime"
+            [value]="prefs.silentTime()"
             (change)="onSilentTimeChange($event)"
           />
         }
         <button
           class="toggle"
-          [class.on]="silentEvening"
-          (click)="silentEveningChange.emit(!silentEvening)"
+          [class.on]="prefs.silentEvening()"
+          (click)="prefs.silentEvening.set(!prefs.silentEvening())"
           aria-label="toggle silent evening reminder"
         ></button>
       </div>
@@ -244,8 +276,8 @@
       <div class="toggle-group">
         <button
           class="toggle"
-          [class.on]="taggingEnabled"
-          (click)="taggingEnabledChange.emit(!taggingEnabled)"
+          [class.on]="prefs.taggingEnabled()"
+          (click)="taggingEnabledChange.emit(!prefs.taggingEnabled())"
           aria-label="toggle tagging"
         ></button>
       </div>

@@ -8,7 +8,6 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService } from './lightroom.service';
 import { ReviewStore } from './storage/review/review-store';
@@ -99,10 +98,8 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly dailyGoal = this.prefs.dailyGoal;
   readonly editGoal = this.prefs.editGoal;
   readonly tagGoal = this.prefs.tagGoal;
-  readonly morningReminder = this.prefs.morningReminder;
-  readonly reminderTime = this.prefs.reminderTime;
-  readonly silentTime = this.prefs.silentTime;
-  readonly silentEvening = this.prefs.silentEvening;
+  // Reminder prefs (morning/silent toggles + times) are now read and written directly by
+  // SettingsComponent via PreferencesService — the host no longer relays them.
   readonly taggingEnabled = this.prefs.taggingEnabled;
   readonly tagDirections = this.prefs.tagDirections;
   readonly vacationAlbumIds = this.prefs.vacationAlbumIds;
@@ -163,22 +160,10 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly fullscreenReviewMode = this.viewer.reviewMode;
   readonly fullscreenStartIndex = this.viewer.startIndex;
   currentReviewPhoto = computed(() => this.reviewPhotos()[this.reviewIndex()]);
-  // Preview URLs come from PreviewCacheService (the in-memory window cache); these computeds read it
-  // reactively so the cards re-render as previews arrive.
-  currentReviewPhotoUrl = computed(() => {
-    const current = this.currentReviewPhoto();
-    return current?.kind === 'photo' ? this.previews.url(current.id) : null;
-  });
-  // Frame-id → preview URL for the current unit (e.g. a burst's frames), passed to the group cards.
-  currentUnitImageUrls = computed(() => {
-    const current = this.currentReviewPhoto();
-    const urls = new Map<string, SafeUrl>();
-    for (const id of current ? unitAssetIds(current) : []) {
-      const url = this.previews.url(id);
-      if (url) urls.set(id, url);
-    }
-    return urls;
-  });
+  // The current unit's preview URLs are derived by ReviewFeedService (it owns the cursor + the cache);
+  // these reference its computeds so the cards' template bindings keep working unchanged.
+  readonly currentReviewPhotoUrl = this.feed.currentUrl;
+  readonly currentUnitImageUrls = this.feed.currentUnitUrls;
   doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
   sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
   keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
@@ -434,14 +419,6 @@ export class AppComponent implements OnInit, OnDestroy {
   /** "Review more" — pull a fresh batch of unseen units (delegated to ReviewFeedService). */
   loadMore(): Promise<void> {
     return this.feed.loadMore();
-  }
-
-  prevReviewPhoto(): void {
-    this.feed.back();
-  }
-
-  nextReviewPhoto(): void {
-    this.feed.advance();
   }
 
   setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {
