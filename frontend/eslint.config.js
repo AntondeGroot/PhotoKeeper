@@ -5,6 +5,9 @@ import angular from 'angular-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
 import boundaries from 'eslint-plugin-boundaries';
 
+// boundaries v6 object-selector helper: `allow`/`disallow` entries are `{ to: { type } }`.
+const to = (...types) => types.map((type) => ({ to: { type } }));
+
 export default tseslint.config(
   // Build/report output — ESLint flat config doesn't read .gitignore, so ignore these explicitly.
   { ignores: ['dist/', 'coverage/'] },
@@ -106,21 +109,24 @@ export default tseslint.config(
     rules: {
       'boundaries/no-unknown': 'off', // external packages (rxjs/@angular) aren't elements — noise
       'boundaries/no-unknown-files': 'error', // every app file must classify into a layer
-      'boundaries/element-types': [
+      'boundaries/dependencies': [
         'error',
         {
           default: 'disallow',
           rules: [
             // The load-bearing rules: a component reaches data through a service (never a store), and a
             // service never depends back up on a component.
-            { from: 'component', allow: ['component', 'service', 'domain'] },
-            { from: 'service', allow: ['service', 'store', 'domain'] },
-            { from: 'store', allow: ['store', 'domain'] },
+            { from: { type: 'component' }, allow: to('component', 'service', 'domain') },
+            { from: { type: 'service' }, allow: to('service', 'store', 'domain') },
+            { from: { type: 'store' }, allow: to('store', 'domain') },
             // Domain is pure logic + types: it may only depend on other domain. The persisted/API
             // contract types it needs (FrameSignature, PanoOrientation, DetectedGroup → detection-types;
             // PhotoAsset → lightroom-types) now live in domain modules, so this stays fully closed.
-            { from: 'domain', allow: ['domain'] },
-            { from: 'config', allow: ['config', 'component', 'service', 'store', 'domain'] },
+            { from: { type: 'domain' }, allow: to('domain') },
+            {
+              from: { type: 'config' },
+              allow: to('config', 'component', 'service', 'store', 'domain'),
+            },
           ],
         },
       ],
