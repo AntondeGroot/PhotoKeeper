@@ -14,12 +14,13 @@ import { ReviewStore } from './storage/review/review-store';
 import { PreviewCacheService } from './review/preview-cache.service';
 import { ReviewFeedService } from './review/review-feed.service';
 import { ReviewDecisionsService } from './review/review-decisions.service';
+import { ReviewStatsService } from './review/review-stats.service';
 import { FullscreenViewerService } from './review/fullscreen-viewer.service';
 import { CatalogScanService } from './detection/catalog-scan.service';
 import { DetectionSettingsService } from './detection/detection-settings.service';
 import { AlbumManifestStore } from './storage/detection/album-manifest-store';
 import { BackgroundScanService } from './detection/background-scan.service';
-import { Photo, isDevicePhoto, unitAssetIds } from './photo';
+import { isDevicePhoto, unitAssetIds } from './photo';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
 import { SessionDoneComponent } from './review/session-done/session-done';
 import { ReviewEditComponent } from './review/review-edit/review-edit';
@@ -83,6 +84,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly albumManifests = inject(AlbumManifestStore);
   private readonly scan = inject(BackgroundScanService);
   private readonly decisions = inject(ReviewDecisionsService);
+  private readonly stats = inject(ReviewStatsService);
   private readonly viewer = inject(FullscreenViewerService);
   private readonly tagState = inject(TagState);
   private readonly tagReview = inject(TagReviewService);
@@ -164,27 +166,21 @@ export class AppComponent implements OnInit, OnDestroy {
   // these reference its computeds so the cards' template bindings keep working unchanged.
   readonly currentReviewPhotoUrl = this.feed.currentUrl;
   readonly currentUnitImageUrls = this.feed.currentUnitUrls;
-  doneToday = computed(() => this.reviewPhotos().filter((p) => p.status !== 'backlog').length);
-  sessionDone = computed(() => this.doneToday() === this.reviewPhotos().length);
-  keptCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'kept').length);
-  rejectedCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'rejected').length);
-  toEditCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'toEdit').length);
-  maybeCount = computed(() => this.reviewPhotos().filter((p) => p.status === 'maybe').length);
-  progressReviewPercent = computed(() =>
-    Math.min(100, (this.doneToday() / this.dailyGoal()) * 100),
-  );
-  progressEditPercent = computed(() => Math.min(100, (this.editedToday() / this.editGoal()) * 100));
-  toEditQueue = computed(() =>
-    this.reviewPhotos().filter((p): p is Photo => p.kind === 'photo' && p.status === 'toEdit'),
-  );
-  editDone = computed(
-    () => this.editedToday() >= this.editGoal() || this.toEditQueue().length === 0,
-  );
-  toPrintQueue = computed(() =>
-    this.reviewPhotos().filter((p): p is Photo => p.kind === 'photo' && p.status === 'toPrint'),
-  );
-  toEditByAlbum = computed(() => this.groupByAlbum(this.toEditQueue()));
-  toPrintByAlbum = computed(() => this.groupByAlbum(this.toPrintQueue()));
+  // The deck's derived stats (tallies, goal progress, Edit/Print queues) live in ReviewStatsService;
+  // these reference its computeds so the template bindings keep working unchanged.
+  readonly doneToday = this.stats.doneToday;
+  readonly sessionDone = this.stats.sessionDone;
+  readonly keptCount = this.stats.keptCount;
+  readonly rejectedCount = this.stats.rejectedCount;
+  readonly toEditCount = this.stats.toEditCount;
+  readonly maybeCount = this.stats.maybeCount;
+  readonly progressReviewPercent = this.stats.progressReviewPercent;
+  readonly progressEditPercent = this.stats.progressEditPercent;
+  readonly toEditQueue = this.stats.toEditQueue;
+  readonly editDone = this.stats.editDone;
+  readonly toPrintQueue = this.stats.toPrintQueue;
+  readonly toEditByAlbum = this.stats.toEditByAlbum;
+  readonly toPrintByAlbum = this.stats.toPrintByAlbum;
   // Debounce handle: the goal slider emits continuously, so we resample once it settles.
   private goalResampleTimer: ReturnType<typeof setTimeout> | null = null;
   // Debounce handle for the burst-window slider, which forces a (heavy) library re-scan on change.
@@ -521,16 +517,6 @@ export class AppComponent implements OnInit, OnDestroy {
 
   promoteToPrint(id: string): void {
     this.decisions.promoteToPrint(id);
-  }
-
-  private groupByAlbum(photos: Photo[]): { album: string; photos: Photo[] }[] {
-    const map = new Map<string, Photo[]>();
-    for (const p of photos) {
-      const key = p.album ?? 'No album';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(p);
-    }
-    return Array.from(map.entries()).map(([album, photos]) => ({ album, photos }));
   }
 
   // Disconnects the Lightroom source from Settings: revokes the token (best-effort) and drops its
