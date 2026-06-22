@@ -9,9 +9,9 @@ import { decode as decodeJpeg } from 'jpeg-js';
 import { BurstCluster, BurstOptions, DetectAsset, clusterBursts } from './burst';
 import { PanoAsset, PanoCluster, PanoOptions, clusterPanos, overlapMatch } from './pano';
 import { HASH_HEIGHT, HASH_WIDTH, dhash, hammingDistance, signatureFromRgba } from './phash';
-import { DEFAULT_BURST_OPTIONS, DEFAULT_PANO_OPTIONS } from './detection-settings.service';
+import { DEFAULT_BURST_OPTIONS, DEFAULT_PANO_OPTIONS } from '../scan/detection-settings.service';
 
-const FIXTURES_ROOT = join(process.cwd(), 'src/app/detection/__fixtures__');
+const FIXTURES_ROOT = join(process.cwd(), 'src/app/detection/detectors/__fixtures__');
 
 export interface PanoFixture {
   ids: string[]; // frame ids (filename without the NN_ prefix / extension), in capture order

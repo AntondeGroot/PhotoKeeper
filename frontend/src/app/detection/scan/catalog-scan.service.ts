@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { LightroomService } from '../lightroom.service';
+import { LightroomService } from '../../lightroom.service';
 import { DetectionScanService } from './detection-scan.service';
-import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
+import { AlbumManifestStore } from '../../storage/detection/album-manifest-store';
 
 /** Default soft cap on images scanned per pass — the "keep ~100 ready" buffer the app tops up. */
 const DEFAULT_IMAGE_BUDGET = 100;

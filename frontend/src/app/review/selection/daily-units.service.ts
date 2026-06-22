@@ -6,7 +6,7 @@ import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { GroupStore } from '../../storage/detection/group-store';
 import { GroupOverrideStore, groupSignature } from '../../storage/detection/group-override-store';
 import { AssetMeta } from '../../storage/photokeeper-db';
-import { DetectedGroup } from '../../detection/detection-types';
+import { DetectedGroup } from '../../detection/detectors/detection-types';
 import { ReviewItem } from '../../photo';
 import { AlbumUnits, selectUnits } from './unit-selection';
 

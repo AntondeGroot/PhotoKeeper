@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { ReviewStore } from '../storage/review/review-store';
 import { StoredVerdict } from '../storage/photokeeper-db';
 import { GroupOverrideStore } from '../storage/detection/group-override-store';
-import { BackgroundScanService } from '../detection/background-scan.service';
+import { BackgroundScanService } from '../detection/scan/background-scan.service';
 import { PreferencesService } from '../preferences.service';
 import { ReviewFeedService, todayKey } from './review-feed.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { PhotoKeeperDb } from '../photokeeper-db';
-import { FrameSignature } from '../../detection/detection-types';
+import { FrameSignature } from '../../detection/detectors/detection-types';
 
 /**
  * Device-local index of frame signatures (assetId → grayscale grid), the input to pano detection.

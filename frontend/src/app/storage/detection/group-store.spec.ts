@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { GroupStore } from './group-store';
-import { DetectedGroup } from '../../detection/detection-types';
+import { DetectedGroup } from '../../detection/detectors/detection-types';
 
 const burst = (sourceAlbumId: string, memberIds: string[]): DetectedGroup => ({
   type: 'burst',

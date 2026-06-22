@@ -59,7 +59,7 @@ export default tseslint.config(
     // Specs and test fixtures are support code, not app layers. The detection lab is a dev-only
     // diagnostic screen (reached via ?lab) that deliberately reaches into stores — excepted, with a
     // TODO to route it through a service if it ever ships to users.
-    ignores: ['**/*.spec.ts', '**/*.fixture.ts', '**/detection-lab/**'],
+    ignores: ['**/*.spec.ts', '**/*.fixture.ts', '**/detection/lab/**'],
     plugins: { boundaries },
     settings: {
       // boundaries resolves each import to a file before classifying it; the default node resolver
@@ -67,7 +67,7 @@ export default tseslint.config(
       // silently passes. The TypeScript resolver fixes that.
       'import/resolver': { typescript: { project: 'tsconfig.json' } },
       'boundaries/include': ['src/app/**/*.ts'],
-      'boundaries/ignore': ['**/*.spec.ts', '**/*.fixture.ts', '**/detection-lab/**'],
+      'boundaries/ignore': ['**/*.spec.ts', '**/*.fixture.ts', '**/detection/lab/**'],
       // Order matters: a file takes the first type it matches, so specific patterns precede the
       // broad `component` catch-all.
       'boundaries/elements': [
@@ -90,13 +90,7 @@ export default tseslint.config(
             'src/app/photo.ts',
             'src/app/lightroom-types.ts',
             'src/app/tagging/tags.ts',
-            'src/app/detection/detection-types.ts',
-            'src/app/detection/burst.ts',
-            'src/app/detection/pano.ts',
-            'src/app/detection/phash.ts',
-            'src/app/detection/image-hasher.ts',
-            'src/app/detection/lab-analysis.ts',
-            'src/app/detection/pano-fixtures.fixture.ts',
+            'src/app/detection/detectors/**/*.ts', // pure detectors + their contract types
             'src/app/review/selection/unit-selection.ts',
             'src/app/review/fullscreen-viewer/viewer-image.ts',
             'src/app/notifications/heads-up/heads-up.types.ts',
@@ -139,7 +133,7 @@ export default tseslint.config(
     // cap via the service-extraction campaign — 470 → 444 → 425 → 413 → 403 → under 400 — and no longer
     // needs an override.)
     // TODO(god-object): split the dev lab into sub-panels to bring detection-lab.ts under the global cap.
-    files: ['src/app/detection/detection-lab/detection-lab.ts'],
+    files: ['src/app/detection/lab/detection-lab/detection-lab.ts'],
     rules: { 'max-lines': ['error', { max: 419, skipBlankLines: true, skipComments: true }] },
   },
   {

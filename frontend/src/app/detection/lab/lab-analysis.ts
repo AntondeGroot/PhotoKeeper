@@ -3,10 +3,10 @@
 // starts/stops where it does. No IO — the component feeds it loaded assets + hashes and re-runs it as
 // sliders move.
 
-import { BurstOptions, DetectAsset, clusterBursts } from './burst';
-import { PanoAsset, PanoOptions, clusterPanos, overlapMatch } from './pano';
-import { FrameSignature, PanoOrientation } from './detection-types';
-import { hammingDistance } from './phash';
+import { BurstOptions, DetectAsset, clusterBursts } from '../detectors/burst';
+import { PanoAsset, PanoOptions, clusterPanos, overlapMatch } from '../detectors/pano';
+import { FrameSignature, PanoOrientation } from '../detectors/detection-types';
+import { hammingDistance } from '../detectors/phash';
 
 /** A frame just outside a cluster, with how far it sits from the cluster edge. */
 export interface LabNeighbor {

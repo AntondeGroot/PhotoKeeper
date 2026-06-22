@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { BurstOptions } from './burst';
-import { PanoOptions } from './pano';
+import { BurstOptions } from '../detectors/burst';
+import { PanoOptions } from '../detectors/pano';
 
 const STORAGE_KEY = 'detection-burst-options';
 

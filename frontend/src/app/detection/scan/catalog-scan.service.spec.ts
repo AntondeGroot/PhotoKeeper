@@ -2,8 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { CatalogScanService } from './catalog-scan.service';
 import { DetectionScanService, ScanReport } from './detection-scan.service';
-import { Album, LightroomService } from '../lightroom.service';
-import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
+import { Album, LightroomService } from '../../lightroom.service';
+import { AlbumManifestStore } from '../../storage/detection/album-manifest-store';
 
 const album = (id: string): Album => ({ id, name: id });
 

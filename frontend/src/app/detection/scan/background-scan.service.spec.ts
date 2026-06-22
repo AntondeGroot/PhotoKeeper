@@ -1,9 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { BackgroundScanService } from './background-scan.service';
 import { CatalogScanService } from './catalog-scan.service';
-import { AssetMetaStore } from '../storage/review/asset-meta-store';
-import { ReviewStore } from '../storage/review/review-store';
-import { AssetMeta, StoredVerdict } from '../storage/photokeeper-db';
+import { AssetMetaStore } from '../../storage/review/asset-meta-store';
+import { ReviewStore } from '../../storage/review/review-store';
+import { AssetMeta, StoredVerdict } from '../../storage/photokeeper-db';
 
 describe('BackgroundScanService', () => {
   let service: BackgroundScanService;
