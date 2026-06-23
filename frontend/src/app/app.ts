@@ -427,6 +427,11 @@ export class AppComponent implements OnInit, OnDestroy {
     return this.feed.loadMore();
   }
 
+  /** The Lightroom catalog id, for the Edit list's "Open in Lightroom" deep-links (null until authed). */
+  catalogId(): string | null {
+    return this.svc.getCatalogId();
+  }
+
   setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {
     this.activeTab.set(tab);
     // Switching tabs closes the Settings sub-screens, so returning to Settings lands on the main page

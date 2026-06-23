@@ -13,7 +13,9 @@
           <span class="item-name">{{ photo.name }}{{ photo.ext ? '.' + photo.ext : '' }}</span>
           <span class="item-album">{{ photo.album || 'No album' }}</span>
         </div>
-        <button (click)="promoted.emit(photo.id)">Edited → print</button>
+        <a class="open-lr" [href]="lightroomUrl(photo)" target="_blank" rel="noopener">
+          Open in Lightroom
+        </a>
       </div>
     }
   </div>
