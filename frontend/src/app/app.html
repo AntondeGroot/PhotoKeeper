@@ -180,7 +180,7 @@
             />
           }
         } @else if (activeTab() === 'prints') {
-          <app-prints [toPrintByAlbum]="toPrintByAlbum()" [imageUrls]="printImageUrls()" />
+          <app-prints />
         } @else if (manageAlbumsOpen()) {
           <app-album-manager
             [albums]="albums()"

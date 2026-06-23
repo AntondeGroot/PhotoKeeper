@@ -3,71 +3,57 @@
   <section class="lane">
     <header class="lane-head">
       <span class="lane-title lane-title-print">To print</span>
-      <span class="lane-count">{{ total(toPrintByAlbum) }}</span>
+      <span class="lane-count">{{ toPrint().length }}</span>
     </header>
-    @if (total(toPrintByAlbum) === 0) {
+    @if (toPrint().length === 0) {
       <p class="lane-hint">
         Albums ready to print — edited in your Daily review and waiting to be exported. Each album
         is its own folder; export it in Lightroom and order it wherever you like.
       </p>
     } @else {
-      @for (group of toPrintByAlbum; track group.album) {
-        <div class="album-group">
-          <div class="album-head">
-            <span class="album-name"
-              >{{ group.album }} <span class="album-count">· {{ group.photos.length }}</span></span
-            >
+      @for (group of toPrint(); track group.album) {
+        <article class="album-card">
+          <div class="album-card-head">
+            <div class="album-meta">
+              <div class="album-title">{{ group.album }}</div>
+              <div class="album-subtitle">{{ group.photos.length }} photos · ready to print</div>
+            </div>
+            <button class="album-pill album-pill-print" (click)="markOrdered(group.album)">
+              I've ordered these →
+            </button>
           </div>
-          <div class="thumb-grid">
-            @for (photo of group.photos; track photo.id) {
-              <div class="thumb">
-                @if (imageUrls.get(photo.id); as url) {
-                  <img class="thumb-img" [src]="url" alt="" draggable="false" />
-                } @else if (photo.scene; as scene) {
-                  <app-scene [scene]="scene" />
-                }
-                @if (photo.starred) {
-                  <span class="thumb-star">★ 5</span>
-                }
-              </div>
-            }
-          </div>
-        </div>
+          <app-photo-stack [photos]="group.photos" />
+        </article>
       }
     }
   </section>
 
-  <!-- Done — printed and placed -->
+  <!-- Done — ordered, awaiting placement; mark done once on the wall / in the album -->
   <section class="lane">
     <header class="lane-head">
       <span class="lane-title lane-title-done">Done</span>
-      <span class="lane-count">{{ total(doneByAlbum) }}</span>
+      <span class="lane-count">{{ done().length }}</span>
     </header>
-    @if (total(doneByAlbum) === 0) {
+    @if (done().length === 0) {
       <p class="lane-hint">
         Printed and placed — the photo completed its journey from camera to a wall or an album.
       </p>
     } @else {
-      @for (group of doneByAlbum; track group.album) {
-        <div class="album-group">
-          <div class="album-head">
-            <span class="album-name"
-              >{{ group.album }} <span class="album-count">· {{ group.photos.length }}</span></span
-            >
-          </div>
-          <div class="thumb-grid">
-            @for (photo of group.photos; track photo.id) {
-              <div class="thumb thumb-done">
-                @if (imageUrls.get(photo.id); as url) {
-                  <img class="thumb-img" [src]="url" alt="" draggable="false" />
-                } @else if (photo.scene; as scene) {
-                  <app-scene [scene]="scene" />
-                }
-                <span class="thumb-badge">DONE</span>
+      @for (group of done(); track group.album) {
+        <article class="album-card">
+          <div class="album-card-head">
+            <div class="album-meta">
+              <div class="album-title">{{ group.album }}</div>
+              <div class="album-subtitle">
+                {{ group.photos.length }} photos · on the wall or in the album?
               </div>
-            }
+            </div>
+            <button class="album-pill album-pill-done" (click)="markPlaced(group.album)">
+              <span class="pill-box"></span> Mark as done
+            </button>
           </div>
-        </div>
+          <app-photo-stack [photos]="group.photos" />
+        </article>
       }
     }
   </section>

@@ -7,6 +7,11 @@ const ACCESS_KEY = 'lr-access-token';
 const REFRESH_KEY = 'lr-refresh-token';
 const CATALOG_KEY = 'lr-catalog-id';
 
+// The backend's own origin. Most calls go through the dev-server proxy as relative `api/...` URLs, but
+// OAuth login is a full-page navigation that must hit the backend directly — on the same origin as the
+// registered redirect-uri (the callback) — not whatever client port happens to serve the page.
+const BACKEND_ORIGIN = 'https://localhost:8080';
+
 /** Token set returned by the backend (device-stored). */
 export interface TokenSet {
   accessToken: string;
@@ -19,7 +24,7 @@ export class LightroomService {
   private readonly http = inject(HttpClient);
 
   loginHref(): string {
-    return 'api/auth/login';
+    return `${BACKEND_ORIGIN}/api/auth/login`;
   }
 
   // ── Device-stored tokens + catalog id ───────────────────────────────────────

@@ -1,25 +1,28 @@
-import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
-import { SafeUrl } from '@angular/platform-browser';
-import { AlbumGroup } from '../photo';
-import { SceneComponent } from '../review/scene/scene';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { PrintsService } from './prints.service';
+import { PhotoStackComponent } from './photo-stack/photo-stack';
 
 @Component({
   selector: 'app-prints',
   templateUrl: './prints.html',
-  imports: [SceneComponent],
+  imports: [PhotoStackComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './prints.scss',
 })
 export class PrintsComponent {
-  /** Albums whose keepers are edited and ready to export/print. */
-  @Input() toPrintByAlbum: AlbumGroup[] = [];
-  /** Albums whose prints have arrived and been placed — empty until the fulfilment flow exists. */
-  @Input() doneByAlbum: AlbumGroup[] = [];
-  /** Frame-id → preview URL for the thumbnails (a generated scene is shown when absent). */
-  @Input() imageUrls = new Map<string, SafeUrl>();
+  private readonly prints = inject(PrintsService);
 
-  /** Total photos across a lane's album groups (drives the count + empty state). */
-  total(groups: AlbumGroup[]): number {
-    return groups.reduce((n, g) => n + g.photos.length, 0);
+  /** Albums still to export/order, and albums ordered & awaiting placement. */
+  readonly toPrint = this.prints.toPrint;
+  readonly done = this.prints.done;
+
+  /** "I've ordered these" — move the album into Done. */
+  markOrdered(album: string): void {
+    void this.prints.markOrdered(album);
+  }
+
+  /** Checkmark — the prints are placed; complete the album. */
+  markPlaced(album: string): void {
+    void this.prints.markPlaced(album);
   }
 }

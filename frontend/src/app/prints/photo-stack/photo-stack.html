@@ -1,0 +1,14 @@
+@for (photo of shown(); track photo.id; let i = $index) {
+  <div
+    class="stack-photo"
+    [style.margin-left.px]="i === 0 ? 0 : -26"
+    [style.transform]="transform(i)"
+    [style.z-index]="shown().length - i"
+  >
+    @if (imageUrl(photo.id); as url) {
+      <img [src]="url" alt="" draggable="false" />
+    } @else if (photo.scene; as scene) {
+      <app-scene [scene]="scene" />
+    }
+  </div>
+}
