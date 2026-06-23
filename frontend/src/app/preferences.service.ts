@@ -33,6 +33,9 @@ export class PreferencesService {
   readonly stereoEnabled = signal(false);
   readonly tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
   readonly vacationAlbumIds = signal<string[]>([]);
+  // Stereo albums are keyed by *name* (not id like vacation): a review photo only carries its album
+  // name, so the in-review "mark as stereo" control and the album manager toggle the same key.
+  readonly stereoAlbums = signal<string[]>([]);
   readonly onboarded = signal(false);
   readonly deviceEnabled = signal(false);
   readonly deviceFolders = signal<DeviceFolder[]>(DEVICE_FOLDERS.map((f) => ({ ...f })));
@@ -77,6 +80,11 @@ export class PreferencesService {
       this.vacationAlbumIds.set(vacation.filter((id): id is string => typeof id === 'string'));
     }
 
+    const stereo: unknown = readJson('stereoAlbums');
+    if (Array.isArray(stereo)) {
+      this.stereoAlbums.set(stereo.filter((name): name is string => typeof name === 'string'));
+    }
+
     const folders: unknown = readJson('deviceFolders');
     if (Array.isArray(folders)) {
       const on = new Set(folders.filter((n): n is string => typeof n === 'string'));
@@ -96,6 +104,7 @@ export class PreferencesService {
     localStorage.setItem('stereoEnabled', String(this.stereoEnabled()));
     localStorage.setItem('tagDirections', JSON.stringify(this.tagDirections()));
     localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
+    localStorage.setItem('stereoAlbums', JSON.stringify(this.stereoAlbums()));
     localStorage.setItem('onboarded', String(this.onboarded()));
     localStorage.setItem('deviceEnabled', String(this.deviceEnabled()));
     // Persist only the per-folder enabled flags by name, so changing the folder catalogue later

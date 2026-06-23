@@ -21,6 +21,7 @@ import { DetectionSettingsService } from './detection/scan/detection-settings.se
 import { BackgroundScanService } from './detection/scan/background-scan.service';
 import { Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
+import { ReviewAlbumTagsComponent } from './review/review-album-tags/review-album-tags';
 import { SessionDoneComponent } from './review/session-done/session-done';
 import { ReviewEditComponent } from './review/review-edit/review-edit';
 import { PrintsComponent } from './prints/prints';
@@ -53,6 +54,7 @@ const SPLASH_MIN_MS = 1800;
   selector: 'app-root',
   imports: [
     ReviewSortComponent,
+    ReviewAlbumTagsComponent,
     SessionDoneComponent,
     ReviewEditComponent,
     PrintsComponent,
@@ -101,7 +103,7 @@ export class AppComponent implements OnInit, OnDestroy {
   // SettingsComponent via PreferencesService — the host no longer relays them.
   readonly taggingEnabled = this.prefs.taggingEnabled;
   readonly tagDirections = this.prefs.tagDirections;
-  readonly vacationAlbumIds = this.prefs.vacationAlbumIds;
+  // Album tags (vacation/stereo) are owned by AlbumManagerComponent directly via PreferencesService.
   readonly onboarded = this.prefs.onboarded;
   readonly deviceEnabled = this.prefs.deviceEnabled;
   readonly deviceFolders = this.prefs.deviceFolders;
@@ -368,12 +370,6 @@ export class AppComponent implements OnInit, OnDestroy {
     } catch {
       // Leave the album list empty; the Manage-albums screen will show "No albums match".
     }
-  }
-
-  toggleVacationAlbum(albumId: string): void {
-    this.vacationAlbumIds.update((ids) =>
-      ids.includes(albumId) ? ids.filter((id) => id !== albumId) : [...ids, albumId],
-    );
   }
 
   // Loads today's review deck via ReviewFeedService, surfacing any failure as a user-visible error.

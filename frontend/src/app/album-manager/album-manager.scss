@@ -110,7 +110,14 @@
   white-space: nowrap;
 }
 
-.vacation-pill {
+.album-pills {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.vacation-pill,
+.stereo-pill {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -131,15 +138,25 @@
     border-radius: 50%;
     background: var(--c-faint);
   }
+}
 
-  &.on {
-    border-color: var(--c-holiday);
-    color: var(--c-holiday);
-    background: color-mix(in srgb, var(--c-holiday) 12%, transparent);
+.vacation-pill.on {
+  border-color: var(--c-holiday);
+  color: var(--c-holiday);
+  background: color-mix(in srgb, var(--c-holiday) 12%, transparent);
 
-    .pill-dot {
-      background: var(--c-holiday);
-    }
+  .pill-dot {
+    background: var(--c-holiday);
+  }
+}
+
+.stereo-pill.on {
+  border-color: var(--c-stereo);
+  color: var(--c-stereo);
+  background: color-mix(in srgb, var(--c-stereo) 12%, transparent);
+
+  .pill-dot {
+    background: var(--c-stereo);
   }
 }
 
