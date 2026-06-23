@@ -19,11 +19,11 @@ import { FullscreenViewerService } from './review/fullscreen-viewer.service';
 import { CatalogScanService } from './detection/scan/catalog-scan.service';
 import { DetectionSettingsService } from './detection/scan/detection-settings.service';
 import { BackgroundScanService } from './detection/scan/background-scan.service';
-import { ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
+import { Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
 import { SessionDoneComponent } from './review/session-done/session-done';
 import { ReviewEditComponent } from './review/review-edit/review-edit';
-import { PipelineComponent } from './pipeline/pipeline';
+import { PrintsComponent } from './prints/prints';
 import { SettingsComponent } from './settings/settings';
 import { BurstCardComponent } from './review/burst-card/burst-card';
 import { PanoCardComponent } from './review/pano-card/pano-card';
@@ -55,7 +55,7 @@ const SPLASH_MIN_MS = 1800;
     ReviewSortComponent,
     SessionDoneComponent,
     ReviewEditComponent,
-    PipelineComponent,
+    PrintsComponent,
     SettingsComponent,
     BurstCardComponent,
     PanoCardComponent,
@@ -125,7 +125,7 @@ export class AppComponent implements OnInit, OnDestroy {
   canContinueOnboarding = computed(() => this.authenticated() || this.deviceReady());
   // Developer detection lab, reached via the ?lab query param. Replaces the review UI when set.
   labMode = signal(false);
-  activeTab = signal<'review' | 'pipeline' | 'settings'>('review');
+  activeTab = signal<'review' | 'prints' | 'settings'>('review');
   reviewMode = signal<'sort' | 'edit' | 'tag'>('sort');
   // The Tag review step (cursor + its derived state + swipe/tag actions) lives in TagReviewService;
   // these reference its members so existing template bindings keep working unchanged.
@@ -173,22 +173,15 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly maybeCount = this.stats.maybeCount;
   readonly progressReviewPercent = this.stats.progressReviewPercent;
   readonly progressEditPercent = this.stats.progressEditPercent;
-  readonly toEditQueue = this.stats.toEditQueue;
   readonly editBatch = this.stats.editBatch;
   readonly editDone = this.stats.editDone;
   readonly toPrintQueue = this.stats.toPrintQueue;
-  readonly toEditByAlbum = this.stats.toEditByAlbum;
   readonly toPrintByAlbum = this.stats.toPrintByAlbum;
   // Frame-id → preview URL for today's edit batch, so the Edit list can show each photo (read
   // reactively so a thumbnail appears as its preview finishes loading).
-  readonly editImageUrls = computed(() => {
-    const urls = new Map<string, SafeUrl>();
-    for (const photo of this.editBatch()) {
-      const url = this.previews.url(photo.id);
-      if (url) urls.set(photo.id, url);
-    }
-    return urls;
-  });
+  readonly editImageUrls = computed(() => this.previewUrlsFor(this.editBatch()));
+  // Same, for the Prints tab's "To print" thumbnails.
+  readonly printImageUrls = computed(() => this.previewUrlsFor(this.toPrintQueue()));
   // Debounce handle: the goal slider emits continuously, so we resample once it settles.
   private goalResampleTimer: ReturnType<typeof setTimeout> | null = null;
   // Debounce handle for the burst-window slider, which forces a (heavy) library re-scan on change.
@@ -217,14 +210,27 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
-  // The units whose previews to keep loaded, by mode: the whole (small) edit batch in Edit mode; in Tag
-  // mode the keepers around the tag cursor; otherwise the sort feed around the review cursor.
+  // The units whose previews to keep loaded: the To-print lane on the Prints tab; the (small) edit
+  // batch in Edit mode; the keepers around the tag cursor in Tag mode; otherwise the sort feed around
+  // the review cursor.
   private prefetchWindow(): ReviewItem[] {
+    if (this.activeTab() === 'prints') return this.toPrintQueue();
     if (this.reviewMode() === 'edit') return this.editBatch();
     const tagMode = this.reviewMode() === 'tag';
     const photos = tagMode ? this.taggablePhotos() : this.reviewPhotos();
     const start = tagMode ? this.tagReviewIndex() : this.reviewIndex();
     return photos.slice(start, start + PREFETCH_AHEAD + 1);
+  }
+
+  // Builds an id → preview-URL map for a set of photos, reading the in-memory cache reactively so a
+  // thumbnail appears as its preview finishes loading.
+  private previewUrlsFor(photos: Photo[]): Map<string, SafeUrl> {
+    const urls = new Map<string, SafeUrl>();
+    for (const photo of photos) {
+      const url = this.previews.url(photo.id);
+      if (url) urls.set(photo.id, url);
+    }
+    return urls;
   }
 
   ngOnInit(): void {
@@ -432,7 +438,7 @@ export class AppComponent implements OnInit, OnDestroy {
     return this.svc.getCatalogId();
   }
 
-  setActiveTab(tab: 'review' | 'pipeline' | 'settings'): void {
+  setActiveTab(tab: 'review' | 'prints' | 'settings'): void {
     this.activeTab.set(tab);
     // Switching tabs closes the Settings sub-screens, so returning to Settings lands on the main page
     // rather than stranding anyone who missed a back arrow.

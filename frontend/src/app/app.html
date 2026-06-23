@@ -40,10 +40,10 @@
         </button>
         <button
           class="tab-btn"
-          [class.active]="activeTab() === 'pipeline'"
-          (click)="setActiveTab('pipeline')"
+          [class.active]="activeTab() === 'prints'"
+          (click)="setActiveTab('prints')"
         >
-          Pipeline
+          Prints
         </button>
         <button
           class="tab-btn"
@@ -152,7 +152,7 @@
                 [toEditCount]="toEditCount()"
                 [maybeCount]="maybeCount()"
                 [canLoadMore]="canLoadMore()"
-                (pipelineClick)="setActiveTab('pipeline')"
+                (printsClick)="setActiveTab('prints')"
                 (loadMore)="loadMore()"
               />
             }
@@ -179,8 +179,8 @@
               (prev)="prevTagPhoto()"
             />
           }
-        } @else if (activeTab() === 'pipeline') {
-          <app-pipeline [toEditByAlbum]="toEditByAlbum()" [toPrintByAlbum]="toPrintByAlbum()" />
+        } @else if (activeTab() === 'prints') {
+          <app-prints [toPrintByAlbum]="toPrintByAlbum()" [imageUrls]="printImageUrls()" />
         } @else if (manageAlbumsOpen()) {
           <app-album-manager
             [albums]="albums()"
