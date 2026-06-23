@@ -158,7 +158,8 @@
             }
           } @else if (reviewMode() === 'edit') {
             <app-review-edit
-              [queue]="toEditQueue()"
+              [queue]="editBatch()"
+              [imageUrls]="editImageUrls()"
               [editDone]="editDone()"
               (promoted)="promoteToPrint($event)"
             />

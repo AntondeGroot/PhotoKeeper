@@ -7,17 +7,51 @@
 
 .edit-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   background: var(--c-panel);
   border: 1px solid var(--c-line);
   border-radius: 12px;
   padding: 12px 14px;
 
+  .edit-thumb {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--c-line);
+
+    .edit-img,
+    app-scene {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .edit-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1; // take the slack so the button sits at the right edge
+  }
+
   .item-name {
     font-size: 13px;
     font-weight: 600;
     color: var(--c-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .item-album {
+    font-size: 11px;
+    color: var(--c-text-dim, var(--c-text));
+    opacity: 0.7;
   }
 
   button {
