@@ -5,7 +5,7 @@
   padding: 4px 0;
 }
 
-// A prints lane card (To print / Done) — mirrors the prototype's Lane.
+// A pipeline lane card (To print / Done) — mirrors the prototype's Lane.
 .lane {
   border: 1px solid var(--c-line);
   border-radius: 14px;
@@ -46,93 +46,81 @@
   padding: 14px 4px;
 }
 
-// Album sub-folder inside a lane — mirrors the source album.
-.album-group {
-  margin-bottom: 12px;
+// Each album is its own card inside the lane — its name, a sample of its photos, and one action.
+.album-card {
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  background: var(--c-panel);
+  padding: 14px;
+  margin-bottom: 14px;
 
   &:last-child {
     margin-bottom: 0;
   }
 }
 
-.album-head {
+.album-card-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--c-line);
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
-.album-name {
-  font-size: 12.5px;
-  font-weight: 600;
+.album-meta {
+  min-width: 0;
+}
+
+.album-title {
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 19px;
+  line-height: 1.15;
   color: var(--c-text);
 }
 
-.album-count {
+.album-subtitle {
+  font-size: 11.5px;
   color: var(--c-faint);
-  font-weight: 400;
+  margin-top: 3px;
 }
 
-.thumb-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
+// Rounded "pill" action, tinted in the lane's colour (print / keep), like the prototype.
+.album-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 7px 13px;
+  cursor: pointer;
+  white-space: nowrap;
 
-.thumb {
-  position: relative;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid var(--c-line);
-  aspect-ratio: 3 / 4;
-  background: var(--c-line);
-
-  .thumb-img,
-  app-scene {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-}
-
-.thumb-star {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #131110;
-  background: var(--c-star);
-  border-radius: 6px;
-  padding: 2px 6px;
-}
-
-// "Done" thumbnails carry a dim overlay + DONE chip, like the prototype.
-.thumb-done {
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: rgba(10, 9, 8, 0.45);
-    z-index: 1;
+  &.album-pill-print {
+    color: var(--c-print);
+    background: color-mix(in srgb, var(--c-print) 8%, transparent);
+    border: 1px solid var(--c-print);
   }
 
-  .thumb-badge {
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    z-index: 2;
-    width: max-content;
-    height: max-content;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 2px;
+  &.album-pill-done {
     color: var(--c-keep);
+    background: color-mix(in srgb, var(--c-keep) 8%, transparent);
     border: 1px solid var(--c-keep);
-    border-radius: 4px;
-    padding: 2px 8px;
+
+    .pill-box {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      border: 1.5px solid var(--c-keep);
+      border-radius: 4px;
+    }
+
+    &:hover .pill-box {
+      background: var(--c-keep);
+    }
   }
 }
+
+// The print pile itself lives in PhotoStackComponent (app-photo-stack).

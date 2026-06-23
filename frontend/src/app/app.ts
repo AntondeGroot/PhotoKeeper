@@ -175,13 +175,10 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly progressEditPercent = this.stats.progressEditPercent;
   readonly editBatch = this.stats.editBatch;
   readonly editDone = this.stats.editDone;
-  readonly toPrintQueue = this.stats.toPrintQueue;
-  readonly toPrintByAlbum = this.stats.toPrintByAlbum;
   // Frame-id → preview URL for today's edit batch, so the Edit list can show each photo (read
-  // reactively so a thumbnail appears as its preview finishes loading).
+  // reactively so a thumbnail appears as its preview finishes loading). The Prints tab's own component
+  // reads previews directly; the host only warms its photos (see prefetchWindow).
   readonly editImageUrls = computed(() => this.previewUrlsFor(this.editBatch()));
-  // Same, for the Prints tab's "To print" thumbnails.
-  readonly printImageUrls = computed(() => this.previewUrlsFor(this.toPrintQueue()));
   // Debounce handle: the goal slider emits continuously, so we resample once it settles.
   private goalResampleTimer: ReturnType<typeof setTimeout> | null = null;
   // Debounce handle for the burst-window slider, which forces a (heavy) library re-scan on change.
@@ -198,6 +195,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // photosLoaded so the mock fallback (whose ids aren't real assets) is skipped.
     effect(() => {
       if (!this.photosLoaded()) return;
+      if (this.activeTab() === 'prints') return; // the Prints tab warms its own (visible) previews
       const windowIds = new Set<string>();
       for (const item of this.prefetchWindow()) {
         if (isDevicePhoto(item)) continue; // device photos have no Lightroom rendition to warm
@@ -210,11 +208,10 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
-  // The units whose previews to keep loaded: the To-print lane on the Prints tab; the (small) edit
-  // batch in Edit mode; the keepers around the tag cursor in Tag mode; otherwise the sort feed around
-  // the review cursor.
+  // The units whose previews to keep loaded: the (small) edit batch in Edit mode; the keepers around
+  // the tag cursor in Tag mode; otherwise the sort feed around the review cursor. (The Prints tab warms
+  // its own previews — see the effect above.)
   private prefetchWindow(): ReviewItem[] {
-    if (this.activeTab() === 'prints') return this.toPrintQueue();
     if (this.reviewMode() === 'edit') return this.editBatch();
     const tagMode = this.reviewMode() === 'tag';
     const photos = tagMode ? this.taggablePhotos() : this.reviewPhotos();

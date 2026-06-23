@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { DBSchema, IDBPDatabase, openDB } from 'idb';
 import { Photo, ReviewItem } from '../photo';
 import { Tag } from '../tagging/tags';
+import { AlbumPrintState } from '../prints/prints.types';
 import {
   DetectedGroup,
   FrameSignature,
@@ -93,6 +94,7 @@ export interface AlbumManifest {
  * - frameAspect: assetId → rendition width/height, the pano aspect gate's input
  * - tags: tagId → a user-defined content tag (the editable catalog)
  * - assetTags: assetId → the tag ids applied to that photo (the Tag-mode assignments)
+ * - albumPrint: album name → its print-fulfilment state (ordered/placed) for the Prints tab
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -109,6 +111,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   frameAspect: { key: string; value: number };
   tags: { key: string; value: Tag };
   assetTags: { key: string; value: string[] };
+  albumPrint: { key: string; value: AlbumPrintState };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -121,8 +124,9 @@ export class PhotoKeeperDb {
     // 'frameSignature'. v10 added 'frameAspect' (the aspect gate's input) and clears signatures +
     // manifests so every album re-scans. v11 added 'groupReclass' (burst↔pano user corrections).
     // v12 added 'tags' (the user-defined content-tag catalog); v13 added 'assetTags' (Tag-mode
-    // per-photo assignments). Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 13, {
+    // per-photo assignments); v14 added 'albumPrint' (the Prints tab's per-album fulfilment state).
+    // Create-if-missing so other stores keep their data.
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 14, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -146,6 +150,7 @@ export class PhotoKeeperDb {
           'frameAspect',
           'tags',
           'assetTags',
+          'albumPrint',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

@@ -52,8 +52,8 @@ describe('LightroomService', () => {
   });
 
   describe('loginHref', () => {
-    it('returns the relative login path', () => {
-      expect(service.loginHref()).toBe('api/auth/login');
+    it('points at the backend origin so OAuth starts on the same origin as the callback', () => {
+      expect(service.loginHref()).toBe('https://localhost:8080/api/auth/login');
     });
   });
 
