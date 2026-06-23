@@ -284,6 +284,26 @@
     </div>
   </div>
 
+  <div class="settings-card">
+    <div class="reminder-row">
+      <div class="reminder-text">
+        <div class="reminder-label">Stereo tools</div>
+        <div class="reminder-description">
+          Adds a “mark as stereo” control while reviewing, and lets you see stereo photos side by
+          side
+        </div>
+      </div>
+      <div class="toggle-group">
+        <button
+          class="toggle"
+          [class.on]="prefs.stereoEnabled()"
+          (click)="prefs.stereoEnabled.set(!prefs.stereoEnabled())"
+          aria-label="toggle stereo tools"
+        ></button>
+      </div>
+    </div>
+  </div>
+
   <div class="settings-section-label">Detection</div>
 
   <div class="settings-card">

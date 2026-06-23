@@ -30,6 +30,7 @@ export class PreferencesService {
   readonly silentTime = signal('21:00');
   readonly silentEvening = signal(true);
   readonly taggingEnabled = signal(false);
+  readonly stereoEnabled = signal(false);
   readonly tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
   readonly vacationAlbumIds = signal<string[]>([]);
   readonly onboarded = signal(false);
@@ -62,6 +63,7 @@ export class PreferencesService {
     const silentEvening = localStorage.getItem('silentEvening');
     if (silentEvening) this.silentEvening.set(silentEvening === 'true');
     this.taggingEnabled.set(localStorage.getItem('taggingEnabled') === 'true');
+    this.stereoEnabled.set(localStorage.getItem('stereoEnabled') === 'true');
     this.onboarded.set(localStorage.getItem('onboarded') === 'true');
     this.deviceEnabled.set(localStorage.getItem('deviceEnabled') === 'true');
   }
@@ -91,6 +93,7 @@ export class PreferencesService {
     localStorage.setItem('silentTime', this.silentTime());
     localStorage.setItem('silentEvening', String(this.silentEvening()));
     localStorage.setItem('taggingEnabled', String(this.taggingEnabled()));
+    localStorage.setItem('stereoEnabled', String(this.stereoEnabled()));
     localStorage.setItem('tagDirections', JSON.stringify(this.tagDirections()));
     localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
     localStorage.setItem('onboarded', String(this.onboarded()));
