@@ -2,7 +2,17 @@
   <div class="edit-queue">
     @for (photo of queue; track photo.id) {
       <div class="edit-item">
-        <span class="item-name">{{ photo.name }}</span>
+        <div class="edit-thumb">
+          @if (imageUrls.get(photo.id); as url) {
+            <img class="edit-img" [src]="url" alt="" draggable="false" />
+          } @else if (photo.scene; as scene) {
+            <app-scene [scene]="scene" />
+          }
+        </div>
+        <div class="edit-text">
+          <span class="item-name">{{ photo.name }}{{ photo.ext ? '.' + photo.ext : '' }}</span>
+          <span class="item-album">{{ photo.album || 'No album' }}</span>
+        </div>
         <button (click)="promoted.emit(photo.id)">Edited → print</button>
       </div>
     }

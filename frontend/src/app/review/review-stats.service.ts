@@ -57,6 +57,10 @@ export class ReviewStatsService {
   readonly toEditQueue = computed(() =>
     this.feed.photos().filter((p): p is Photo => p.kind === 'photo' && p.status === 'toEdit'),
   );
+
+  /** Today's edit batch: the first {@link PreferencesService.editGoal} of the queue — a focused set to
+   *  edit today, rather than the whole backlog. The full queue still drives the pipeline overview. */
+  readonly editBatch = computed(() => this.toEditQueue().slice(0, this.prefs.editGoal()));
   readonly editDone = computed(
     () => this.decisions.editedToday() >= this.prefs.editGoal() || this.toEditQueue().length === 0,
   );

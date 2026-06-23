@@ -8,6 +8,7 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { Album, LightroomService } from './lightroom.service';
 import { PreviewCacheService } from './review/preview-cache.service';
@@ -18,7 +19,7 @@ import { FullscreenViewerService } from './review/fullscreen-viewer.service';
 import { CatalogScanService } from './detection/scan/catalog-scan.service';
 import { DetectionSettingsService } from './detection/scan/detection-settings.service';
 import { BackgroundScanService } from './detection/scan/background-scan.service';
-import { isDevicePhoto, unitAssetIds } from './photo';
+import { ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
 import { SessionDoneComponent } from './review/session-done/session-done';
 import { ReviewEditComponent } from './review/review-edit/review-edit';
@@ -173,10 +174,21 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly progressReviewPercent = this.stats.progressReviewPercent;
   readonly progressEditPercent = this.stats.progressEditPercent;
   readonly toEditQueue = this.stats.toEditQueue;
+  readonly editBatch = this.stats.editBatch;
   readonly editDone = this.stats.editDone;
   readonly toPrintQueue = this.stats.toPrintQueue;
   readonly toEditByAlbum = this.stats.toEditByAlbum;
   readonly toPrintByAlbum = this.stats.toPrintByAlbum;
+  // Frame-id → preview URL for today's edit batch, so the Edit list can show each photo (read
+  // reactively so a thumbnail appears as its preview finishes loading).
+  readonly editImageUrls = computed(() => {
+    const urls = new Map<string, SafeUrl>();
+    for (const photo of this.editBatch()) {
+      const url = this.previews.url(photo.id);
+      if (url) urls.set(photo.id, url);
+    }
+    return urls;
+  });
   // Debounce handle: the goal slider emits continuously, so we resample once it settles.
   private goalResampleTimer: ReturnType<typeof setTimeout> | null = null;
   // Debounce handle for the burst-window slider, which forces a (heavy) library re-scan on change.
@@ -193,15 +205,8 @@ export class AppComponent implements OnInit, OnDestroy {
     // photosLoaded so the mock fallback (whose ids aren't real assets) is skipped.
     effect(() => {
       if (!this.photosLoaded()) return;
-      // In the Tag step the cursor runs over the keepers pool, not the sort feed — warm around that
-      // so the photo you're tagging is already loaded.
-      const tagMode = this.reviewMode() === 'tag';
-      const photos = tagMode ? this.taggablePhotos() : this.reviewPhotos();
-      const start = tagMode ? this.tagReviewIndex() : this.reviewIndex();
       const windowIds = new Set<string>();
-      for (let i = 0; i <= PREFETCH_AHEAD; i++) {
-        const item = photos[start + i];
-        if (!item) continue;
+      for (const item of this.prefetchWindow()) {
         if (isDevicePhoto(item)) continue; // device photos have no Lightroom rendition to warm
         for (const id of unitAssetIds(item)) {
           windowIds.add(id);
@@ -210,6 +215,16 @@ export class AppComponent implements OnInit, OnDestroy {
       }
       this.previews.evictOutside(windowIds);
     });
+  }
+
+  // The units whose previews to keep loaded, by mode: the whole (small) edit batch in Edit mode; in Tag
+  // mode the keepers around the tag cursor; otherwise the sort feed around the review cursor.
+  private prefetchWindow(): ReviewItem[] {
+    if (this.reviewMode() === 'edit') return this.editBatch();
+    const tagMode = this.reviewMode() === 'tag';
+    const photos = tagMode ? this.taggablePhotos() : this.reviewPhotos();
+    const start = tagMode ? this.tagReviewIndex() : this.reviewIndex();
+    return photos.slice(start, start + PREFETCH_AHEAD + 1);
   }
 
   ngOnInit(): void {

@@ -71,6 +71,13 @@ describe('ReviewStatsService', () => {
     expect(service.toPrintQueue().map((p) => p.id)).toEqual(['e']);
   });
 
+  it('caps the edit batch at the editing goal, even when more are queued', () => {
+    // editGoal is 4; queue six toEdit photos → batch shows only the first four.
+    photos.set(['a', 'b', 'c', 'd', 'e', 'f'].map((id) => photo(id, 'toEdit')));
+    expect(service.toEditQueue().length).toBe(6);
+    expect(service.editBatch().map((p) => p.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
   it('editDone is true when the edit goal is met or the queue is empty', () => {
     expect(service.editDone()).toBe(false); // 0 edited, queue has c+d
     editedToday.set(4); // goal met
