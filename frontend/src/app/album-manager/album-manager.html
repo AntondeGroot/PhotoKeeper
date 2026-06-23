@@ -23,13 +23,24 @@
     @for (album of filteredAlbums(); track album.id) {
       <div class="album-row">
         <span class="album-name">{{ album.name }}</span>
-        <button
-          class="vacation-pill"
-          [class.on]="isVacation(album.id)"
-          (click)="toggleVacation.emit(album.id)"
-        >
-          <span class="pill-dot"></span>Vacation
-        </button>
+        <div class="album-pills">
+          @if (prefs.stereoEnabled()) {
+            <button
+              class="stereo-pill"
+              [class.on]="isStereo(album.name)"
+              (click)="toggleStereo(album.name)"
+            >
+              <span class="pill-dot"></span>Stereo
+            </button>
+          }
+          <button
+            class="vacation-pill"
+            [class.on]="isVacation(album.id)"
+            (click)="toggleVacation(album.id)"
+          >
+            <span class="pill-dot"></span>Vacation
+          </button>
+        </div>
       </div>
     } @empty {
       <div class="album-empty">

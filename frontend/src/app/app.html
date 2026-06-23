@@ -108,6 +108,7 @@
           </div>
           @if (reviewMode() === 'sort') {
             @if (!sessionDone()) {
+              <app-review-album-tags [album]="currentReviewPhoto().album" />
               @switch (currentReviewPhoto().kind) {
                 @case ('photo') {
                   <app-review-sort
@@ -182,12 +183,7 @@
         } @else if (activeTab() === 'prints') {
           <app-prints />
         } @else if (manageAlbumsOpen()) {
-          <app-album-manager
-            [albums]="albums()"
-            [vacationAlbumIds]="vacationAlbumIds()"
-            (toggleVacation)="toggleVacationAlbum($event)"
-            (back)="manageAlbumsOpen.set(false)"
-          />
+          <app-album-manager [albums]="albums()" (back)="manageAlbumsOpen.set(false)" />
         } @else if (tagsManagerOpen()) {
           <app-tag-manager
             [tags]="tags()"
