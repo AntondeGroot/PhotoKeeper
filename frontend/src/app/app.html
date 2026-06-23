@@ -160,6 +160,7 @@
             <app-review-edit
               [queue]="editBatch()"
               [imageUrls]="editImageUrls()"
+              [catalogId]="catalogId()"
               [editDone]="editDone()"
               (promoted)="promoteToPrint($event)"
             />
