@@ -31,6 +31,9 @@ export class PreferencesService {
   readonly silentEvening = signal(true);
   readonly taggingEnabled = signal(false);
   readonly stereoEnabled = signal(false);
+  // Free-view fusion style for the side-by-side stereo viewer — a personal preference (some people fuse
+  // parallel, others cross-eyed), so it's shared across every viewer and persists.
+  readonly stereoView = signal<'parallel' | 'cross'>('cross');
   readonly tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
   readonly vacationAlbumIds = signal<string[]>([]);
   // Stereo albums are keyed by *name* (not id like vacation): a review photo only carries its album
@@ -70,6 +73,7 @@ export class PreferencesService {
     if (silentEvening) this.silentEvening.set(silentEvening === 'true');
     this.taggingEnabled.set(localStorage.getItem('taggingEnabled') === 'true');
     this.stereoEnabled.set(localStorage.getItem('stereoEnabled') === 'true');
+    if (localStorage.getItem('stereoView') === 'parallel') this.stereoView.set('parallel');
     this.onboarded.set(localStorage.getItem('onboarded') === 'true');
     this.deviceEnabled.set(localStorage.getItem('deviceEnabled') === 'true');
   }
@@ -113,6 +117,7 @@ export class PreferencesService {
     localStorage.setItem('silentEvening', String(this.silentEvening()));
     localStorage.setItem('taggingEnabled', String(this.taggingEnabled()));
     localStorage.setItem('stereoEnabled', String(this.stereoEnabled()));
+    localStorage.setItem('stereoView', this.stereoView());
     localStorage.setItem('tagDirections', JSON.stringify(this.tagDirections()));
     localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
     localStorage.setItem('stereoAlbums', JSON.stringify(this.stereoAlbums()));

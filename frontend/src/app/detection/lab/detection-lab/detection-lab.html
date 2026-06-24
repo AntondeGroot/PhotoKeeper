@@ -103,10 +103,44 @@
     </label>
   </div>
 
+  <div class="lab-sliders">
+    <span class="lab-sliders-title">Stereo</span>
+    <label>
+      Max Hamming {{ stereoMaxHamming() }}
+      <input
+        type="range"
+        min="0"
+        max="64"
+        [value]="stereoMaxHamming()"
+        (input)="onStereoMaxHamming($event)"
+      />
+    </label>
+    <label>
+      Max GPS gap {{ stereoMaxMeters() }} m
+      <input
+        type="range"
+        min="0"
+        max="200"
+        [value]="stereoMaxMeters()"
+        (input)="onStereoMaxMeters($event)"
+      />
+    </label>
+    <label>
+      Min size {{ stereoMinSize() }}
+      <input
+        type="range"
+        min="2"
+        max="6"
+        [value]="stereoMinSize()"
+        (input)="onStereoMinSize($event)"
+      />
+    </label>
+  </div>
+
   @if (frames().length > 0) {
     <p class="lab-summary">
-      {{ frames().length }} frames · {{ clusters().length }} bursts · {{ panoClusters().length }}
-      panos
+      {{ frames().length }} frames · {{ clusters().length }} bursts ·
+      {{ panoClusters().length }} panos · {{ stereoUnits().length }} stereo
     </p>
 
     <h2 class="lab-section">Bursts</h2>
@@ -269,6 +303,16 @@
     }
     @if (panoClusters().length === 0) {
       <p class="lab-summary">No panos at these thresholds.</p>
+    }
+
+    <h2 class="lab-section">Stereo (as shown in review)</h2>
+    @for (s of stereoUnits(); track s.id) {
+      <div class="lab-stereo-card">
+        <app-stereo-card [stereo]="s" (swapEyes)="swapStereoEyes($event)" />
+      </div>
+    }
+    @if (stereoUnits().length === 0) {
+      <p class="lab-summary">No stereo sets at these thresholds.</p>
     }
   }
 </div>

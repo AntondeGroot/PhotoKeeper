@@ -5,8 +5,13 @@
 
 import { BurstOptions, DetectAsset, clusterBursts } from '../detectors/burst';
 import { PanoAsset, PanoOptions, clusterPanos, overlapMatch } from '../detectors/pano';
+import { StereoAsset, StereoOptions, clusterStereo } from '../detectors/stereo';
 import { FrameSignature, PanoOrientation } from '../detectors/detection-types';
 import { hammingDistance } from '../detectors/phash';
+import { PhotoAsset } from '../../lightroom-types';
+import { Stereo } from '../../photo';
+import { isCaptureFrame } from '../../camera-metadata';
+import { hydrateStereo } from '../../review/selection/unit-selection';
 
 /** A frame just outside a cluster, with how far it sits from the cluster edge. */
 export interface LabNeighbor {
@@ -98,6 +103,39 @@ export function analyzePanoClusters(
       after: panoNeighbor(ordered[lastIdx + 1], ordered[lastIdx], signatures, hashes, o, opts),
     };
   });
+}
+
+/**
+ * Detects stereo sets in a loaded album and hydrates each into the exact `Stereo` review unit the user
+ * would see — so the lab renders real workbench cards. Only capture frames are clustered (derived/combined
+ * exports carry no camera EXIF, like the scan). `leftSerial` mirrors the album's persisted left-eye choice
+ * so twin-rig L/R matches review. `albumName` only sets the unit's display label.
+ */
+export function analyzeStereo(
+  assets: readonly PhotoAsset[],
+  hashes: ReadonlyMap<string, string>,
+  opts: StereoOptions,
+  albumName: string | null,
+  leftSerial: string | undefined,
+): Stereo[] {
+  const byId = new Map(assets.map((a) => [a.id, a]));
+  const captures = assets.filter(isCaptureFrame);
+  return clusterStereo(captures.map(toLabStereoAsset), hashes, opts).map((cluster) => {
+    const members = cluster.memberIds
+      .map((id) => byId.get(id))
+      .filter((a): a is PhotoAsset => a !== undefined);
+    return hydrateStereo(
+      { type: 'stereo', sourceAlbumId: 'lab', memberIds: cluster.memberIds },
+      members,
+      albumName,
+      leftSerial,
+    );
+  });
+}
+
+function toLabStereoAsset(asset: PhotoAsset): StereoAsset {
+  const loc = asset.payload?.location;
+  return { id: asset.id, lat: loc?.latitude, lng: loc?.longitude };
 }
 
 function panoNeighbor(

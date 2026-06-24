@@ -1,32 +1,42 @@
+@let view = displayStereo;
 <div class="stereo-card">
   <div class="stereo-header">
     <div>
-      <div class="stereo-name">{{ stereo.name }}</div>
-      <div class="stereo-meta">
-        {{ stereo.left.length }} shared left frames · {{ stereo.baselines.length }} baselines
-      </div>
+      <div class="stereo-name">{{ view.name }}</div>
+      <div class="stereo-meta">{{ meta }}</div>
     </div>
-    <span class="chip chip-stereo">stereo</span>
+    <div class="stereo-header-actions">
+      @if (canSwap) {
+        <button class="swap-btn" (click)="toggleSwap()" title="Swap which camera is the left eye">
+          ⇄ Swap L/R
+        </button>
+      }
+      <span class="chip chip-stereo">stereo</span>
+    </div>
   </div>
 
-  <div class="frame-strip">
-    @for (frame of stereo.left; track frame.id) {
-      <div class="frame-thumb">
-        <div class="frame-name">{{ frame.name }}</div>
-      </div>
-    }
-  </div>
-
-  @for (baseline of stereo.baselines; track baseline.key) {
+  @for (baseline of view.baselines; track baseline.key) {
     <div class="baseline-row">
       <div class="baseline-header">
         <span class="baseline-label">{{ baseline.label }}</span>
         <span class="baseline-hint">{{ baseline.hint }}</span>
       </div>
-      <div class="frame-strip frame-strip-sm">
-        @for (frame of baseline.frames; track frame.id) {
+      <!-- The baseline's L|R pair in one frame: the shared left eye beside this baseline's right eye. -->
+      <div class="pair-frame">
+        @if (view.left[0]; as l) {
           <div class="frame-thumb">
-            <div class="frame-name">{{ frame.name }}</div>
+            @if (imageUrl(l.id); as url) {
+              <img class="frame-img" [src]="url" alt="" />
+            }
+            <div class="frame-name">L · {{ l.name }}</div>
+          </div>
+        }
+        @if (baseline.frames[0]; as r) {
+          <div class="frame-thumb">
+            @if (imageUrl(r.id); as url) {
+              <img class="frame-img" [src]="url" alt="" />
+            }
+            <div class="frame-name">R · {{ r.name }}</div>
           </div>
         }
       </div>
@@ -68,5 +78,5 @@
 </div>
 
 @if (viewerBaseline(); as key) {
-  <app-stereo-viewer [stereo]="stereo" [baseline]="key" (closed)="viewerBaseline.set(null)" />
+  <app-stereo-viewer [stereo]="view" [baseline]="key" (closed)="viewerBaseline.set(null)" />
 }

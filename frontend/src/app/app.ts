@@ -463,6 +463,13 @@ export class AppComponent implements OnInit, OnDestroy {
     this.decisions.decide(verdict);
   }
 
+  /** Persist which twin-DSLR body is the left eye for this stereo album (keyed by name, like stereo). */
+  swapStereoEyes(e: { albumName: string | null; leftSerial: string }): void {
+    if (!e.albumName) return;
+    const albumName = e.albumName;
+    this.prefs.stereoLeftSerial.update((m) => ({ ...m, [albumName]: e.leftSerial }));
+  }
+
   toggleStar(): void {
     this.decisions.toggleStar();
   }

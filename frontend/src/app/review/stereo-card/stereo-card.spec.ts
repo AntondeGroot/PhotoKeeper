@@ -1,4 +1,6 @@
+import { TestBed } from '@angular/core/testing';
 import { StereoCardComponent } from './stereo-card';
+import { PreviewCacheService } from '../preview-cache.service';
 import { Stereo } from '../../photo';
 
 function stereoFixture(): Stereo {
@@ -21,7 +23,11 @@ describe('StereoCardComponent', () => {
   let component: StereoCardComponent;
 
   beforeEach(() => {
-    component = new StereoCardComponent();
+    // Stub the preview cache (the card injects it for frame thumbnails) so we can new it up directly.
+    TestBed.configureTestingModule({
+      providers: [{ provide: PreviewCacheService, useValue: { url: () => null } }],
+    });
+    component = TestBed.runInInjectionContext(() => new StereoCardComponent());
     component.stereo = stereoFixture();
   });
 
@@ -87,5 +93,77 @@ describe('StereoCardComponent', () => {
     component.confirm();
 
     expect(emitted).toBe('toEdit');
+  });
+
+  it('summarises a single pair as "stereo pair", not "1 shared left frames · 1 baselines"', () => {
+    component.stereo = {
+      ...stereoFixture(),
+      left: [{ id: 'l1', name: 'L' }],
+      baselines: [{ key: 'b0', label: 'pair', hint: '1 frame', frames: [{ id: 'r1', name: 'R' }] }],
+    };
+
+    expect(component.meta).toBe('stereo pair');
+  });
+
+  it('summarises a multi-baseline set with a shared left, pluralised correctly', () => {
+    component.stereo = {
+      ...stereoFixture(),
+      left: [{ id: 'l1', name: 'L' }],
+      baselines: [
+        { key: 'b0', label: '3 m', hint: '', frames: [] },
+        { key: 'b1', label: '10 m', hint: '', frames: [] },
+      ],
+    };
+
+    expect(component.meta).toBe('1 shared left frame · 2 baselines');
+  });
+
+  it('offers no swap for a non-rig (drone) set', () => {
+    expect(component.canSwap).toBe(false);
+    expect(component.displayStereo).toBe(component.stereo); // unchanged
+  });
+
+  describe('twin-rig swap', () => {
+    function rigFixture(): Stereo {
+      return {
+        id: 'stereo2',
+        name: 'Stereo set',
+        album: 'Houten',
+        taken: '2026-05-24',
+        status: 'backlog',
+        kind: 'stereo',
+        left: [{ id: 'r1', name: 'L' }],
+        baselines: [
+          { key: 'b0', label: 'pair', hint: '1 frame', frames: [{ id: 'r2', name: 'R' }] },
+        ],
+        rig: { leftSerial: '4807734', rightSerial: '4887374' },
+      };
+    }
+
+    beforeEach(() => (component.stereo = rigFixture()));
+
+    it('offers the swap and exchanges the eyes, emitting the new left serial', () => {
+      expect(component.canSwap).toBe(true);
+
+      let emitted: { albumName: string | null; leftSerial: string } | undefined;
+      component.swapEyes.subscribe((e) => (emitted = e));
+
+      component.toggleSwap();
+
+      expect(component.displayStereo.left.map((f) => f.id)).toEqual(['r2']);
+      expect(component.displayStereo.baselines[0].frames.map((f) => f.id)).toEqual(['r1']);
+      expect(emitted).toEqual({ albumName: 'Houten', leftSerial: '4887374' });
+    });
+
+    it('toggles back to the original eyes and serial on a second swap', () => {
+      const emitted: { leftSerial: string }[] = [];
+      component.swapEyes.subscribe((e) => emitted.push(e));
+
+      component.toggleSwap();
+      component.toggleSwap();
+
+      expect(component.displayStereo.left.map((f) => f.id)).toEqual(['r1']);
+      expect(emitted.map((e) => e.leftSerial)).toEqual(['4887374', '4807734']);
+    });
   });
 });

@@ -23,41 +23,67 @@
   margin-top: 2px;
 }
 
+.stereo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swap-btn {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--c-stereo);
+  background: transparent;
+  border: 1px solid var(--c-stereo);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
 .chip-stereo {
   color: var(--c-stereo);
   border-color: var(--c-stereo);
 }
 
-.frame-strip {
+// One baseline = one 3D photo: its L|R pair shown together in a single framed strip.
+.pair-frame {
   display: flex;
   gap: 3px;
-  height: 100px;
+  height: 150px;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--c-line);
 }
 
-.frame-strip-sm {
-  height: 64px;
-}
-
 .frame-thumb {
+  position: relative;
   flex: 1;
   background: var(--c-panel);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 6px;
+  overflow: hidden;
 
   &:not(:last-child) {
     border-right: 1px solid rgba(255, 255, 255, 0.06);
   }
 }
 
+.frame-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .frame-name {
+  position: relative; // sits above the image
   font-size: 9px;
-  color: var(--c-faint);
+  color: var(--c-text);
   letter-spacing: 0.5px;
+  text-shadow: 0 1px 3px #000;
 }
 
 .baseline-row {

@@ -124,7 +124,7 @@ function hydrateGroup(
   if (group.type === 'burst') return toBurst(group, members, album.albumName);
   if (group.type === 'pano') return toPano(group, members, album.albumName);
   if (group.type === 'stereo')
-    return toStereo(group, members, album.albumName, album.stereoLeftSerial);
+    return hydrateStereo(group, members, album.albumName, album.stereoLeftSerial);
   return null;
 }
 
@@ -208,7 +208,7 @@ function toPano(group: DetectedGroup, members: PhotoAsset[], albumName: string |
  * - **Single camera, no GPS** (cha-cha) — nothing to measure: first frame is the left eye, the rest one
  *   undetermined `"pair"` (or `"<1 m"` when GPS is present but too coarse to resolve a baseline).
  */
-function toStereo(
+export function hydrateStereo(
   group: DetectedGroup,
   members: PhotoAsset[],
   albumName: string | null,
@@ -275,11 +275,12 @@ function twinRigEyes(
   members: PhotoAsset[],
   serials: (string | undefined)[],
   leftSerial?: string,
-): Pick<Stereo, 'left' | 'baselines'> {
+): Pick<Stereo, 'left' | 'baselines' | 'rig'> {
   const present = [...new Set(serials.filter((s): s is string => !!s))].sort((a, b) =>
     a.localeCompare(b),
   );
   const left = leftSerial && present.includes(leftSerial) ? leftSerial : present[0];
+  const right = present.find((s) => s !== left) ?? left;
   const leftFrames = members.filter((_, i) => serials[i] === left);
   const rightFrames = members.filter((_, i) => serials[i] !== left);
   return {
@@ -292,6 +293,7 @@ function twinRigEyes(
         frames: rightFrames.map(toStereoFrame),
       },
     ],
+    rig: { leftSerial: left, rightSerial: right },
   };
 }
 
