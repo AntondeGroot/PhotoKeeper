@@ -270,7 +270,7 @@ describe('selectUnits', () => {
 
     expect(units.filter((u) => u.kind === 'photo').map((u) => u.id)).toEqual(['x1']);
     const stereo = units.find((u): u is Stereo => u.kind === 'stereo')!;
-    expect(idsOf(stereo).sort()).toEqual(['s1', 's2']);
+    expect(idsOf(stereo).sort((a, b) => a.localeCompare(b))).toEqual(['s1', 's2']);
   });
 
   it('degrades a stereo set with no GPS to a left frame plus one unlabelled baseline', () => {
