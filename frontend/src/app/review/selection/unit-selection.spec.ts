@@ -1,7 +1,7 @@
 import { AlbumUnits, selectUnits } from './unit-selection';
 import { PhotoAsset } from '../../lightroom-types';
 import { DetectedGroup } from '../../detection/detectors/detection-types';
-import { Burst, Pano, ReviewItem } from '../../photo';
+import { Burst, Pano, ReviewItem, Stereo, unitAssetIds } from '../../photo';
 
 const asset = (
   id: string,
@@ -11,6 +11,23 @@ const asset = (
   id,
   subtype,
   payload: { captureDate, importSource: { fileName: `${id}.dng` } },
+});
+
+/** A geotagged frame (drone stereo) — same as `asset` plus a GPS location. */
+const geoAsset = (id: string, lat: number, lng: number): PhotoAsset => ({
+  id,
+  subtype: 'image',
+  payload: {
+    captureDate: '2026-05-01T10:00:00Z',
+    importSource: { fileName: `${id}.dng` },
+    location: { latitude: lat, longitude: lng },
+  },
+});
+
+const stereoGroup = (albumId: string, memberIds: string[]): DetectedGroup => ({
+  type: 'stereo',
+  sourceAlbumId: albumId,
+  memberIds,
 });
 
 const burstGroup = (albumId: string, memberIds: string[]): DetectedGroup => ({
@@ -30,11 +47,7 @@ const album = (over: Partial<AlbumUnits> & { albumId: string }): AlbumUnits => (
 // Deterministic rng so selection is reproducible; assertions check content, not shuffle order.
 const fixedRng = () => 0;
 
-const idsOf = (unit: ReviewItem): string[] => {
-  if (unit.kind === 'burst') return unit.photos.map((p) => p.id);
-  if (unit.kind === 'pano') return unit.frames.map((f) => f.id);
-  return [unit.id];
-};
+const idsOf = (unit: ReviewItem): string[] => unitAssetIds(unit);
 
 describe('selectUnits', () => {
   it('returns an empty queue for no albums', () => {
@@ -192,23 +205,6 @@ describe('selectUnits', () => {
     expect(pano.orientation).toBe('vertical');
   });
 
-  it('ignores the stereo group type until its hydrator exists', () => {
-    const units = selectUnits(
-      [
-        album({
-          albumId: 'alb-1',
-          assets: [asset('a1'), asset('a2'), asset('a3')],
-          groups: [{ type: 'stereo', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] }],
-        }),
-      ],
-      10,
-      fixedRng,
-    );
-
-    expect(units.every((u) => u.kind === 'photo')).toBe(true);
-    expect(new Set(units.map((u) => u.id))).toEqual(new Set(['a1', 'a2', 'a3']));
-  });
-
   it('works with the default rng', () => {
     const units = selectUnits(
       [album({ albumId: 'alb-1', assets: [asset('a1'), asset('a2')] })],
@@ -224,6 +220,85 @@ describe('selectUnits', () => {
 
     expect(units).toHaveLength(6); // not stuck at UNITS_PER_ALBUM (4)
     expect(new Set(units.map((u) => u.id)).size).toBe(6);
+  });
+
+  it('splits a GPS stereo set into a shared left position and distance-labelled baselines', () => {
+    const units = selectUnits(
+      [
+        album({
+          albumId: 'alb-s',
+          assets: [
+            geoAsset('s1', 52.0, 5.0),
+            geoAsset('s2', 52.0, 5.0), // same position as s1 → both make up the shared left eye
+            geoAsset('s3', 52.0, 5.0000438), // ~3 m east of the reference
+            geoAsset('s4', 52.0, 5.000146), // ~10 m east of the reference
+          ],
+          groups: [stereoGroup('alb-s', ['s1', 's2', 's3', 's4'])],
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    const stereo = units.find((u): u is Stereo => u.kind === 'stereo')!;
+    expect(stereo.name).toBe('Stereo set · 4 frames');
+    expect(stereo.left.map((f) => f.id)).toEqual(['s1', 's2']);
+    expect(
+      stereo.baselines.map((b) => ({
+        label: b.label,
+        hint: b.hint,
+        ids: b.frames.map((f) => f.id),
+      })),
+    ).toEqual([
+      { label: '3 m', hint: '1 frame', ids: ['s3'] }, // baselines sort nearest-first
+      { label: '10 m', hint: '1 frame', ids: ['s4'] },
+    ]);
+  });
+
+  it('excludes a stereo set’s frames from being drawn as singles', () => {
+    const units = selectUnits(
+      [
+        album({
+          albumId: 'alb-s',
+          assets: [geoAsset('s1', 52.0, 5.0), geoAsset('s2', 52.0, 5.000146), asset('x1')],
+          groups: [stereoGroup('alb-s', ['s1', 's2'])],
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    expect(units.filter((u) => u.kind === 'photo').map((u) => u.id)).toEqual(['x1']);
+    const stereo = units.find((u): u is Stereo => u.kind === 'stereo')!;
+    expect(idsOf(stereo).sort()).toEqual(['s1', 's2']);
+  });
+
+  it('degrades a stereo set with no GPS to a left frame plus one unlabelled baseline', () => {
+    const units = selectUnits(
+      [
+        album({
+          albumId: 'alb-s',
+          assets: [asset('s1'), asset('s2'), asset('s3')], // no location → no measurable parallax
+          groups: [stereoGroup('alb-s', ['s1', 's2', 's3'])],
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    const stereo = units.find((u): u is Stereo => u.kind === 'stereo')!;
+    expect(stereo.left.map((f) => f.id)).toEqual(['s1']);
+    expect(stereo.baselines).toEqual([
+      {
+        key: 'b0',
+        label: 'pair',
+        hint: '2 frames',
+        frames: [
+          { id: 's2', name: 's2', ext: 'dng' },
+          { id: 's3', name: 's3', ext: 'dng' },
+        ],
+      },
+    ]);
   });
 
   it('respects the limit, slicing the picked units', () => {

@@ -8,7 +8,20 @@
 
 import { PhotoAsset } from '../../lightroom-types';
 import { DetectedGroup } from '../../detection/detectors/detection-types';
-import { Burst, BurstPhoto, Pano, PanoFrame, Photo, ReviewItem, splitFileName } from '../../photo';
+import { haversineMeters } from '../../detection/detectors/stereo';
+import {
+  Burst,
+  BurstPhoto,
+  Pano,
+  PanoFrame,
+  Photo,
+  ReviewItem,
+  Stereo,
+  StereoBaseline,
+  StereoFrame,
+  splitFileName,
+  unitAssetIds,
+} from '../../photo';
 
 /** One album's raw material: its assets, its detected groups, and whether it's a vacation album. */
 export interface AlbumUnits {
@@ -99,7 +112,7 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
   return units;
 }
 
-/** Hydrates a detected group into its review unit, or null for kinds without a card yet (stereo). */
+/** Hydrates a detected group into its review unit, or null for kinds without a card yet. */
 function hydrateGroup(
   group: DetectedGroup,
   members: PhotoAsset[],
@@ -107,6 +120,7 @@ function hydrateGroup(
 ): ReviewItem | null {
   if (group.type === 'burst') return toBurst(group, members, albumName);
   if (group.type === 'pano') return toPano(group, members, albumName);
+  if (group.type === 'stereo') return toStereo(group, members, albumName);
   return null;
 }
 
@@ -126,12 +140,6 @@ function weightedAlbumOrder(albums: readonly AlbumUnits[], rng: () => number): A
     }
   }
   return order;
-}
-
-function unitAssetIds(unit: ReviewItem): string[] {
-  if (unit.kind === 'burst') return unit.photos.map((p) => p.id);
-  if (unit.kind === 'pano') return unit.frames.map((f) => f.id);
-  return [unit.id];
 }
 
 function toPhoto(asset: PhotoAsset, albumName: string | null): Photo {
@@ -183,6 +191,124 @@ function toPano(group: DetectedGroup, members: PhotoAsset[], albumName: string |
     frames,
   };
 }
+
+/** Frames within this distance of each other are treated as one camera position (GPS jitter slack). */
+const SAME_POSITION_M = 2;
+
+/**
+ * Hydrates a stereo set into its review unit. The detector hands over a flat cluster of near-identical
+ * frames; here we split it into the shared reference position (`left`) plus one `baseline` per other
+ * camera position, labelled by its GPS displacement from the reference. The first member's position is
+ * the reference (capture order — the base is shot first), and baselines sort nearest-first. When GPS is
+ * missing or every frame sits at one spot there's no measurable parallax, so we degrade to the first
+ * frame as the left eye and the remainder as a single unlabelled baseline (the viewer still gets a pair).
+ */
+function toStereo(group: DetectedGroup, members: PhotoAsset[], albumName: string | null): Stereo {
+  const taken = members
+    .map((m) => m.payload?.captureDate ?? '')
+    .filter((t) => t)
+    .sort((a, b) => a.localeCompare(b))[0];
+  const base = {
+    id: `stereo:${group.sourceAlbumId}:${members[0].id}`,
+    name: `Stereo set · ${members.length} frames`,
+    album: albumName,
+    taken: taken ?? '',
+    status: 'backlog' as const,
+    kind: 'stereo' as const,
+  };
+
+  const positions = clusterPositions(members);
+  if (positions.length < 2 || !positions[0].centroid) {
+    const [first, ...rest] = members;
+    return {
+      ...base,
+      left: [toStereoFrame(first)],
+      baselines: [
+        {
+          key: 'b0',
+          label: 'pair',
+          hint: frameCount(rest.length),
+          frames: rest.map(toStereoFrame),
+        },
+      ],
+    };
+  }
+
+  const ref = positions[0].centroid;
+  const baselines = positions
+    .slice(1)
+    .map((p) => ({
+      p,
+      meters: haversineMeters(ref.lat, ref.lng, p.centroid!.lat, p.centroid!.lng),
+    }))
+    .sort((a, b) => a.meters - b.meters)
+    .map(
+      ({ p, meters }, i): StereoBaseline => ({
+        key: `b${i}`,
+        label: `${Math.round(meters)} m`,
+        hint: frameCount(p.frames.length),
+        frames: p.frames.map(toStereoFrame),
+      }),
+    );
+  return { ...base, left: positions[0].frames.map(toStereoFrame), baselines };
+}
+
+interface Position {
+  frames: PhotoAsset[];
+  centroid: { lat: number; lng: number } | null; // null when any frame in the set lacks GPS
+}
+
+/**
+ * Groups a stereo set's frames into camera positions by GPS proximity (single-linkage, {@link
+ * SAME_POSITION_M}). Components keep input order, so the first member's position is first. If any frame
+ * lacks GPS the whole set collapses to one centroid-less position, forcing the no-parallax fall-back.
+ */
+function clusterPositions(members: PhotoAsset[]): Position[] {
+  const pts = members.map(gpsOf);
+  if (pts.some((p) => p === null)) return [{ frames: members, centroid: null }];
+
+  const parent = members.map((_, i) => i);
+  const find = (i: number): number => {
+    while (parent[i] !== i) i = parent[i] = parent[parent[i]];
+    return i;
+  };
+  for (let i = 0; i < members.length; i++) {
+    for (let j = i + 1; j < members.length; j++) {
+      const a = pts[i]!;
+      const b = pts[j]!;
+      if (haversineMeters(a.lat, a.lng, b.lat, b.lng) <= SAME_POSITION_M) {
+        parent[Math.max(find(i), find(j))] = Math.min(find(i), find(j));
+      }
+    }
+  }
+
+  const byRoot = new Map<number, PhotoAsset[]>();
+  for (let i = 0; i < members.length; i++) {
+    const root = find(i);
+    (byRoot.get(root) ?? byRoot.set(root, []).get(root)!).push(members[i]);
+  }
+  return [...byRoot.values()].map((frames) => ({ frames, centroid: centroidOf(frames) }));
+}
+
+function centroidOf(frames: PhotoAsset[]): { lat: number; lng: number } {
+  const pts = frames.map((f) => gpsOf(f)!);
+  const lat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+  const lng = pts.reduce((s, p) => s + p.lng, 0) / pts.length;
+  return { lat, lng };
+}
+
+function gpsOf(asset: PhotoAsset): { lat: number; lng: number } | null {
+  const loc = asset.payload?.location;
+  return loc?.latitude !== undefined && loc.longitude !== undefined
+    ? { lat: loc.latitude, lng: loc.longitude }
+    : null;
+}
+
+function toStereoFrame(asset: PhotoAsset): StereoFrame {
+  return { id: asset.id, ...splitAsset(asset) };
+}
+
+const frameCount = (n: number): string => `${n} frame${n === 1 ? '' : 's'}`;
 
 /** The display name + original extension of an asset, from its import filename (falling back to id). */
 function splitAsset(asset: PhotoAsset): { name: string; ext?: string } {
