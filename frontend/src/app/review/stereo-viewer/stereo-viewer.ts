@@ -43,10 +43,10 @@ export class StereoViewerComponent {
     () => this.userBase() ?? this.baseline() ?? this.stereo().baselines[0]?.key ?? null,
   );
 
-  // L is the shared left frame; R is the selected baseline's sharpest (non-blur) frame.
+  // L is the shared left frame; R is the selected baseline's first frame.
   private readonly rightFrame = computed(() => {
     const b = this.stereo().baselines.find((x) => x.key === this.baseSel());
-    return b?.frames.find((f) => !f.blur) ?? b?.frames[0];
+    return b?.frames[0];
   });
 
   /** The two frames in viewing order — swapped for cross-eye so the eyes converge correctly. */

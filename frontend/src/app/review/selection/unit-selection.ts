@@ -96,7 +96,7 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
       .map((id) => byId.get(id))
       .filter((a): a is PhotoAsset => a !== undefined);
     // A group whose members no longer all exist (≥2 needed) is no longer a group; its surviving
-    // members fall through to singles below. Stereo has no detector/card yet, so it's skipped too.
+    // members fall through to singles below.
     if (members.length < 2) continue;
     const unit = hydrateGroup(group, members, album.albumName);
     if (!unit) continue;
@@ -192,16 +192,14 @@ function toPano(group: DetectedGroup, members: PhotoAsset[], albumName: string |
   };
 }
 
-/** Frames within this distance of each other are treated as one camera position (GPS jitter slack). */
-const SAME_POSITION_M = 2;
-
 /**
  * Hydrates a stereo set into its review unit. The detector hands over a flat cluster of near-identical
- * frames; here we split it into the shared reference position (`left`) plus one `baseline` per other
- * camera position, labelled by its GPS displacement from the reference. The first member's position is
- * the reference (capture order — the base is shot first), and baselines sort nearest-first. When GPS is
- * missing or every frame sits at one spot there's no measurable parallax, so we degrade to the first
- * frame as the left eye and the remainder as a single unlabelled baseline (the viewer still gets a pair).
+ * frames; here we split it by measuring each frame's GPS displacement from the reference (the first
+ * member — capture order, the base position). Frames at the reference spot (sub-metre, within GPS noise)
+ * form the shared `left` eye; every other frame buckets into a `baseline` keyed by its rounded
+ * displacement, so a drone's distinct positions become measured baselines (`"3 m"`, `"10 m"`) — and even
+ * a lone pair reports its own separation, never a bare "pair". Without GPS there's nothing to measure, so
+ * we degrade to the first frame as the left eye and the rest as one undetermined pair.
  */
 function toStereo(group: DetectedGroup, members: PhotoAsset[], albumName: string | null): Stereo {
   const taken = members
@@ -217,84 +215,50 @@ function toStereo(group: DetectedGroup, members: PhotoAsset[], albumName: string
     kind: 'stereo' as const,
   };
 
-  const positions = clusterPositions(members);
-  if (positions.length < 2 || !positions[0].centroid) {
-    const [first, ...rest] = members;
-    return {
-      ...base,
-      left: [toStereoFrame(first)],
-      baselines: [
-        {
-          key: 'b0',
-          label: 'pair',
-          hint: frameCount(rest.length),
-          frames: rest.map(toStereoFrame),
-        },
-      ],
-    };
+  const located = members.map((m) => ({ m, gps: gpsOf(m) }));
+  const ref = located[0].gps;
+  if (!ref || located.some((e) => e.gps === null)) {
+    return { ...base, ...undeterminedPair(members) }; // no GPS → can't measure a baseline
   }
 
-  const ref = positions[0].centroid;
-  const baselines = positions
-    .slice(1)
-    .map((p) => ({
-      p,
-      meters: haversineMeters(ref.lat, ref.lng, p.centroid!.lat, p.centroid!.lng),
-    }))
-    .sort((a, b) => a.meters - b.meters)
+  // Bucket every frame by its rounded displacement (metres) from the reference. Bucket 0 — the reference
+  // spot, sub-metre away — is the shared left eye; the rest are baselines, labelled and sorted nearest-first.
+  const byMeters = new Map<number, PhotoAsset[]>();
+  for (const { m, gps } of located) {
+    const meters = Math.round(haversineMeters(ref.lat, ref.lng, gps!.lat, gps!.lng));
+    (byMeters.get(meters) ?? byMeters.set(meters, []).get(meters)!).push(m);
+  }
+  const baselines = [...byMeters.entries()]
+    .filter(([meters]) => meters > 0)
+    .sort(([a], [b]) => a - b)
     .map(
-      ({ p, meters }, i): StereoBaseline => ({
+      ([meters, frames], i): StereoBaseline => ({
         key: `b${i}`,
-        label: `${Math.round(meters)} m`,
-        hint: frameCount(p.frames.length),
-        frames: p.frames.map(toStereoFrame),
+        label: `${meters} m`,
+        hint: frameCount(frames.length),
+        frames: frames.map(toStereoFrame),
       }),
     );
-  return { ...base, left: positions[0].frames.map(toStereoFrame), baselines };
+
+  // Every frame within a metre of the reference: GPS is too coarse to resolve the baseline, so keep the
+  // first frame as the left eye and the rest as one sub-metre pair (still flagged as a tight baseline).
+  if (baselines.length === 0) return { ...base, ...undeterminedPair(members, '<1 m') };
+
+  return { ...base, left: byMeters.get(0)!.map(toStereoFrame), baselines };
 }
 
-interface Position {
-  frames: PhotoAsset[];
-  centroid: { lat: number; lng: number } | null; // null when any frame in the set lacks GPS
-}
-
-/**
- * Groups a stereo set's frames into camera positions by GPS proximity (single-linkage, {@link
- * SAME_POSITION_M}). Components keep input order, so the first member's position is first. If any frame
- * lacks GPS the whole set collapses to one centroid-less position, forcing the no-parallax fall-back.
- */
-function clusterPositions(members: PhotoAsset[]): Position[] {
-  const pts = members.map(gpsOf);
-  if (pts.some((p) => p === null)) return [{ frames: members, centroid: null }];
-
-  const parent = members.map((_, i) => i);
-  const find = (i: number): number => {
-    while (parent[i] !== i) i = parent[i] = parent[parent[i]];
-    return i;
+/** First frame as the left eye, the rest as a single baseline — when GPS can't resolve a distance. */
+function undeterminedPair(
+  members: PhotoAsset[],
+  label = 'pair',
+): Pick<Stereo, 'left' | 'baselines'> {
+  const [first, ...rest] = members;
+  return {
+    left: [toStereoFrame(first)],
+    baselines: [
+      { key: 'b0', label, hint: frameCount(rest.length), frames: rest.map(toStereoFrame) },
+    ],
   };
-  for (let i = 0; i < members.length; i++) {
-    for (let j = i + 1; j < members.length; j++) {
-      const a = pts[i]!;
-      const b = pts[j]!;
-      if (haversineMeters(a.lat, a.lng, b.lat, b.lng) <= SAME_POSITION_M) {
-        parent[Math.max(find(i), find(j))] = Math.min(find(i), find(j));
-      }
-    }
-  }
-
-  const byRoot = new Map<number, PhotoAsset[]>();
-  for (let i = 0; i < members.length; i++) {
-    const root = find(i);
-    (byRoot.get(root) ?? byRoot.set(root, []).get(root)!).push(members[i]);
-  }
-  return [...byRoot.values()].map((frames) => ({ frames, centroid: centroidOf(frames) }));
-}
-
-function centroidOf(frames: PhotoAsset[]): { lat: number; lng: number } {
-  const pts = frames.map((f) => gpsOf(f)!);
-  const lat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
-  const lng = pts.reduce((s, p) => s + p.lng, 0) / pts.length;
-  return { lat, lng };
 }
 
 function gpsOf(asset: PhotoAsset): { lat: number; lng: number } | null {

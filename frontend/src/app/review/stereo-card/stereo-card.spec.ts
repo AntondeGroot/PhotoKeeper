@@ -12,7 +12,7 @@ function stereoFixture(): Stereo {
     left: [],
     baselines: [
       { key: '3m', label: '3 m', hint: '', frames: [] },
-      { key: '10m', label: '10 m', hint: '', frames: [], recommended: true },
+      { key: '10m', label: '10 m', hint: '', frames: [] },
     ],
   };
 }
