@@ -20,7 +20,11 @@ const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => (
   payload: { captureDate },
 });
 
-/** A geotagged frame (drone), for the stereo path: same shape as `image` plus a GPS location. */
+/**
+ * A geotagged frame (drone), for the stereo path: same shape as `image` plus a GPS location. Carries a
+ * camera model too, since a real capture always does — stereo detection excludes frames with no camera
+ * identity (derived/combined stereographs), so the fixtures must look like real captures.
+ */
 const geoImage = (
   id: string,
   captureDate: string,
@@ -31,7 +35,11 @@ const geoImage = (
   id,
   subtype: 'image',
   updated,
-  payload: { captureDate, location: { latitude: lat, longitude: lng } },
+  payload: {
+    captureDate,
+    location: { latitude: lat, longitude: lng },
+    camera: { model: 'FC3411' },
+  },
 });
 
 // Each asset gets a blob of a unique byte length; the stub hasher maps that length → a chosen hash +
@@ -46,6 +54,9 @@ const SIZE_OF: Record<string, number> = {
   p3: 7,
   s1: 8,
   s2: 9,
+  d1: 10, // a derived/combined stereograph (no camera EXIF) that looks near-identical to s1/s2
+  r1: 11, // twin-DSLR rig: two bodies, one scene
+  r2: 12,
 };
 const HASH_BY_SIZE: Record<number, string> = {
   1: '0000000000000000',
@@ -59,6 +70,10 @@ const HASH_BY_SIZE: Record<number, string> = {
   // s1/s2: near-identical (the same stereo scene from two close positions).
   8: '0000000000000000',
   9: '0000000000000000',
+  // d1/r1/r2: all near-identical to s1/s2 (so they'd cluster on hash if not gated/distinguished).
+  10: '0000000000000000',
+  11: '0000000000000000',
+  12: '0000000000000000',
 };
 
 // A 1-D "scene" sampled into a 64×64 grayscale signature: column c of a frame starting at scene
@@ -88,8 +103,27 @@ const SIGNATURE_BY_SIZE: Record<number, FrameSignature> = {
   7: horizFrame(64), // left 32 cols === p2's right 32 → overlap
   8: flat,
   9: flat,
+  10: flat,
+  11: flat,
+  12: flat,
 };
 const blobFor = (id: string) => new Blob(['x'.repeat(SIZE_OF[id])]);
+
+/** A twin-DSLR rig frame: a camera serial (no GPS), for the serial-based pairing path. */
+const rigImage = (id: string, captureDate: string, serial: string): PhotoAsset => ({
+  id,
+  subtype: 'image',
+  updated: 'v1',
+  payload: { captureDate, camera: { serial } },
+});
+
+/** A derived/combined stereograph the user exported — no camera EXIF at all. */
+const derivedImage = (id: string, captureDate: string): PhotoAsset => ({
+  id,
+  subtype: 'image',
+  updated: 'v1',
+  payload: { captureDate },
+});
 
 // A budget comfortably larger than the test albums, so each scan covers the whole album in one pass.
 const BUDGET = 100;
@@ -314,6 +348,37 @@ describe('DetectionScanService', () => {
     expect(await groupStore.getByAlbum('alb-s')).toEqual([
       { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['s1', 's2'] },
     ]);
+  });
+
+  it('excludes a derived/combined stereograph (no camera EXIF) from the stereo set', async () => {
+    // d1 looks near-identical to s1/s2 but is a derived export with no camera identity, so it must not
+    // be mistaken for a third frame of the pair.
+    albumAssets = [
+      geoImage('s1', '2026-05-03T10:00:00Z', 52.0, 5.0),
+      geoImage('s2', '2026-05-03T10:00:02Z', 52.0, 5.00005),
+      derivedImage('d1', '2026-05-03T10:00:04Z'),
+    ];
+
+    await service.scanAlbum('alb-s', BUDGET, true);
+
+    expect(await groupStore.getByAlbum('alb-s')).toEqual([
+      { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['s1', 's2'] }, // d1 excluded
+    ]);
+  });
+
+  it('groups a twin-DSLR pair and persists each body’s serial to metadata', async () => {
+    albumAssets = [
+      rigImage('r1', '2026-05-03T10:00:00Z', '4807734'),
+      rigImage('r2', '2026-05-03T10:00:00Z', '4887374'),
+    ];
+
+    await service.scanAlbum('alb-s', BUDGET, true);
+
+    expect(await groupStore.getByAlbum('alb-s')).toEqual([
+      { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['r1', 'r2'] },
+    ]);
+    expect((await metaStore.get('r1'))?.serial).toBe('4807734');
+    expect((await metaStore.get('r2'))?.serial).toBe('4887374');
   });
 
   it('does not run stereo detection on an unmarked album — those frames stay a burst', async () => {

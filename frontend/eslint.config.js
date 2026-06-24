@@ -92,6 +92,7 @@ export default tseslint.config(
           pattern: [
             'src/app/photo.ts',
             'src/app/lightroom-types.ts',
+            'src/app/camera-metadata.ts',
             'src/app/tagging/tags.ts',
             'src/app/detection/detectors/**/*.ts', // pure detectors + their contract types
             'src/app/review/selection/unit-selection.ts',

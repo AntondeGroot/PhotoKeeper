@@ -8,6 +8,7 @@
 
 import { PhotoAsset } from '../../lightroom-types';
 import { DetectedGroup } from '../../detection/detectors/detection-types';
+import { cameraSerial } from '../../camera-metadata';
 import { haversineMeters } from '../../detection/detectors/stereo';
 import {
   Burst,
@@ -30,6 +31,8 @@ export interface AlbumUnits {
   isVacation: boolean;
   assets: readonly PhotoAsset[];
   groups: readonly DetectedGroup[];
+  /** Camera serial designated as the left eye for this stereo album's twin-DSLR rig (see PreferencesService). */
+  stereoLeftSerial?: string;
 }
 
 /** A vacation album is this many times more likely to be drawn than a normal album. */
@@ -98,7 +101,7 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
     // A group whose members no longer all exist (≥2 needed) is no longer a group; its surviving
     // members fall through to singles below.
     if (members.length < 2) continue;
-    const unit = hydrateGroup(group, members, album.albumName);
+    const unit = hydrateGroup(group, members, album);
     if (!unit) continue;
     members.forEach((m) => grouped.add(m.id));
     units.push(unit);
@@ -116,11 +119,12 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
 function hydrateGroup(
   group: DetectedGroup,
   members: PhotoAsset[],
-  albumName: string | null,
+  album: AlbumUnits,
 ): ReviewItem | null {
-  if (group.type === 'burst') return toBurst(group, members, albumName);
-  if (group.type === 'pano') return toPano(group, members, albumName);
-  if (group.type === 'stereo') return toStereo(group, members, albumName);
+  if (group.type === 'burst') return toBurst(group, members, album.albumName);
+  if (group.type === 'pano') return toPano(group, members, album.albumName);
+  if (group.type === 'stereo')
+    return toStereo(group, members, album.albumName, album.stereoLeftSerial);
   return null;
 }
 
@@ -193,15 +197,23 @@ function toPano(group: DetectedGroup, members: PhotoAsset[], albumName: string |
 }
 
 /**
- * Hydrates a stereo set into its review unit. The detector hands over a flat cluster of near-identical
- * frames; here we split it by measuring each frame's GPS displacement from the reference (the first
- * member — capture order, the base position). Frames at the reference spot (sub-metre, within GPS noise)
- * form the shared `left` eye; every other frame buckets into a `baseline` keyed by its rounded
- * displacement, so a drone's distinct positions become measured baselines (`"3 m"`, `"10 m"`) — and even
- * a lone pair reports its own separation, never a bare "pair". Without GPS there's nothing to measure, so
- * we degrade to the first frame as the left eye and the rest as one undetermined pair.
+ * Hydrates a stereo set into its review unit, dispatching on the signal the capture style leaves behind:
+ *
+ * - **Twin-DSLR rig** — two bodies fire at once, so the set carries ≥ 2 distinct camera serials. The
+ *   frames split by body: the album's chosen left serial (else, deterministically, the lexicographically
+ *   smaller) is the left eye; the other body is the single right baseline. No GPS, no distance.
+ * - **Drone hyperstereo** — one body, GPS present. We measure each frame's displacement from the
+ *   reference (first member) and bucket by rounded metres: bucket 0 is the shared `left`, the rest are
+ *   baselines labelled by measured distance (`"3 m"`, `"10 m"`); a lone pair reports its own separation.
+ * - **Single camera, no GPS** (cha-cha) — nothing to measure: first frame is the left eye, the rest one
+ *   undetermined `"pair"` (or `"<1 m"` when GPS is present but too coarse to resolve a baseline).
  */
-function toStereo(group: DetectedGroup, members: PhotoAsset[], albumName: string | null): Stereo {
+function toStereo(
+  group: DetectedGroup,
+  members: PhotoAsset[],
+  albumName: string | null,
+  leftSerial?: string,
+): Stereo {
   const taken = members
     .map((m) => m.payload?.captureDate ?? '')
     .filter((t) => t)
@@ -214,6 +226,12 @@ function toStereo(group: DetectedGroup, members: PhotoAsset[], albumName: string
     status: 'backlog' as const,
     kind: 'stereo' as const,
   };
+
+  // Twin-rig: ≥ 2 distinct serials → split by body rather than by GPS/time.
+  const serials = members.map(cameraSerial);
+  if (new Set(serials.filter((s): s is string => !!s)).size >= 2) {
+    return { ...base, ...twinRigEyes(members, serials, leftSerial) };
+  }
 
   const located = members.map((m) => ({ m, gps: gpsOf(m) }));
   const ref = located[0].gps;
@@ -245,6 +263,36 @@ function toStereo(group: DetectedGroup, members: PhotoAsset[], albumName: string
   if (baselines.length === 0) return { ...base, ...undeterminedPair(members, '<1 m') };
 
   return { ...base, left: byMeters.get(0)!.map(toStereoFrame), baselines };
+}
+
+/**
+ * Twin-DSLR split: the left body's frames are the left eye, the right body's the single right baseline.
+ * `leftSerial` is the user's per-album choice; absent (or not present in the set) we pick the
+ * lexicographically smaller serial so the default is stable across re-scans and a swap is well-defined.
+ * Frames whose serial isn't the left one (the other body, or any without a serial) become the right eye.
+ */
+function twinRigEyes(
+  members: PhotoAsset[],
+  serials: (string | undefined)[],
+  leftSerial?: string,
+): Pick<Stereo, 'left' | 'baselines'> {
+  const present = [...new Set(serials.filter((s): s is string => !!s))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const left = leftSerial && present.includes(leftSerial) ? leftSerial : present[0];
+  const leftFrames = members.filter((_, i) => serials[i] === left);
+  const rightFrames = members.filter((_, i) => serials[i] !== left);
+  return {
+    left: leftFrames.map(toStereoFrame),
+    baselines: [
+      {
+        key: 'b0',
+        label: 'pair',
+        hint: frameCount(rightFrames.length),
+        frames: rightFrames.map(toStereoFrame),
+      },
+    ],
+  };
 }
 
 /** First frame as the left eye, the rest as a single baseline — when GPS can't resolve a distance. */

@@ -40,6 +40,7 @@ export interface AssetMeta {
   taken: string; // ISO 8601 capture time, '' if unknown
   lat?: number; // decimal GPS latitude, when the frame is geotagged (drone) — drives stereo baselines
   lng?: number; // decimal GPS longitude
+  serial?: string; // camera body serial — keys twin-DSLR stereo left/right pairing (absent if none)
 }
 
 /**
