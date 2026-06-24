@@ -255,6 +255,44 @@ describe('selectUnits', () => {
     ]);
   });
 
+  it('reports the measured baseline for a single drone pair', () => {
+    const units = selectUnits(
+      [
+        album({
+          albumId: 'alb-s',
+          assets: [geoAsset('s1', 52.0, 5.0), geoAsset('s2', 52.0, 5.000073)], // ~5 m apart
+          groups: [stereoGroup('alb-s', ['s1', 's2'])],
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    const stereo = units.find((u): u is Stereo => u.kind === 'stereo')!;
+    expect(stereo.left.map((f) => f.id)).toEqual(['s1']);
+    expect(stereo.baselines).toEqual([
+      { key: 'b0', label: '5 m', hint: '1 frame', frames: [{ id: 's2', name: 's2', ext: 'dng' }] },
+    ]);
+  });
+
+  it('falls back to a sub-metre pair when GPS can’t resolve the baseline', () => {
+    const units = selectUnits(
+      [
+        album({
+          albumId: 'alb-s',
+          assets: [geoAsset('s1', 52.0, 5.0), geoAsset('s2', 52.0, 5.000004)], // ~0.3 m apart
+          groups: [stereoGroup('alb-s', ['s1', 's2'])],
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    const stereo = units.find((u): u is Stereo => u.kind === 'stereo')!;
+    expect(stereo.left.map((f) => f.id)).toEqual(['s1']);
+    expect(stereo.baselines.map((b) => b.label)).toEqual(['<1 m']);
+  });
+
   it('excludes a stereo set’s frames from being drawn as singles', () => {
     const units = selectUnits(
       [

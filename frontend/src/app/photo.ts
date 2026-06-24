@@ -317,7 +317,6 @@ export interface StereoFrame {
   id: string;
   name: string; // without extension
   ext?: string; // original file extension without the dot, e.g. 'CR2'
-  blur?: boolean;
 }
 
 export interface StereoBaseline {
@@ -325,7 +324,6 @@ export interface StereoBaseline {
   label: string;
   hint: string;
   frames: StereoFrame[];
-  recommended?: boolean;
 }
 
 export interface Stereo {
@@ -355,21 +353,20 @@ export const MOCK_STEREO: Stereo = {
     {
       key: '3m',
       label: '3 m',
-      hint: 'avg of 1 · 1 soft excluded',
+      hint: '2 frames',
       frames: [
         { id: 's4', name: 'DSC_6004', ext: 'NEF' },
-        { id: 's5', name: 'DSC_6005', ext: 'NEF', blur: true },
+        { id: 's5', name: 'DSC_6005', ext: 'NEF' },
       ],
     },
     {
       key: '10m',
       label: '10 m',
-      hint: 'avg of 2',
+      hint: '2 frames',
       frames: [
         { id: 's6', name: 'DSC_6006', ext: 'NEF' },
         { id: 's7', name: 'DSC_6007', ext: 'NEF' },
       ],
-      recommended: true,
     },
   ],
 };

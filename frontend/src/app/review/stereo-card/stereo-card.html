@@ -11,7 +11,7 @@
 
   <div class="frame-strip">
     @for (frame of stereo.left; track frame.id) {
-      <div class="frame-thumb" [class.blur]="frame.blur">
+      <div class="frame-thumb">
         <div class="frame-name">{{ frame.name }}</div>
       </div>
     }
@@ -20,17 +20,12 @@
   @for (baseline of stereo.baselines; track baseline.key) {
     <div class="baseline-row">
       <div class="baseline-header">
-        <div class="baseline-label-row">
-          <span class="baseline-label">{{ baseline.label }}</span>
-          @if (baseline.recommended) {
-            <span class="chip chip-stereo chip-sm">recommended</span>
-          }
-        </div>
+        <span class="baseline-label">{{ baseline.label }}</span>
         <span class="baseline-hint">{{ baseline.hint }}</span>
       </div>
       <div class="frame-strip frame-strip-sm">
         @for (frame of baseline.frames; track frame.id) {
-          <div class="frame-thumb" [class.blur]="frame.blur">
+          <div class="frame-thumb">
             <div class="frame-name">{{ frame.name }}</div>
           </div>
         }
