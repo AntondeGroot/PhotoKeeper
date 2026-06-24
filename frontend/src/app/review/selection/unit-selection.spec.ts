@@ -24,6 +24,17 @@ const geoAsset = (id: string, lat: number, lng: number): PhotoAsset => ({
   },
 });
 
+/** A twin-DSLR rig frame — same as `asset` plus the body's normalized camera serial. */
+const rigAsset = (id: string, serial: string): PhotoAsset => ({
+  id,
+  subtype: 'image',
+  payload: {
+    captureDate: '2026-05-01T10:00:00Z',
+    importSource: { fileName: `${id}.nef` },
+    camera: { serial },
+  },
+});
+
 const stereoGroup = (albumId: string, memberIds: string[]): DetectedGroup => ({
   type: 'stereo',
   sourceAlbumId: albumId,
@@ -253,6 +264,45 @@ describe('selectUnits', () => {
       { label: '3 m', hint: '1 frame', ids: ['s3'] }, // baselines sort nearest-first
       { label: '10 m', hint: '1 frame', ids: ['s4'] },
     ]);
+  });
+
+  it('splits a twin-DSLR set into left/right by camera serial (smaller serial = left by default)', () => {
+    const units = selectUnits(
+      [
+        album({
+          albumId: 'alb-r',
+          assets: [rigAsset('r1', '4807734'), rigAsset('r2', '4887374')], // two bodies, one scene
+          groups: [stereoGroup('alb-r', ['r1', 'r2'])],
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    const stereo = units.find((u): u is Stereo => u.kind === 'stereo')!;
+    expect(stereo.left.map((f) => f.id)).toEqual(['r1']); // serial 4807734 < 4887374
+    expect(stereo.baselines).toEqual([
+      { key: 'b0', label: 'pair', hint: '1 frame', frames: [{ id: 'r2', name: 'r2', ext: 'nef' }] },
+    ]);
+  });
+
+  it('honours the album’s chosen left serial, flipping which body is the left eye', () => {
+    const units = selectUnits(
+      [
+        album({
+          albumId: 'alb-r',
+          assets: [rigAsset('r1', '4807734'), rigAsset('r2', '4887374')],
+          groups: [stereoGroup('alb-r', ['r1', 'r2'])],
+          stereoLeftSerial: '4887374', // user swapped: the larger serial is the left body
+        }),
+      ],
+      10,
+      fixedRng,
+    );
+
+    const stereo = units.find((u): u is Stereo => u.kind === 'stereo')!;
+    expect(stereo.left.map((f) => f.id)).toEqual(['r2']);
+    expect(stereo.baselines[0].frames.map((f) => f.id)).toEqual(['r1']);
   });
 
   it('reports the measured baseline for a single drone pair', () => {

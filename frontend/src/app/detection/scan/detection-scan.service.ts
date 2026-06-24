@@ -10,6 +10,7 @@ import { GroupStore } from '../../storage/detection/group-store';
 import { HashStore } from '../../storage/detection/hash-store';
 import { PreviewStore } from '../../storage/review/preview-store';
 import { splitFileName } from '../../photo';
+import { cameraSerial, isCaptureFrame } from '../../camera-metadata';
 import { AssetMeta } from '../../storage/photokeeper-db';
 import { DetectedGroup, FrameSignature } from '../detectors/detection-types';
 import { DetectAsset, clusterBursts } from '../detectors/burst';
@@ -177,7 +178,13 @@ export class DetectionScanService {
     // Stage 3 — confirm with the hashes. Precedence on shared frames: stereo > burst > pano. In a stereo
     // album the same near-identical frames would otherwise read as a burst, so stereo claims them first.
     const stereoGroups = isStereoAlbum
-      ? clusterStereo(prefix.map(toStereoAsset), hashes, this.settings.stereoOptions()).map(
+      ? // Only real captures pair: a derived/combined stereograph the user exported carries no camera
+        // EXIF, so excluding it here keeps it from being mistaken for one eye of a pair.
+        clusterStereo(
+          prefix.filter(isCaptureFrame).map(toStereoAsset),
+          hashes,
+          this.settings.stereoOptions(),
+        ).map(
           (c): DetectedGroup => ({
             type: 'stereo',
             sourceAlbumId: albumId,
@@ -263,5 +270,14 @@ function toAssetMeta(asset: PhotoAsset, albumId: string): AssetMeta {
     loc?.latitude !== undefined && loc.longitude !== undefined
       ? { lat: loc.latitude, lng: loc.longitude }
       : undefined;
-  return { albumId, name, ext, taken: asset.payload?.captureDate ?? '', ...gps };
+  // Persist the body serial so the hydrator can assign twin-DSLR left/right without re-reading EXIF.
+  const serial = cameraSerial(asset);
+  return {
+    albumId,
+    name,
+    ext,
+    taken: asset.payload?.captureDate ?? '',
+    ...gps,
+    ...(serial && { serial }),
+  };
 }

@@ -24,6 +24,8 @@
     <button (click)="downloadSignatures()" [disabled]="frames().length === 0 || analyzing()">
       Download signatures
     </button>
+    <!-- Throwaway (stereo-pairing): remove once the L/R-role scope is decided. -->
+    <app-camera-probe [albumId]="selectedAlbumId()" />
   </div>
 
   @if (error(); as e) {

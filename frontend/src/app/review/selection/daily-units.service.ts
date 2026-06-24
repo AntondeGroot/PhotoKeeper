@@ -8,6 +8,7 @@ import { GroupOverrideStore, groupSignature } from '../../storage/detection/grou
 import { AssetMeta } from '../../storage/photokeeper-db';
 import { DetectedGroup } from '../../detection/detectors/detection-types';
 import { ReviewItem } from '../../photo';
+import { PreferencesService } from '../../preferences.service';
 import { AlbumUnits, selectUnits } from './unit-selection';
 
 /**
@@ -22,6 +23,7 @@ export class DailyUnitsService {
   private readonly meta = inject(AssetMetaStore);
   private readonly groups = inject(GroupStore);
   private readonly overrides = inject(GroupOverrideStore);
+  private readonly prefs = inject(PreferencesService);
 
   async buildUnits(
     vacationAlbumIds: readonly string[],
@@ -56,14 +58,20 @@ export class DailyUnitsService {
       pushInto(groupsByAlbum, group.sourceAlbumId, effective);
     }
 
+    const leftSerialByAlbum = this.prefs.stereoLeftSerial();
     const albumIds = new Set([...assetsByAlbum.keys(), ...groupsByAlbum.keys()]);
-    const albumUnits: AlbumUnits[] = [...albumIds].map((albumId) => ({
-      albumId,
-      albumName: albumName.get(albumId) ?? null,
-      isVacation: vacation.has(albumId),
-      assets: assetsByAlbum.get(albumId) ?? [],
-      groups: groupsByAlbum.get(albumId) ?? [],
-    }));
+    const albumUnits: AlbumUnits[] = [...albumIds].map((albumId) => {
+      const name = albumName.get(albumId) ?? null;
+      return {
+        albumId,
+        albumName: name,
+        isVacation: vacation.has(albumId),
+        assets: assetsByAlbum.get(albumId) ?? [],
+        groups: groupsByAlbum.get(albumId) ?? [],
+        // The body serial the user picked as the left eye for this stereo album (by name), if any.
+        stereoLeftSerial: name ? leftSerialByAlbum[name] : undefined,
+      };
+    });
 
     return selectUnits(albumUnits, limit, rng);
   }
@@ -84,9 +92,11 @@ function toPhotoAsset(id: string, meta: AssetMeta): PhotoAsset {
     meta.lat !== undefined && meta.lng !== undefined
       ? { location: { latitude: meta.lat, longitude: meta.lng } }
       : undefined;
+  // Restore the body serial so the hydrator can assign twin-DSLR left/right without re-reading EXIF.
+  const camera = meta.serial ? { camera: { serial: meta.serial } } : undefined;
   return {
     id,
     subtype: 'image', // only images are stored as metadata
-    payload: { captureDate: meta.taken, importSource: { fileName }, ...location },
+    payload: { captureDate: meta.taken, importSource: { fileName }, ...location, ...camera },
   };
 }

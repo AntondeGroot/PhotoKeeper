@@ -36,6 +36,9 @@ export class PreferencesService {
   // Stereo albums are keyed by *name* (not id like vacation): a review photo only carries its album
   // name, so the in-review "mark as stereo" control and the album manager toggle the same key.
   readonly stereoAlbums = signal<string[]>([]);
+  // Per stereo album (by name), the camera serial designated as the LEFT eye of a twin-DSLR rig. Absent
+  // → the hydrator defaults deterministically; the workbench swap writes the other body's serial here.
+  readonly stereoLeftSerial = signal<Record<string, string>>({});
   readonly onboarded = signal(false);
   readonly deviceEnabled = signal(false);
   readonly deviceFolders = signal<DeviceFolder[]>(DEVICE_FOLDERS.map((f) => ({ ...f })));
@@ -85,6 +88,14 @@ export class PreferencesService {
       this.stereoAlbums.set(stereo.filter((name): name is string => typeof name === 'string'));
     }
 
+    const leftSerial: unknown = readJson('stereoLeftSerial');
+    if (leftSerial && typeof leftSerial === 'object' && !Array.isArray(leftSerial)) {
+      const valid = Object.entries(leftSerial).filter(
+        (e): e is [string, string] => typeof e[1] === 'string',
+      );
+      this.stereoLeftSerial.set(Object.fromEntries(valid));
+    }
+
     const folders: unknown = readJson('deviceFolders');
     if (Array.isArray(folders)) {
       const on = new Set(folders.filter((n): n is string => typeof n === 'string'));
@@ -105,6 +116,7 @@ export class PreferencesService {
     localStorage.setItem('tagDirections', JSON.stringify(this.tagDirections()));
     localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
     localStorage.setItem('stereoAlbums', JSON.stringify(this.stereoAlbums()));
+    localStorage.setItem('stereoLeftSerial', JSON.stringify(this.stereoLeftSerial()));
     localStorage.setItem('onboarded', String(this.onboarded()));
     localStorage.setItem('deviceEnabled', String(this.deviceEnabled()));
     // Persist only the per-folder enabled flags by name, so changing the folder catalogue later
