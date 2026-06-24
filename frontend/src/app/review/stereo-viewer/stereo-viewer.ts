@@ -9,9 +9,8 @@ import {
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { Stereo } from '../../photo';
+import { PreferencesService } from '../../preferences.service';
 import { PreviewCacheService } from '../preview-cache.service';
-
-type View = 'parallel' | 'cross';
 
 /**
  * Fullscreen side-by-side stereo viewer for free-viewing a pair without glasses. Shows the shared left
@@ -33,7 +32,8 @@ export class StereoViewerComponent {
   readonly baseline = input<string | null>(null);
   readonly closed = output<void>();
 
-  readonly view = signal<View>('cross');
+  /** Parallel/cross is a shared, persisted preference, so changing it in one viewer applies everywhere. */
+  readonly view = inject(PreferencesService).stereoView;
   readonly size = signal(180);
   readonly rotated = signal(false);
   private readonly userBase = signal<string | null>(null);

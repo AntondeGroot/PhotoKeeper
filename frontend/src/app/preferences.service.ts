@@ -31,11 +31,17 @@ export class PreferencesService {
   readonly silentEvening = signal(true);
   readonly taggingEnabled = signal(false);
   readonly stereoEnabled = signal(false);
+  // Free-view fusion style for the side-by-side stereo viewer — a personal preference (some people fuse
+  // parallel, others cross-eyed), so it's shared across every viewer and persists.
+  readonly stereoView = signal<'parallel' | 'cross'>('cross');
   readonly tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
   readonly vacationAlbumIds = signal<string[]>([]);
   // Stereo albums are keyed by *name* (not id like vacation): a review photo only carries its album
   // name, so the in-review "mark as stereo" control and the album manager toggle the same key.
   readonly stereoAlbums = signal<string[]>([]);
+  // Per stereo album (by name), the camera serial designated as the LEFT eye of a twin-DSLR rig. Absent
+  // → the hydrator defaults deterministically; the workbench swap writes the other body's serial here.
+  readonly stereoLeftSerial = signal<Record<string, string>>({});
   readonly onboarded = signal(false);
   readonly deviceEnabled = signal(false);
   readonly deviceFolders = signal<DeviceFolder[]>(DEVICE_FOLDERS.map((f) => ({ ...f })));
@@ -67,6 +73,7 @@ export class PreferencesService {
     if (silentEvening) this.silentEvening.set(silentEvening === 'true');
     this.taggingEnabled.set(localStorage.getItem('taggingEnabled') === 'true');
     this.stereoEnabled.set(localStorage.getItem('stereoEnabled') === 'true');
+    if (localStorage.getItem('stereoView') === 'parallel') this.stereoView.set('parallel');
     this.onboarded.set(localStorage.getItem('onboarded') === 'true');
     this.deviceEnabled.set(localStorage.getItem('deviceEnabled') === 'true');
   }
@@ -83,6 +90,14 @@ export class PreferencesService {
     const stereo: unknown = readJson('stereoAlbums');
     if (Array.isArray(stereo)) {
       this.stereoAlbums.set(stereo.filter((name): name is string => typeof name === 'string'));
+    }
+
+    const leftSerial: unknown = readJson('stereoLeftSerial');
+    if (leftSerial && typeof leftSerial === 'object' && !Array.isArray(leftSerial)) {
+      const valid = Object.entries(leftSerial).filter(
+        (e): e is [string, string] => typeof e[1] === 'string',
+      );
+      this.stereoLeftSerial.set(Object.fromEntries(valid));
     }
 
     const folders: unknown = readJson('deviceFolders');
@@ -102,9 +117,11 @@ export class PreferencesService {
     localStorage.setItem('silentEvening', String(this.silentEvening()));
     localStorage.setItem('taggingEnabled', String(this.taggingEnabled()));
     localStorage.setItem('stereoEnabled', String(this.stereoEnabled()));
+    localStorage.setItem('stereoView', this.stereoView());
     localStorage.setItem('tagDirections', JSON.stringify(this.tagDirections()));
     localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
     localStorage.setItem('stereoAlbums', JSON.stringify(this.stereoAlbums()));
+    localStorage.setItem('stereoLeftSerial', JSON.stringify(this.stereoLeftSerial()));
     localStorage.setItem('onboarded', String(this.onboarded()));
     localStorage.setItem('deviceEnabled', String(this.deviceEnabled()));
     // Persist only the per-folder enabled flags by name, so changing the folder catalogue later

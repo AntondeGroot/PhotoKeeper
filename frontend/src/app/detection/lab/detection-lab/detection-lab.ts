@@ -2,6 +2,7 @@ import {
   Component,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
   ChangeDetectionStrategy,
@@ -16,153 +17,27 @@ import { HashStore } from '../../../storage/detection/hash-store';
 import { SignatureStore } from '../../../storage/detection/signature-store';
 import { DetectionSettingsService } from '../../scan/detection-settings.service';
 import { BurstOptions, DetectAsset } from '../../detectors/burst';
-import { SIGNATURE_SIZE } from '../../detectors/phash';
-import { PanoAsset, PanoOptions, overlapMatch } from '../../detectors/pano';
-import { FrameSignature, PanoOrientation } from '../../detectors/detection-types';
-import { LabCluster, LabPanoCluster, analyzeClusters, analyzePanoClusters } from '../lab-analysis';
-
-/** A matched region as CSS percentages, for overlaying on a lab thumbnail. */
-interface StripRect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-/** A strip plus the colour of the seam it belongs to (shared with the facing frame's strip). */
-type SeamStrip = StripRect & { color: string };
-
-/** One seam between two adjacent pano frames: the matched overlap regions, colour, and both axis scores. */
-interface PanoSeam {
-  color: string;
-  hScore: number; // best horizontal slide score (lower = better continuation)
-  vScore: number; // best vertical slide score
-  overlap: number; // overlap fraction on the chosen axis [0, 1]
-  aStrip: StripRect; // matched region on the earlier frame
-  bStrip: StripRect; // matched region on the later frame (same overlap → same colour)
-}
-
-/** Distinct colours cycled across a pano's seams, so each overlap stands out. */
-const SEAM_COLORS = ['#e0a83c', '#4ea0e0', '#7bd86a', '#e06c9c', '#b07be0'];
-const seamColor = (seam: number): string => SEAM_COLORS[seam % SEAM_COLORS.length];
-
-const EMPTY_STRIP: StripRect = { left: 0, top: 0, width: 0, height: 0 };
-
-/** The two matched overlap bands for a seam, ordered [earlier frame, later frame]. */
-function seamBands(
-  orientation: PanoOrientation,
-  forward: boolean,
-  overlap: number,
-): [StripRect, StripRect] {
-  const o = overlap * 100;
-  const left: StripRect = { left: 0, top: 0, width: o, height: 100 };
-  const right: StripRect = { left: 100 - o, top: 0, width: o, height: 100 };
-  const top: StripRect = { left: 0, top: 0, width: 100, height: o };
-  const bottom: StripRect = { left: 0, top: 100 - o, width: 100, height: o };
-  if (orientation === 'horizontal') return forward ? [right, left] : [left, right];
-  return forward ? [bottom, top] : [top, bottom];
-}
-
-/** Resolves one seam from two frames' signatures: both axis scores, plus the matched overlap bands. */
-function buildSeam(
-  orientation: PanoOrientation,
-  sa: FrameSignature | undefined,
-  sb: FrameSignature | undefined,
-  color: string,
-  opts: PanoOptions,
-): PanoSeam {
-  if (!sa || !sb) {
-    return {
-      color,
-      hScore: NaN,
-      vScore: NaN,
-      overlap: 0,
-      aStrip: EMPTY_STRIP,
-      bStrip: EMPTY_STRIP,
-    };
-  }
-  const hm = overlapMatch(sa, sb, 'horizontal', opts);
-  const vm = overlapMatch(sa, sb, 'vertical', opts);
-  const chosen = orientation === 'horizontal' ? hm : vm;
-  const [aStrip, bStrip] = seamBands(orientation, chosen.forward, chosen.overlap);
-  return {
-    color,
-    hScore: Math.round(hm.score),
-    vScore: Math.round(vm.score),
-    overlap: chosen.overlap,
-    aStrip,
-    bStrip,
-  };
-}
+import { PanoAsset, PanoOptions } from '../../detectors/pano';
+import { StereoOptions } from '../../detectors/stereo';
+import { FrameSignature } from '../../detectors/detection-types';
+import {
+  LabCluster,
+  LabPanoCluster,
+  analyzeClusters,
+  analyzePanoClusters,
+  analyzeStereo,
+} from '../lab-analysis';
+import { Stereo, unitAssetIds } from '../../../photo';
+import { PreferencesService } from '../../../preferences.service';
+import { PreviewCacheService } from '../../../review/preview-cache.service';
+import { StereoCardComponent } from '../../../review/stereo-card/stereo-card';
+import { CameraProbeComponent } from './camera-probe.component'; // throwaway (stereo-pairing)
+import { stripJpegMetadata } from './lab-jpeg';
+import { signatureToPng } from './lab-signature';
+import { PanoSeam, SeamStrip, buildSeam, seamColor } from './lab-seams';
 
 /** Small rendition used for both the hash source and the lab thumbnails (one fetch serves both). */
 const LAB_RENDITION = '640';
-/** Nearest-neighbour zoom when exporting a signature, so the 64×64 grid is actually viewable. */
-const SIGNATURE_ZOOM = 4;
-
-/** Renders a grayscale signature grid to a zoomed PNG blob (crisp pixels, no smoothing). */
-async function signatureToPng(signature: FrameSignature): Promise<Blob> {
-  const n = SIGNATURE_SIZE;
-  const small = new OffscreenCanvas(n, n);
-  const sctx = small.getContext('2d');
-  if (!sctx) throw new Error('no 2d context');
-  const img = sctx.createImageData(n, n);
-  for (let p = 0; p < n * n; p++) {
-    const v = signature[p];
-    img.data[p * 4] = v;
-    img.data[p * 4 + 1] = v;
-    img.data[p * 4 + 2] = v;
-    img.data[p * 4 + 3] = 255;
-  }
-  sctx.putImageData(img, 0, 0);
-
-  const big = new OffscreenCanvas(n * SIGNATURE_ZOOM, n * SIGNATURE_ZOOM);
-  const bctx = big.getContext('2d');
-  if (!bctx) throw new Error('no 2d context');
-  bctx.imageSmoothingEnabled = false;
-  bctx.drawImage(small, 0, 0, big.width, big.height);
-  return big.convertToBlob({ type: 'image/png' });
-}
-
-/**
- * Losslessly removes metadata segments (EXIF/IPTC/XMP/ICC/Adobe/comments) from a JPEG, keeping the
- * pixels — and so the signature — byte-identical. Mirrors `jpegtran -copy none`: walks the marker
- * segments before the scan, drops APP1–APP15 + COM (keeps the standard JFIF APP0), then copies the
- * compressed scan through to EOI verbatim. Non-JPEGs are returned unchanged.
- */
-async function stripJpegMetadata(blob: Blob): Promise<Blob> {
-  const buf = new Uint8Array(await blob.arrayBuffer());
-  if (buf.length < 2 || buf[0] !== 0xff || buf[1] !== 0xd8) return blob;
-
-  const keep: [number, number][] = [[0, 2]]; // SOI
-  let i = 2;
-  while (i + 1 < buf.length) {
-    const marker = buf[i + 1];
-    if (buf[i] !== 0xff || marker === 0xff) {
-      i++; // padding / resync
-    } else if (marker === 0xda || marker === 0xd9) {
-      keep.push([i, buf.length - i]); // SOS (scan to end) or EOI — copy the rest verbatim
-      break;
-    } else if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
-      keep.push([i, 2]); // standalone marker, no length
-      i += 2;
-    } else {
-      const segLen = 2 + ((buf[i + 2] << 8) | buf[i + 3]);
-      const drop = (marker >= 0xe1 && marker <= 0xef) || marker === 0xfe; // APP1–APP15, COM
-      if (!drop) keep.push([i, segLen]);
-      i += segLen;
-    }
-  }
-
-  const total = keep.reduce((sum, [, len]) => sum + len, 0);
-  const out = new Uint8Array(total);
-  let pos = 0;
-  for (const [off, len] of keep) {
-    out.set(buf.subarray(off, off + len), pos);
-    pos += len;
-  }
-  return new Blob([out], { type: 'image/jpeg' });
-}
 
 interface LabFrame {
   id: string;
@@ -182,7 +57,7 @@ interface LabFrame {
   templateUrl: './detection-lab.html',
   styleUrl: './detection-lab.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [StereoCardComponent, CameraProbeComponent /* throwaway (stereo-pairing) */],
 })
 export class DetectionLabComponent implements OnInit {
   private readonly svc = inject(LightroomService);
@@ -192,6 +67,17 @@ export class DetectionLabComponent implements OnInit {
   private readonly signatureStore = inject(SignatureStore);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly settings = inject(DetectionSettingsService);
+  private readonly prefs = inject(PreferencesService);
+  private readonly previewCache = inject(PreviewCacheService);
+
+  constructor() {
+    // The lab hosts its own stereo cards, so it warms their frame previews (like review's prefetch).
+    effect(() =>
+      this.stereoUnits().forEach((u) =>
+        unitAssetIds(u).forEach((id) => void this.previewCache.ensure(id)),
+      ),
+    );
+  }
 
   albums = signal<Album[]>([]);
   selectedAlbumId = signal('');
@@ -238,9 +124,33 @@ export class DetectionLabComponent implements OnInit {
     minSize: this.panoMinSize(),
   }));
 
+  // Stereo sliders, seeded from the stereo defaults. The raw analysed assets (with GPS + camera EXIF)
+  // are kept so detected sets hydrate into the exact review unit — including twin-rig serial pairing.
+  stereoMaxHamming = signal(this.settings.stereoOptions().maxHamming);
+  stereoMaxMeters = signal(this.settings.stereoOptions().maxMeters);
+  stereoMinSize = signal(this.settings.stereoOptions().minSize);
+  private readonly assets = signal<PhotoAsset[]>([]);
+
+  private readonly stereoOpts = computed<StereoOptions>(() => ({
+    maxHamming: this.stereoMaxHamming(),
+    maxMeters: this.stereoMaxMeters(),
+    minSize: this.stereoMinSize(),
+  }));
+
+  private readonly selectedAlbumName = computed(
+    () => this.albums().find((a) => a.id === this.selectedAlbumId())?.name ?? null,
+  );
+
   clusters = computed<LabCluster[]>(() =>
     analyzeClusters(this.frames().map(toDetectAsset), this.hashes(), this.opts()),
   );
+
+  /** Detected stereo sets, hydrated into real review units so the lab reflects the actual L/R pairing. */
+  stereoUnits = computed<Stereo[]>(() => {
+    const albumName = this.selectedAlbumName();
+    const leftSerial = albumName ? this.prefs.stereoLeftSerial()[albumName] : undefined;
+    return analyzeStereo(this.assets(), this.hashes(), this.stereoOpts(), albumName, leftSerial);
+  });
 
   panoClusters = computed<LabPanoCluster[]>(() => {
     // Bursts win, mirroring the scan: a pano that shares any frame with a detected burst is dropped, so
@@ -343,6 +253,25 @@ export class DetectionLabComponent implements OnInit {
     this.panoMinSize.set(Number((event.target as HTMLInputElement).value));
   }
 
+  onStereoMaxHamming(event: Event): void {
+    this.stereoMaxHamming.set(Number((event.target as HTMLInputElement).value));
+  }
+
+  onStereoMaxMeters(event: Event): void {
+    this.stereoMaxMeters.set(Number((event.target as HTMLInputElement).value));
+  }
+
+  onStereoMinSize(event: Event): void {
+    this.stereoMinSize.set(Number((event.target as HTMLInputElement).value));
+  }
+
+  /** Persist the album's left-eye serial; the stereoUnits computed re-hydrates, flipping every set. */
+  swapStereoEyes(e: { albumName: string | null; leftSerial: string }): void {
+    if (!e.albumName) return;
+    const albumName = e.albumName;
+    this.prefs.stereoLeftSerial.update((m) => ({ ...m, [albumName]: e.leftSerial }));
+  }
+
   async analyze(): Promise<void> {
     const albumId = this.selectedAlbumId();
     if (!albumId || this.analyzing()) return;
@@ -377,6 +306,7 @@ export class DetectionLabComponent implements OnInit {
         this.progressPct.set(Math.round((++done / sorted.length) * 100));
       }
       this.frames.set(sorted.map((a) => toLabFrame(a, aspects.get(a.id) ?? 1)));
+      this.assets.set(sorted); // raw assets (GPS + camera EXIF) for stereo hydration
       this.hashes.set(hashes);
       this.signatures.set(signatures);
       this.thumbs.set(thumbs);

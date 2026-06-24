@@ -335,6 +335,9 @@ export interface Stereo {
   kind: 'stereo';
   left: StereoFrame[];
   baselines: StereoBaseline[];
+  // Present only for a twin-DSLR rig: the two body serials, so the workbench can offer a left/right swap
+  // (persisted per album). `leftSerial` is the body currently shown as the left eye. Absent for drone/cha-cha.
+  rig?: { leftSerial: string; rightSerial: string };
 }
 
 export const MOCK_STEREO: Stereo = {
