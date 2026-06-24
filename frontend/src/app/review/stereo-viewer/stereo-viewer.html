@@ -1,0 +1,43 @@
+<div class="stereo-viewer" [class.rotated]="rotated()">
+  <div class="sv-controls">
+    @for (b of stereo().baselines; track b.key) {
+      <button class="sv-chip" [class.on]="baseSel() === b.key" (click)="selectBaseline(b.key)">
+        {{ b.label }}
+      </button>
+    }
+    <span class="sv-sep"></span>
+    <button class="sv-chip" [class.on]="view() === 'parallel'" (click)="view.set('parallel')">
+      Parallel
+    </button>
+    <button class="sv-chip" [class.on]="view() === 'cross'" (click)="view.set('cross')">
+      Cross
+    </button>
+    <button class="sv-chip" [class.on]="rotated()" (click)="rotated.set(!rotated())">
+      {{ rotated() ? 'Rotated' : 'Rotate' }}
+    </button>
+    <input
+      class="sv-size"
+      type="range"
+      min="90"
+      max="260"
+      [value]="size()"
+      (input)="size.set(+$any($event.target).value)"
+      aria-label="image size"
+    />
+    <button class="sv-chip sv-close" (click)="closed.emit()">Close ✕</button>
+  </div>
+
+  <div class="sv-pair">
+    @for (item of pair(); track item.tag) {
+      <div class="sv-frame" [style.width.px]="size()">
+        <span class="sv-dot"></span>
+        <div class="sv-img">
+          @if (imageUrl(item.frame.id); as url) {
+            <img [src]="url" alt="" draggable="false" />
+          }
+          <span class="sv-tag">{{ item.tag }}</span>
+        </div>
+      </div>
+    }
+  </div>
+</div>
