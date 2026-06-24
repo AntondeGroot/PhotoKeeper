@@ -20,9 +20,33 @@ const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => (
   payload: { captureDate },
 });
 
+/** A geotagged frame (drone), for the stereo path: same shape as `image` plus a GPS location. */
+const geoImage = (
+  id: string,
+  captureDate: string,
+  lat: number,
+  lng: number,
+  updated = 'v1',
+): PhotoAsset => ({
+  id,
+  subtype: 'image',
+  updated,
+  payload: { captureDate, location: { latitude: lat, longitude: lng } },
+});
+
 // Each asset gets a blob of a unique byte length; the stub hasher maps that length → a chosen hash +
 // signature. Using blob *size* (not content) keeps the mapping stable through a fake-indexeddb round-trip.
-const SIZE_OF: Record<string, number> = { a1: 1, a2: 2, a3: 3, a4: 4, p1: 5, p2: 6, p3: 7 };
+const SIZE_OF: Record<string, number> = {
+  a1: 1,
+  a2: 2,
+  a3: 3,
+  a4: 4,
+  p1: 5,
+  p2: 6,
+  p3: 7,
+  s1: 8,
+  s2: 9,
+};
 const HASH_BY_SIZE: Record<number, string> = {
   1: '0000000000000000',
   2: '0000000000000001', // hamming 1 from a1 → near-duplicate
@@ -32,6 +56,9 @@ const HASH_BY_SIZE: Record<number, string> = {
   5: '0f0f0f0f0f0f0f0f',
   6: 'f0f0f0f0f0f0f0f0',
   7: '00ff00ff00ff00ff',
+  // s1/s2: near-identical (the same stereo scene from two close positions).
+  8: '0000000000000000',
+  9: '0000000000000000',
 };
 
 // A 1-D "scene" sampled into a 64×64 grayscale signature: column c of a frame starting at scene
@@ -59,6 +86,8 @@ const SIGNATURE_BY_SIZE: Record<number, FrameSignature> = {
   5: horizFrame(0),
   6: horizFrame(32), // left 32 cols === p1's right 32 → overlap
   7: horizFrame(64), // left 32 cols === p2's right 32 → overlap
+  8: flat,
+  9: flat,
 };
 const blobFor = (id: string) => new Blob(['x'.repeat(SIZE_OF[id])]);
 
@@ -245,6 +274,58 @@ describe('DetectionScanService', () => {
         memberIds: ['p1', 'p2', 'p3'],
         orientation: 'horizontal',
       },
+    ]);
+  });
+
+  it('groups a stereo album’s near-identical frames into a stereo set, taking precedence over a burst', async () => {
+    // Two shots of one scene from positions ~3 m apart, 2 s apart — a burst by time+hash, but in a stereo
+    // album stereo claims them first, so the result is a single stereo group, not a burst.
+    albumAssets = [
+      geoImage('s1', '2026-05-03T10:00:00Z', 52.0, 5.0),
+      geoImage('s2', '2026-05-03T10:00:02Z', 52.0, 5.00005),
+    ];
+
+    const report = await service.scanAlbum('alb-s', BUDGET, true);
+
+    expect(report.groups).toBe(1);
+    expect(await groupStore.getByAlbum('alb-s')).toEqual([
+      { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['s1', 's2'] },
+    ]);
+    // GPS is persisted to metadata so the hydrator can rebuild baselines from displacement.
+    expect(await metaStore.get('s1')).toEqual({
+      albumId: 'alb-s',
+      name: 's1',
+      taken: '2026-05-03T10:00:00Z',
+      lat: 52.0,
+      lng: 5.0,
+    });
+  });
+
+  it('finds a stereo set even when its frames are spread out in time (hashes every image)', async () => {
+    // 5 minutes apart — well outside any burst window, so the time-cluster gate would never hash them.
+    albumAssets = [
+      geoImage('s1', '2026-05-03T10:00:00Z', 52.0, 5.0),
+      geoImage('s2', '2026-05-03T10:05:00Z', 52.0, 5.00005),
+    ];
+
+    const report = await service.scanAlbum('alb-s', BUDGET, true);
+
+    expect(report.hashed).toBe(2); // a stereo album hashes every image, not just time-clusters
+    expect(await groupStore.getByAlbum('alb-s')).toEqual([
+      { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['s1', 's2'] },
+    ]);
+  });
+
+  it('does not run stereo detection on an unmarked album — those frames stay a burst', async () => {
+    albumAssets = [
+      geoImage('s1', '2026-05-03T10:00:00Z', 52.0, 5.0),
+      geoImage('s2', '2026-05-03T10:00:02Z', 52.0, 5.00005),
+    ];
+
+    await service.scanAlbum('alb-s', BUDGET); // isStereoAlbum defaults to false
+
+    expect(await groupStore.getByAlbum('alb-s')).toEqual([
+      { type: 'burst', sourceAlbumId: 'alb-s', memberIds: ['s1', 's2'] },
     ]);
   });
 });

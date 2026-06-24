@@ -3,6 +3,7 @@ import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../../lightroom.service';
 import { DetectionScanService } from './detection-scan.service';
 import { AlbumManifestStore } from '../../storage/detection/album-manifest-store';
+import { PreferencesService } from '../../preferences.service';
 
 /** Default soft cap on images scanned per pass — the "keep ~100 ready" buffer the app tops up. */
 const DEFAULT_IMAGE_BUDGET = 100;
@@ -32,6 +33,7 @@ export class CatalogScanService {
   private readonly svc = inject(LightroomService);
   private readonly scan = inject(DetectionScanService);
   private readonly manifests = inject(AlbumManifestStore);
+  private readonly prefs = inject(PreferencesService);
 
   /**
    * Forces a full re-detection: clears the per-album change-gate manifests so every album re-detects
@@ -56,6 +58,9 @@ export class CatalogScanService {
       completed: true,
     };
 
+    // Stereo detection runs only over albums the user marked as stereo (kept by name; see PreferencesService).
+    const stereoAlbums = new Set(this.prefs.stereoAlbums());
+
     let remaining = imageBudget;
     for (const album of albums) {
       if (remaining <= 0) {
@@ -64,7 +69,7 @@ export class CatalogScanService {
       }
       summary.processed++;
       try {
-        const report = await this.scan.scanAlbum(album.id, remaining);
+        const report = await this.scan.scanAlbum(album.id, remaining, stereoAlbums.has(album.name));
         summary.scannedImages += report.scanned;
         summary.hashed += report.hashed;
         summary.groups += report.groups;

@@ -14,6 +14,7 @@ import { AssetMeta } from '../../storage/photokeeper-db';
 import { DetectedGroup, FrameSignature } from '../detectors/detection-types';
 import { DetectAsset, clusterBursts } from '../detectors/burst';
 import { PanoAsset, clusterPanos } from '../detectors/pano';
+import { StereoAsset, clusterStereo } from '../detectors/stereo';
 import { DetectionSettingsService } from './detection-settings.service';
 import { ImageHasher } from '../detectors/image-hasher';
 
@@ -62,7 +63,7 @@ export class DetectionScanService {
    * boundary. A per-album cursor (in the manifest) records how far it reached, so the next pass resumes
    * there; the cursor resets and the album re-scans from the start whenever its population changes.
    */
-  async scanAlbum(albumId: string, budget: number): Promise<ScanReport> {
+  async scanAlbum(albumId: string, budget: number, isStereoAlbum = false): Promise<ScanReport> {
     // Capture-time order makes "the next photo" and the group-window peek well-defined.
     const all = (await firstValueFrom(this.svc.getAllAlbumAssets(albumId)))
       .filter((a) => a.subtype === 'image')
@@ -107,7 +108,7 @@ export class DetectionScanService {
     // pass stopped at one, and we extended this one to one), so no group is split. Re-clustering the
     // prefix is cheap — Stage 2 only hashes the new, un-cached candidates.
     const prefix = all.slice(0, end);
-    const { hashed, groups } = await this.detectPrefix(albumId, prefix);
+    const { hashed, groups } = await this.detectPrefix(albumId, prefix, isStereoAlbum);
 
     await this.manifests.record(albumId, all, end);
     return {
@@ -136,18 +137,22 @@ export class DetectionScanService {
     return end;
   }
 
-  /** Runs the tiered burst/pano detection over a scanned prefix and stores its groups for the album. */
+  /** Runs the tiered burst/pano/stereo detection over a scanned prefix and stores its groups. */
   private async detectPrefix(
     albumId: string,
     prefix: PhotoAsset[],
+    isStereoAlbum: boolean,
   ): Promise<{ hashed: number; groups: DetectedGroup[] }> {
     const detectAssets = prefix.map(toDetectAsset);
     const opts = this.settings.burstOptions();
 
-    // Stage 1 — candidates from timestamps alone (no pixels). Lone photos drop out.
+    // Stage 1 — candidates from timestamps alone (no pixels). Lone photos drop out. A stereo set isn't
+    // time-bounded (frames spread out), so a stereo album can't lean on the burst time-cluster gate —
+    // every image in it is a candidate to hash, and clusterStereo finds the sets by hash + GPS.
     const candidateIds = new Set(
       clusterBursts(detectAssets, new Map<string, string>(), opts).flatMap((c) => c.memberIds),
     );
+    if (isStereoAlbum) for (const a of prefix) candidateIds.add(a.id);
 
     // Stage 2 — hash only candidate members that lack cached data. The only step that touches pixels.
     const hashes = await this.hashes.getAll();
@@ -169,14 +174,29 @@ export class DetectionScanService {
       hashed++;
     }
 
-    // Stage 3 — confirm with the hashes; bursts win over panos that share any frame.
-    const burstGroups = clusterBursts(detectAssets, hashes, opts).map(
-      (c): DetectedGroup => ({ type: 'burst', sourceAlbumId: albumId, memberIds: c.memberIds }),
-    );
-    const inBurst = new Set(burstGroups.flatMap((g) => g.memberIds));
+    // Stage 3 — confirm with the hashes. Precedence on shared frames: stereo > burst > pano. In a stereo
+    // album the same near-identical frames would otherwise read as a burst, so stereo claims them first.
+    const stereoGroups = isStereoAlbum
+      ? clusterStereo(prefix.map(toStereoAsset), hashes, this.settings.stereoOptions()).map(
+          (c): DetectedGroup => ({
+            type: 'stereo',
+            sourceAlbumId: albumId,
+            memberIds: c.memberIds,
+          }),
+        )
+      : [];
+    const claimed = new Set(stereoGroups.flatMap((g) => g.memberIds));
+
+    const burstGroups = clusterBursts(detectAssets, hashes, opts)
+      .filter((c) => !c.memberIds.some((id) => claimed.has(id)))
+      .map(
+        (c): DetectedGroup => ({ type: 'burst', sourceAlbumId: albumId, memberIds: c.memberIds }),
+      );
+    for (const g of burstGroups) for (const id of g.memberIds) claimed.add(id);
+
     const panoAssets = prefix.map((a): PanoAsset => toPanoAsset(a, aspects.get(a.id)));
     const panoGroups = clusterPanos(panoAssets, signatures, hashes, this.settings.panoOptions())
-      .filter((c) => !c.memberIds.some((id) => inBurst.has(id)))
+      .filter((c) => !c.memberIds.some((id) => claimed.has(id)))
       .map(
         (c): DetectedGroup => ({
           type: 'pano',
@@ -185,7 +205,8 @@ export class DetectionScanService {
           orientation: c.orientation,
         }),
       );
-    const groups = [...burstGroups, ...panoGroups];
+
+    const groups = [...stereoGroups, ...burstGroups, ...panoGroups];
     await this.groups.replaceForAlbum(albumId, groups);
     return { hashed, groups };
   }
@@ -229,7 +250,18 @@ function toPanoAsset(asset: PhotoAsset, aspect: number | undefined): PanoAsset {
   return { id: asset.id, taken: asset.payload?.captureDate ?? '', aspect };
 }
 
+function toStereoAsset(asset: PhotoAsset): StereoAsset {
+  const loc = asset.payload?.location;
+  return { id: asset.id, lat: loc?.latitude, lng: loc?.longitude };
+}
+
 function toAssetMeta(asset: PhotoAsset, albumId: string): AssetMeta {
   const { name, ext } = splitFileName(asset.payload?.importSource?.fileName ?? asset.id);
-  return { albumId, name, ext, taken: asset.payload?.captureDate ?? '' };
+  const loc = asset.payload?.location;
+  // Only attach GPS when both coordinates are present, so un-geotagged frames keep a clean meta shape.
+  const gps =
+    loc?.latitude !== undefined && loc.longitude !== undefined
+      ? { lat: loc.latitude, lng: loc.longitude }
+      : undefined;
+  return { albumId, name, ext, taken: asset.payload?.captureDate ?? '', ...gps };
 }

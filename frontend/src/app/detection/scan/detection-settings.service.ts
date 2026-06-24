@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { BurstOptions } from '../detectors/burst';
 import { PanoOptions } from '../detectors/pano';
+import { StereoOptions } from '../detectors/stereo';
 
 const STORAGE_KEY = 'detection-burst-options';
 
@@ -30,6 +31,14 @@ export const DEFAULT_PANO_OPTIONS: PanoOptions = {
  */
 export const DEFAULT_BURST_OPTIONS: BurstOptions = { windowMs: 60_000, maxHamming: 24, minSize: 2 };
 
+/**
+ * Provisional stereo defaults (run only over stereo-marked albums). Frames of one set are near-identical
+ * but a wider baseline adds parallax, so the Hamming tolerance (16) sits above a tight burst yet below a
+ * different scene; the GPS guard (30 m) is generous enough for a multi-baseline drone set while still
+ * separating distinct scenes along a flight path. A set is ≥ 2 frames. Tune against the corpus later.
+ */
+export const DEFAULT_STEREO_OPTIONS: StereoOptions = { maxHamming: 16, maxMeters: 30, minSize: 2 };
+
 /** A burst must contain at least two frames. */
 const MIN_BURST_SIZE = 2;
 
@@ -53,6 +62,9 @@ export class DetectionSettingsService {
 
   /** Pano thresholds for `clusterPanos`. Fixed defaults for now (no UI tuning yet). */
   readonly panoOptions = computed<PanoOptions>(() => DEFAULT_PANO_OPTIONS);
+
+  /** Stereo thresholds for `clusterStereo`. Fixed defaults for now (no UI tuning yet). */
+  readonly stereoOptions = computed<StereoOptions>(() => DEFAULT_STEREO_OPTIONS);
 
   constructor() {
     this.load();
