@@ -79,9 +79,14 @@ function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {
 function toPhotoAsset(id: string, meta: AssetMeta): PhotoAsset {
   // Rejoin name + ext into the original filename so hydration recovers both (it re-splits on the dot).
   const fileName = meta.ext ? `${meta.name}.${meta.ext}` : meta.name;
+  // Restore GPS for geotagged frames so the stereo hydrator can rebuild baselines from displacement.
+  const location =
+    meta.lat !== undefined && meta.lng !== undefined
+      ? { location: { latitude: meta.lat, longitude: meta.lng } }
+      : undefined;
   return {
     id,
     subtype: 'image', // only images are stored as metadata
-    payload: { captureDate: meta.taken, importSource: { fileName } },
+    payload: { captureDate: meta.taken, importSource: { fileName }, ...location },
   };
 }

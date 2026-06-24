@@ -38,6 +38,8 @@ export interface AssetMeta {
   name: string; // display name without extension
   ext?: string; // original file extension without the dot, e.g. 'CR2'
   taken: string; // ISO 8601 capture time, '' if unknown
+  lat?: number; // decimal GPS latitude, when the frame is geotagged (drone) — drives stereo baselines
+  lng?: number; // decimal GPS longitude
 }
 
 /**
