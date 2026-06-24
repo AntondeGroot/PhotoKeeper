@@ -12,5 +12,8 @@ export interface PhotoAsset {
     captureDate?: string;
     userCreated?: string;
     importSource?: { fileName?: string };
+    // Decimal GPS from the asset's location block — present on geotagged/drone frames, absent otherwise.
+    // Drives stereo baseline decomposition: horizontal displacement between a set's frames = the baseline.
+    location?: { latitude?: number; longitude?: number; altitude?: number };
   };
 }
