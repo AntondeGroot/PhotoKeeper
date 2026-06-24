@@ -8,13 +8,14 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { Stereo } from '../../photo';
+import { StereoViewerComponent } from '../stereo-viewer/stereo-viewer';
 
 @Component({
   selector: 'app-stereo-card',
   templateUrl: './stereo-card.html',
   styleUrl: './stereo-card.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [StereoViewerComponent],
 })
 export class StereoCardComponent {
   @Input() stereo!: Stereo;
@@ -22,6 +23,8 @@ export class StereoCardComponent {
 
   verdicts = signal<Record<string, 'keep' | 'edit' | 'reject'>>({});
   twoD = signal(false);
+  /** The baseline whose pair is open in the side-by-side viewer, or null when it's closed. */
+  viewerBaseline = signal<string | null>(null);
 
   allChosen = computed(() => this.stereo.baselines.every((b) => b.key in this.verdicts()));
 

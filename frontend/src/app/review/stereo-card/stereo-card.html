@@ -35,6 +35,9 @@
           </div>
         }
       </div>
+      <button class="compare-btn" (click)="viewerBaseline.set(baseline.key)">
+        Compare in 3D ↗
+      </button>
       <div class="verdict-buttons">
         <button
           class="verdict-btn keep"
@@ -68,3 +71,7 @@
 
   <button class="done-btn" [disabled]="!allChosen()" (click)="confirm()">Done with this set</button>
 </div>
+
+@if (viewerBaseline(); as key) {
+  <app-stereo-viewer [stereo]="stereo" [baseline]="key" (closed)="viewerBaseline.set(null)" />
+}
