@@ -30,7 +30,8 @@ describe('analyzeClusters', () => {
     expect(clusters[0].after).toEqual({
       id: 'a4',
       gapMs: 58_000, // a4 is 58s after a3
-      hamming: 63, // ffff…ffff (64 bits) vs 0000…0001 (1 bit) → 63 differ
+      // ffff…ffff (64 bits) vs 0000…0001 (1 bit) → 63 differ; luma-only fixtures → no colour bits.
+      hamming: { full: 63, luma: 63, color: 0 },
     });
   });
 

@@ -21,11 +21,14 @@ import { PanoAsset, PanoOptions } from '../../detectors/pano';
 import { StereoOptions } from '../../detectors/stereo';
 import { FrameSignature } from '../../detectors/detection-types';
 import {
+  HashSplit,
   LabCluster,
   LabPanoCluster,
   analyzeClusters,
   analyzePanoClusters,
   analyzeStereo,
+  hashSplit,
+  signatureMad,
 } from '../lab-analysis';
 import { Stereo, unitAssetIds } from '../../../photo';
 import { PreferencesService } from '../../../preferences.service';
@@ -170,6 +173,18 @@ export class DetectionLabComponent implements OnInit {
 
   frameName(id: string): string {
     return this.frames().find((f) => f.id === id)?.name ?? id;
+  }
+
+  /** Full/luma/colour Hamming between two frames, for the member-to-member and bracket readouts. */
+  ham(a: string, b: string): HashSplit | null {
+    const hashes = this.hashes();
+    return hashSplit(hashes.get(a), hashes.get(b));
+  }
+
+  /** Mean-normalised, shift-tolerant signature MAD between two frames — the dHash alternative to compare. */
+  mad(a: string, b: string): number | null {
+    const signatures = this.signatures();
+    return signatureMad(signatures.get(a), signatures.get(b));
   }
 
   thumb(id: string): SafeUrl | undefined {

@@ -1,4 +1,13 @@
-import { dhash, hammingDistance, HASH_WIDTH, HASH_HEIGHT } from './phash';
+import {
+  dhash,
+  hammingDistance,
+  lumaHammingDistance,
+  colorDhash,
+  HASH_WIDTH,
+  HASH_HEIGHT,
+  COLOR_WIDTH,
+  COLOR_HEIGHT,
+} from './phash';
 
 // A 9×8 grid built by repeating one 9-pixel row 8 times.
 function gridFromRow(row: number[]): number[] {
@@ -27,6 +36,13 @@ describe('dhash', () => {
     expect(() => dhash([1, 2, 3], HASH_WIDTH, HASH_HEIGHT)).toThrow();
   });
 
+  it('dead-bands shallow gradients with a margin', () => {
+    // Each cell is 4 brighter than its right neighbour — a real but shallow step.
+    const grid = gridFromRow([32, 28, 24, 20, 16, 12, 8, 4, 0]);
+    expect(dhash(grid)).toBe('ffffffffffffffff'); // margin 0 → every step counts
+    expect(dhash(grid, HASH_WIDTH, HASH_HEIGHT, 6)).toBe('0000000000000000'); // 4 ≤ 6 → flattened
+  });
+
   it('gives a small Hamming distance to a slightly perturbed image', () => {
     const a = dhash(gridFromRow([0, 1, 2, 3, 4, 5, 6, 7, 8]));
     // Flip a single comparison in one row (4 vs 5 → 5 vs 4) by bumping one pixel.
@@ -53,5 +69,50 @@ describe('hammingDistance', () => {
 
   it('throws on length mismatch', () => {
     expect(() => hammingDistance('ff', 'ffff')).toThrow();
+  });
+});
+
+describe('colorDhash', () => {
+  const fill = (r: number, g: number, b: number): Uint8ClampedArray => {
+    const rgba = new Uint8ClampedArray(COLOR_WIDTH * COLOR_HEIGHT * 4);
+    for (let p = 0; p < COLOR_WIDTH * COLOR_HEIGHT; p++) {
+      rgba[p * 4] = r;
+      rgba[p * 4 + 1] = g;
+      rgba[p * 4 + 2] = b;
+      rgba[p * 4 + 3] = 255;
+    }
+    return rgba;
+  };
+
+  it('is 8 hex chars — 32 colour bits (two opponent channels)', () => {
+    expect(colorDhash(fill(128, 128, 128))).toHaveLength(8);
+  });
+
+  it('is all-zero for a flat frame (no colour gradient to compare)', () => {
+    expect(colorDhash(fill(200, 50, 50))).toBe('00000000');
+  });
+
+  it('is non-zero when colour varies across the frame', () => {
+    // Red ramps *down* across columns (g=b=0) → a falling red-green gradient → set bits.
+    const rgba = new Uint8ClampedArray(COLOR_WIDTH * COLOR_HEIGHT * 4);
+    for (let y = 0; y < COLOR_HEIGHT; y++) {
+      for (let x = 0; x < COLOR_WIDTH; x++) {
+        const p = y * COLOR_WIDTH + x;
+        rgba[p * 4] = (COLOR_WIDTH - 1 - x) * 50;
+        rgba[p * 4 + 3] = 255;
+      }
+    }
+    expect(colorDhash(rgba)).not.toBe('00000000');
+  });
+});
+
+describe('lumaHammingDistance', () => {
+  it('ignores the appended colour bits', () => {
+    // Identical 16-hex luma, different colour tail → luma distance 0.
+    expect(lumaHammingDistance('0000000000000000ffffffff', '0000000000000000aaaaaaaa')).toBe(0);
+  });
+
+  it('measures only the luma portion', () => {
+    expect(lumaHammingDistance('000000000000000f00000000', '0000000000000000ffffffff')).toBe(4);
   });
 });

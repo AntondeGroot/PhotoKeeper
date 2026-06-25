@@ -10,7 +10,7 @@
 // This finds only the *set*. Splitting it into a shared `left[]` plus GPS-distanced `baselines[]` is the
 // hydrator's job (Slice 3) — so the output here is a flat member cluster, ordered as the assets came in.
 
-import { hammingDistance } from './phash';
+import { lumaHammingDistance } from './phash';
 
 /** The minimum an asset must expose to be grouped into a stereo set. GPS is optional (handheld → absent). */
 export interface StereoAsset {
@@ -99,7 +99,8 @@ function nearDuplicate(
   const ha = hashes.get(a);
   const hb = hashes.get(b);
   if (ha === undefined || hb === undefined) return true; // not yet hashed → don't block grouping
-  return hammingDistance(ha, hb) <= maxHamming;
+  // Luma only: two camera bodies can render colour differently, which must not split a stereo pair.
+  return lumaHammingDistance(ha, hb) <= maxHamming;
 }
 
 /** True when both frames lack GPS (guard skipped) or their separation is within `maxMeters`. */

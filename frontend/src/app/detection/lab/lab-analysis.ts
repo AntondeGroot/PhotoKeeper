@@ -7,17 +7,35 @@ import { BurstOptions, DetectAsset, clusterBursts } from '../detectors/burst';
 import { PanoAsset, PanoOptions, clusterPanos, overlapMatch } from '../detectors/pano';
 import { StereoAsset, StereoOptions, clusterStereo } from '../detectors/stereo';
 import { FrameSignature, PanoOrientation } from '../detectors/detection-types';
-import { hammingDistance } from '../detectors/phash';
+import { hammingDistance, lumaHammingDistance } from '../detectors/phash';
 import { PhotoAsset } from '../../lightroom-types';
 import { Stereo } from '../../photo';
 import { isCaptureFrame } from '../../camera-metadata';
 import { hydrateStereo } from '../../review/selection/unit-selection';
 
+// The signature MAD lives with the other perceptual-hash math; re-exported so the lab imports it here.
+export { signatureMad } from '../detectors/phash';
+
+/** Full Hamming split into its luma and colour halves, so the lab shows which part drove the distance. */
+export interface HashSplit {
+  full: number;
+  luma: number;
+  color: number;
+}
+
+/** Full/luma/colour Hamming between two hashes, or null if either is missing. Colour = full − luma. */
+export function hashSplit(a: string | undefined, b: string | undefined): HashSplit | null {
+  if (a === undefined || b === undefined) return null;
+  const full = hammingDistance(a, b);
+  const luma = lumaHammingDistance(a, b);
+  return { full, luma, color: full - luma };
+}
+
 /** A frame just outside a cluster, with how far it sits from the cluster edge. */
 export interface LabNeighbor {
   id: string;
   gapMs: number; // time gap to the adjacent cluster member
-  hamming: number | null; // Hamming distance to that member, or null if either frame isn't hashed
+  hamming: HashSplit | null; // distance to that member (full + luma/colour split), null if unhashed
 }
 
 /** One detected cluster plus the frames that bracket it (what the thresholds excluded). */
@@ -55,12 +73,10 @@ function neighbor(
   hashes: ReadonlyMap<string, string>,
 ): LabNeighbor | null {
   if (!candidate) return null;
-  const hc = hashes.get(candidate.id);
-  const he = hashes.get(edge.id);
   return {
     id: candidate.id,
     gapMs: Math.abs(Date.parse(candidate.taken) - Date.parse(edge.taken)),
-    hamming: hc !== undefined && he !== undefined ? hammingDistance(hc, he) : null,
+    hamming: hashSplit(hashes.get(candidate.id), hashes.get(edge.id)),
   };
 }
 
@@ -155,6 +171,7 @@ function panoNeighbor(
     id: candidate.id,
     gapMs: Math.abs(Date.parse(candidate.taken) - Date.parse(edge.taken)),
     seamScore: se && sc ? Math.round(overlapMatch(se, sc, orientation, opts).score) : null,
-    wholeHamming: hc !== undefined && he !== undefined ? hammingDistance(he, hc) : null,
+    // Luma only, matching the pano gate (colour is excluded there — see clusterPanos).
+    wholeHamming: hc !== undefined && he !== undefined ? lumaHammingDistance(he, hc) : null,
   };
 }
