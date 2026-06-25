@@ -10,7 +10,7 @@
 // Pure over metadata + cached signatures — no pixels, no network. The signatures come from `phash`
 // (frameSignatureFromBlob).
 
-import { SIGNATURE_SIZE, hammingDistance } from './phash';
+import { SIGNATURE_SIZE, lumaHammingDistance } from './phash';
 import { PanoOrientation } from './detection-types';
 
 /**
@@ -140,9 +140,9 @@ function pairMatch(
   if (sa === undefined || sb === undefined) return { h: NO_MATCH, v: NO_MATCH, eligible: false };
   const wa = hashes.get(prev.id);
   const wb = hashes.get(next.id);
-  // Same scene (near-identical whole frames) → not a pan.
+  // Same scene (near-identical whole frames) → not a pan. Luma only — colour shouldn't sway this gate.
   const distinct =
-    wa === undefined || wb === undefined || hammingDistance(wa, wb) >= opts.minWholeHamming;
+    wa === undefined || wb === undefined || lumaHammingDistance(wa, wb) >= opts.minWholeHamming;
   return {
     h: overlapMatch(sa, sb, 'horizontal', opts),
     v: overlapMatch(sa, sb, 'vertical', opts),

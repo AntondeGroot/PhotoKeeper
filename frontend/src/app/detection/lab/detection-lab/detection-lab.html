@@ -150,15 +150,26 @@
           <div class="lab-frame excluded" [class.included]="isBeforeIncluded(c.memberIds[0])">
             <img class="lab-thumb" [src]="thumb(b.id)" alt="" />
             <div class="lab-frame-meta">
-              before · {{ secs(b.gapMs) }}s · ham {{ b.hamming ?? '—' }}
+              before · {{ secs(b.gapMs) }}s · ham {{ b.hamming?.full ?? '—' }}
+              @if (b.hamming; as h) {
+                <span class="lab-split">L {{ h.luma }} · C {{ h.color }}</span>
+              }
+              <span class="lab-split">mad {{ mad(b.id, c.memberIds[0]) ?? '—' }}</span>
             </div>
           </div>
         }
         <div class="lab-members">
-          @for (id of c.memberIds; track id) {
+          @for (id of c.memberIds; track id; let i = $index) {
             <div class="lab-frame">
               <img class="lab-thumb" [src]="thumb(id)" alt="" />
               <div class="lab-frame-meta">{{ frameName(id) }}</div>
+              @if (i > 0 && ham(c.memberIds[i - 1], id); as h) {
+                <div class="lab-frame-meta">
+                  Δprev {{ h.full }}
+                  <span class="lab-split">L {{ h.luma }} · C {{ h.color }}</span>
+                  <span class="lab-split">mad {{ mad(c.memberIds[i - 1], id) ?? '—' }}</span>
+                </div>
+              }
             </div>
           }
         </div>
@@ -166,7 +177,13 @@
           <div class="lab-frame excluded" [class.included]="isAfterIncluded(c.memberIds[0])">
             <img class="lab-thumb" [src]="thumb(a.id)" alt="" />
             <div class="lab-frame-meta">
-              after · {{ secs(a.gapMs) }}s · ham {{ a.hamming ?? '—' }}
+              after · {{ secs(a.gapMs) }}s · ham {{ a.hamming?.full ?? '—' }}
+              @if (a.hamming; as h) {
+                <span class="lab-split">L {{ h.luma }} · C {{ h.color }}</span>
+              }
+              <span class="lab-split"
+                >mad {{ mad(c.memberIds[c.memberIds.length - 1], a.id) ?? '—' }}</span
+              >
             </div>
           </div>
         }

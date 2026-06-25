@@ -6,26 +6,86 @@
 // these fixed dims first, feeding a 256px or a 2048px image yields the same hash, so we always hash
 // the smallest source available (see hashImageBlob).
 
+import { FrameSignature } from './detection-types';
+
 // 9×8 grayscale → 8 comparisons per row × 8 rows = a 64-bit hash (16 hex chars).
 export const HASH_WIDTH = 9;
 export const HASH_HEIGHT = 8;
 
+// A small opponent-colour dHash appended after the luma hash, so two frames laid out the same in
+// brightness but coloured differently get a different fingerprint. Two linear opponent channels
+// (red–green, yellow–blue) at a 5×4 grid → (5-1)*4 = 16 bits each = 32 colour bits (8 hex chars).
+export const COLOR_WIDTH = 5;
+export const COLOR_HEIGHT = 4;
+
 /**
- * Computes a dHash from a row-major grayscale grid. Pure and deterministic — the unit-testable core.
- * `gray` must hold `width * height` luminance values (0–255).
+ * Dead-band for the colour dHash, in opponent-channel units. A plain dHash compares each cell to its
+ * neighbour, but where the colour is near-flat (sky, walls, low saturation) that difference is just
+ * noise, so the sign flips randomly between otherwise-identical frames and inflates the distance. Only
+ * a difference beyond this margin counts as a real colour edge; anything flatter is a stable 0.
  */
-export function dhash(gray: readonly number[], width = HASH_WIDTH, height = HASH_HEIGHT): string {
-  if (gray.length !== width * height) {
-    throw new Error(`expected ${width * height} grayscale values, got ${gray.length}`);
+const COLOR_MARGIN = 14;
+
+/** Hex chars in the luma portion of a hash — `lumaHammingDistance` compares only these. */
+const LUMA_HEX = ((HASH_WIDTH - 1) * HASH_HEIGHT) / 4;
+
+/**
+ * Dead-band for the luma dHash, in 0–255 luminance units. The 9×8 grid is coarse, so in low-gradient
+ * regions a cell and its neighbour are nearly equal and the comparison sign is noise — flipping bits
+ * between otherwise-identical frames and fragmenting real bursts. Only a difference beyond this margin
+ * counts as an edge; flatter is a stable 0.
+ */
+const LUMA_MARGIN = 6;
+
+/**
+ * Computes a dHash from a row-major grid. Pure and deterministic — the unit-testable core. `grid` must
+ * hold `width * height` values. A bit is set when a cell exceeds its right neighbour by more than
+ * `margin`; the margin is a dead-band that turns near-equal (flat, noise-dominated) regions into stable
+ * zeros instead of coin-flips — without it, two visually-identical frames pick up spurious distance in
+ * low-gradient areas (sky, walls). `margin` 0 is a plain dHash.
+ */
+export function dhash(
+  grid: readonly number[],
+  width = HASH_WIDTH,
+  height = HASH_HEIGHT,
+  margin = 0,
+): string {
+  if (grid.length !== width * height) {
+    throw new Error(`expected ${width * height} values, got ${grid.length}`);
   }
   let bits = '';
   for (let row = 0; row < height; row++) {
     for (let col = 0; col < width - 1; col++) {
       const i = row * width + col;
-      bits += gray[i] > gray[i + 1] ? '1' : '0';
+      bits += grid[i] - grid[i + 1] > margin ? '1' : '0';
     }
   }
   return bitsToHex(bits);
+}
+
+/**
+ * Opponent-colour dHash from a row-major RGBA grid (`width*height` pixels). Builds two *linear* opponent
+ * channels — red−green and yellow−blue — and runs the same brighter-than-right-neighbour comparison as
+ * the luma dHash on each. Linear opponents (not circular hue) keep the neighbour comparison meaningful.
+ * Returned as hex, ready to append after the luma hash.
+ */
+export function colorDhash(
+  rgba: Uint8ClampedArray | Uint8Array | readonly number[],
+  width = COLOR_WIDTH,
+  height = COLOR_HEIGHT,
+): string {
+  const redGreen: number[] = [];
+  const yellowBlue: number[] = [];
+  for (let p = 0; p < width * height; p++) {
+    const r = rgba[p * 4];
+    const g = rgba[p * 4 + 1];
+    const b = rgba[p * 4 + 2];
+    redGreen.push(r - g);
+    yellowBlue.push((r + g) / 2 - b);
+  }
+  return (
+    dhash(redGreen, width, height, COLOR_MARGIN) + dhash(yellowBlue, width, height, COLOR_MARGIN)
+  );
 }
 
 function bitsToHex(bits: string): string {
@@ -41,6 +101,16 @@ const NIBBLE_POPCOUNT = Array.from(
   { length: 16 },
   (_, n) => (n & 1) + ((n >> 1) & 1) + ((n >> 2) & 1) + ((n >> 3) & 1),
 );
+
+/**
+ * Hamming distance over only the luma portion of a hash, ignoring any appended colour bits. Burst
+ * detection compares the full hash (so colour separates frames), but stereo near-identity and the pano
+ * whole-frame gate use this — two different camera bodies render colour slightly differently, and that
+ * must not split a stereo pair or trip the pano gate.
+ */
+export function lumaHammingDistance(a: string, b: string): number {
+  return hammingDistance(a.slice(0, LUMA_HEX), b.slice(0, LUMA_HEX));
+}
 
 /** Number of differing bits between two equal-length hex hashes. 0 = identical. */
 export function hammingDistance(a: string, b: string): number {
@@ -72,10 +142,30 @@ function decode(blob: Blob): Promise<ImageBitmap> {
 export async function hashImageBlob(blob: Blob): Promise<string> {
   const bitmap = await decode(blob);
   try {
-    return dhash(grayscaleGrid(bitmap, HASH_WIDTH, HASH_HEIGHT));
+    const luma = dhash(
+      grayscaleGrid(bitmap, HASH_WIDTH, HASH_HEIGHT),
+      HASH_WIDTH,
+      HASH_HEIGHT,
+      LUMA_MARGIN,
+    );
+    const color = colorDhash(
+      rgbaGrid(bitmap, COLOR_WIDTH, COLOR_HEIGHT),
+      COLOR_WIDTH,
+      COLOR_HEIGHT,
+    );
+    return luma + color;
   } finally {
     bitmap.close();
   }
+}
+
+/** Downscales the whole bitmap to a `width`×`height` row-major RGBA buffer (for the colour dHash). */
+function rgbaGrid(bitmap: ImageBitmap, width: number, height: number): Uint8ClampedArray {
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('could not get a 2d canvas context for hashing');
+  ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, 0, 0, width, height);
+  return ctx.getImageData(0, 0, width, height).data;
 }
 
 /**
@@ -160,4 +250,53 @@ function grayscaleGrid(bitmap: ImageBitmap, width: number, height: number): numb
     gray.push(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]); // Rec. 601 luma
   }
   return gray;
+}
+
+/**
+ * Mean-normalised, ±1-cell shift-tolerant mean-absolute-difference between two 64×64 luma signatures —
+ * the burst near-duplicate metric. Mean-subtraction makes it invariant to exposure drift (unlike a raw
+ * pixel diff); the small shift search absorbs the handheld framing jitter that inflates an aligned dHash.
+ * Lower = more similar (0 = identical structure). Null if either signature is missing.
+ */
+export function signatureMad(
+  a: FrameSignature | undefined,
+  b: FrameSignature | undefined,
+): number | null {
+  if (!a || !b) return null;
+  const ma = signatureMean(a);
+  const mb = signatureMean(b);
+  let best = Infinity;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      best = Math.min(best, shiftedMad(a, b, ma, mb, dx, dy));
+    }
+  }
+  return Math.round(best);
+}
+
+/** Mean-subtracted MAD with `b` shifted by (dx, dy), over the cells where both signatures overlap. */
+function shiftedMad(
+  a: FrameSignature,
+  b: FrameSignature,
+  ma: number,
+  mb: number,
+  dx: number,
+  dy: number,
+): number {
+  const n = SIGNATURE_SIZE;
+  let sum = 0;
+  let count = 0;
+  for (let y = Math.max(0, -dy); y < n - Math.max(0, dy); y++) {
+    for (let x = Math.max(0, -dx); x < n - Math.max(0, dx); x++) {
+      sum += Math.abs(a[y * n + x] - ma - (b[(y + dy) * n + (x + dx)] - mb));
+      count++;
+    }
+  }
+  return count ? sum / count : Infinity;
+}
+
+function signatureMean(s: FrameSignature): number {
+  let sum = 0;
+  for (let i = 0; i < s.length; i++) sum += s[i];
+  return sum / s.length;
 }

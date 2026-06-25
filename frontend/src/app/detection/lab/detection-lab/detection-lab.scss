@@ -232,5 +232,16 @@ h1 {
   font-size: 10px;
   color: var(--c-dim);
   margin-top: 4px;
-  white-space: nowrap;
+  line-height: 1.4;
+  // Wrap within the frame's width instead of overflowing onto the neighbouring frame; break long
+  // filenames anywhere so they don't force overflow either.
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+// The luma/colour and MAD breakdowns each sit on their own line under the total, so the stat block is
+// readable in the narrow frame column instead of running together.
+.lab-split {
+  display: block;
+  color: var(--c-faint);
 }

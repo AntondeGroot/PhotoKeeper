@@ -129,7 +129,7 @@ export class PhotoKeeperDb {
     // v12 added 'tags' (the user-defined content-tag catalog); v13 added 'assetTags' (Tag-mode
     // per-photo assignments); v14 added 'albumPrint' (the Prints tab's per-album fulfilment state).
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 14, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 17, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -161,6 +161,14 @@ export class PhotoKeeperDb {
         }
         if (oldVersion < 10 && db.objectStoreNames.contains('albumManifest')) {
           void tx.objectStore('albumManifest').clear();
+        }
+        // The perceptual hash changed across v15–v17 (added colour, then dead-banded colour, then luma),
+        // so any stored hash is stale — drop it and reset the change-gate to force a clean re-hash.
+        if (oldVersion < 17) {
+          if (db.objectStoreNames.contains('assetHash')) void tx.objectStore('assetHash').clear();
+          if (db.objectStoreNames.contains('albumManifest')) {
+            void tx.objectStore('albumManifest').clear();
+          }
         }
       },
     });
