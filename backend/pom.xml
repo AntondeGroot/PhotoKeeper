@@ -208,6 +208,10 @@
                                 <exclude>com/photokeeper/PhotoKeeperApplication.class</exclude>
                                 <exclude>com/photokeeper/config/AdobeConfig.class</exclude>
                                 <exclude>com/photokeeper/config/CorsConfig.class</exclude>
+                                <!-- Throwaway (lightroom-write-back): validation-only spike code,
+                                     deleted wholesale when the real flow lands — see the class docs. -->
+                                <exclude>com/photokeeper/controller/LightroomWriteSpikeController.class</exclude>
+                                <exclude>com/photokeeper/service/LightroomWriteSpikeService.class</exclude>
                             </excludes>
                             <rules>
                                 <rule>

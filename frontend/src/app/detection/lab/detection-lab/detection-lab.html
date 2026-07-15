@@ -28,6 +28,9 @@
     <app-camera-probe [albumId]="selectedAlbumId()" />
   </div>
 
+  <!-- Throwaway (lightroom-write-back): self-contained panel that validates the API write surface. -->
+  <app-album-spike [assetId]="frames()[0]?.id ?? ''" />
+
   @if (error(); as e) {
     <p class="lab-error">{{ e }}</p>
   }
