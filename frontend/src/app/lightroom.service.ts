@@ -109,6 +109,39 @@ export class LightroomService {
     return token ? { 'X-Auth-Token': token } : {};
   }
 
+  /**
+   * Write-spike: ask the backend to ensure a Keeper album exists (and optionally add one asset), to
+   * verify Lightroom album write-back against the real catalog. Returns the backend's report.
+   */
+  runAlbumSpike(name: string, assetId?: string): Observable<unknown> {
+    const params: Record<string, string> = { name };
+    if (assetId) params['assetId'] = assetId;
+    return this.http.post('api/keeper/spike', null, { headers: this.authHeaders(), params });
+  }
+
+  /**
+   * Write-spike: ask the backend to create a brand-new album via the API (as subtype "collection") and
+   * report the subtype that actually stuck — to confirm whether an API-created album shows up as a normal
+   * user album. Returns the backend's report.
+   */
+  runCreateAlbumSpike(name: string): Observable<unknown> {
+    return this.http.post('api/keeper/spike/create-album', null, {
+      headers: this.authHeaders(),
+      params: { name },
+    });
+  }
+
+  /**
+   * Write-spike: ask the backend to set a star rating + pick/reject flag on one asset and report the
+   * asset's payload before and after, to confirm per-asset review metadata write-back sticks in the real
+   * catalog. Returns the backend's report.
+   */
+  runReviewSpike(rating: number, flag: string, assetId?: string): Observable<unknown> {
+    const params: Record<string, string> = { rating: String(rating), flag };
+    if (assetId) params['assetId'] = assetId;
+    return this.http.post('api/keeper/spike/review', null, { headers: this.authHeaders(), params });
+  }
+
   // Token + catalog id — for the data endpoints.
   private authHeaders(): Record<string, string> {
     const headers: Record<string, string> = { ...this.tokenHeaders() };

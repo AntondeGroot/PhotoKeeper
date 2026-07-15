@@ -8,11 +8,13 @@
     <Bug pattern="EI_EXPOSE_REP2"/>
     <Or>
       <Class name="com.photokeeper.controller.AuthController"/>
+      <Class name="com.photokeeper.controller.LightroomWriteSpikeController"/>
       <Class name="com.photokeeper.controller.PhotoController"/>
       <Class name="com.photokeeper.service.AdobeRateLimiter"/>
       <Class name="com.photokeeper.service.ImsTokenService"/>
       <Class name="com.photokeeper.service.LightroomRateLimitInterceptor"/>
       <Class name="com.photokeeper.service.LightroomService"/>
+      <Class name="com.photokeeper.service.LightroomWriteSpikeService"/>
     </Or>
   </Match>
 </FindBugsFilter>
