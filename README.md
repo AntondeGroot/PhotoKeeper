@@ -1,6 +1,25 @@
 # PhotoKeeper
 A tinder like app for your lightroom / photo folder
 
+## Photo sources
+
+PhotoKeeper works over your **Lightroom** cloud catalog and (in a native/PWA build) the
+**device's own photos**. Both can be read in full, which is what lets PhotoKeeper
+background-scan for near-duplicates, bursts, panos, and stereo pairs.
+
+**Google Photos cannot be used as a source — this is a hard limit, not a to-do.**
+Google locked down its Photos API in 2025:
+
+- The Library API's "read your whole library" scopes were **removed on 2025-03-31**; an
+  app can now only see media **it uploaded itself**, never your existing photos.
+- The replacement **Picker API only returns photos you manually hand-pick** in the Google
+  Photos UI — there is no way to enumerate a library programmatically. So the background
+  whole-library scanning PhotoKeeper is built around is impossible on Google Photos.
+- **No Google Photos API can delete a photo** from your library either.
+
+Because PhotoKeeper's whole value is scanning an entire library and routing decisions,
+Google Photos is a non-starter. The realistic second source is the device's own photos.
+
 ## Lightroom write-back: what the API allows
 
 PhotoKeeper reads your Lightroom catalog and lets you make decisions (keep/reject,
