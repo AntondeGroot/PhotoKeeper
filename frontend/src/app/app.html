@@ -224,4 +224,8 @@
       (closed)="closeFullscreen()"
     />
   }
+
+  @if (authenticated() && onboarded() && !labMode()) {
+    <app-album-setup-notice />
+  }
 </div>

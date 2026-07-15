@@ -35,6 +35,7 @@ import { FullscreenViewerComponent } from './review/fullscreen-viewer/fullscreen
 import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
 import { HeadsUpComponent } from './notifications/heads-up/heads-up';
+import { AlbumSetupNoticeComponent } from './notifications/album-setup-notice/album-setup-notice';
 import { TagManagerComponent } from './tagging/tag-manager/tag-manager';
 import { TagState } from './tagging/tag-state.service';
 import { TagReviewService } from './tagging/tag-review.service';
@@ -68,6 +69,7 @@ const SPLASH_MIN_MS = 1800;
     SplashComponent,
     OnboardingComponent,
     HeadsUpComponent,
+    AlbumSetupNoticeComponent,
     TagManagerComponent,
     TagReviewComponent,
   ],

@@ -28,9 +28,9 @@ creating normal user albums), but it _can_ add photos to an album you made yours
 So PhotoKeeper can route your decisions somewhere durable, create these albums in
 Lightroom yourself (as normal albums), and PhotoKeeper will populate them:
 
-- **`PhotokeeperEdit`** — photos you want to edit
-- **`PhotokeeperDelete`** — photos you've rejected / want to delete
-- **`PhotokeeperPrint`** — photos you want to print
+- **`KeeperEdit`** — photos you want to edit
+- **`KeeperDelete`** — photos you've rejected / want to delete
+- **`KeeperPrint`** — photos you want to print
 
 Anything that can't be written back (ratings, flags, the actual edits) is instead
 handled by deep-linking you to the specific photo in Lightroom, and/or kept in
