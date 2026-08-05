@@ -1,4 +1,4 @@
-<div class="app">
+<div class="app" [class.splashing]="loading()">
   <app-heads-up [message]="celebration()" (dismissed)="celebration.set(null)" />
   @if (loading()) {
     <app-splash

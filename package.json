@@ -1,12 +1,22 @@
 {
   "private": true,
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "build:mobile": "npm --prefix frontend run build -- --configuration production --base-href /photokeeper/",
+    "cap:sync": "npm run build:mobile && cap sync android",
+    "cap:android": "npm run cap:sync && cap open android",
+    "android:install": "bash scripts/install-android.sh",
+    "assets": "bash scripts/generate-assets.sh"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "husky": "^9.1.0",
     "lint-staged": "^15.0.0",
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.3"
   },
   "lint-staged": {
     "frontend/**/*.{ts,html,scss,css,json,js,md}": "prettier --write --ignore-unknown"
