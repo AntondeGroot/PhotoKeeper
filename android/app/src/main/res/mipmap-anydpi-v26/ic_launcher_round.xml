@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Both layers are full bleed on purpose. @capacitor/assets insets each by
+     16.7% so the art exactly fills the 72dp guaranteed-visible circle, but that
+     leaves the sky short of the 108dp canvas: any launcher using a wider mask,
+     or parallaxing the background, reveals transparency at the edge and ridges
+     that stop mid-icon. The artwork in assets/src is drawn to be cropped — the
+     sun sits inside the safe zone, the ridges are meant to run off the corners.
+     Rewritten by scripts/generate-assets.sh after every regeneration. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

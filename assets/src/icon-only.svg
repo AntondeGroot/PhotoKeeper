@@ -1,0 +1,28 @@
+<!--
+  Launcher icon artwork, kept in step with the splash mark in
+  frontend/src/app/splash/splash.html. Same coordinates (viewBox 0 0 116 116),
+  so changing one is a copy of the other rather than a redraw.
+
+  Three files, because Android wants an adaptive icon as two layers:
+    icon-only.svg        full scene, for the legacy square icon and the store
+    icon-background.svg  just the sky, the layer the launcher mask parallaxes
+    icon-foreground.svg  sun + ridges, the layer that survives every mask shape
+-->
+<svg width="1024" height="1024" viewBox="0 0 116 116" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2f26" />
+      <stop offset="1" stop-color="#1c1714" />
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f3c98a" />
+      <stop offset="0.55" stop-color="#e5a045" />
+      <stop offset="1" stop-color="#e5a045" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="116" height="116" fill="url(#sky)" />
+  <circle cx="58" cy="66" r="30" fill="url(#sun)" />
+  <circle cx="58" cy="66" r="11" fill="#f5d6a3" />
+  <path d="M0 86 L30 64 L52 80 L78 56 L116 84 L116 116 L0 116 Z" fill="#16110d" />
+  <path d="M0 96 L26 82 L50 94 L80 76 L116 98 L116 116 L0 116 Z" fill="#0d0a08" />
+</svg>

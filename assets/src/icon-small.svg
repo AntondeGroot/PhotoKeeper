@@ -1,0 +1,22 @@
+<!-- The mark redrawn for 16px, where the full version turns to mush: the two
+     overlapping ridges merge into one dark mass and the sun's glow eats its own
+     disc. Same elements, fewer of them — one ridge, a bigger disc, a tighter
+     glow — so a browser tab still reads "sun behind a ridge". Sizes 32 and up
+     use icon-only.svg. -->
+<svg width="1024" height="1024" viewBox="0 0 116 116" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2f26" />
+      <stop offset="1" stop-color="#1c1714" />
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f3c98a" />
+      <stop offset="0.62" stop-color="#e5a045" />
+      <stop offset="1" stop-color="#e5a045" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="116" height="116" fill="url(#sky)" />
+  <circle cx="58" cy="58" r="34" fill="url(#sun)" />
+  <circle cx="58" cy="58" r="21" fill="#f5d6a3" />
+  <path d="M0 92 L40 60 L74 86 L116 56 L116 116 L0 116 Z" fill="#0d0a08" />
+</svg>

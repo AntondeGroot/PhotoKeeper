@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PhotoKeeper</string>
+    <string name="title_activity_main">PhotoKeeper</string>
+    <string name="package_name">uk.antondegroot.photokeeper</string>
+    <string name="custom_url_scheme">uk.antondegroot.photokeeper</string>
+</resources>

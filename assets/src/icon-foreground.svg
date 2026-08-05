@@ -1,0 +1,21 @@
+<!-- Adaptive icon, foreground layer: sun and ridges on transparency.
+
+     Full bleed rather than inset into the 66% safe zone, because the parts that
+     fall outside it are the ones that crop well: the ridges run off the bottom
+     corners, and losing their ends to a circle or squircle just reads as a
+     horizon. What the safe zone has to hold is the sun — centred at (58,66)
+     with a 30-unit glow, it sits inside the guaranteed-visible circle on every
+     mask shape. See icon-only.svg. -->
+<svg width="1024" height="1024" viewBox="0 0 116 116" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f3c98a" />
+      <stop offset="0.55" stop-color="#e5a045" />
+      <stop offset="1" stop-color="#e5a045" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <circle cx="58" cy="66" r="30" fill="url(#sun)" />
+  <circle cx="58" cy="66" r="11" fill="#f5d6a3" />
+  <path d="M0 86 L30 64 L52 80 L78 56 L116 84 L116 116 L0 116 Z" fill="#16110d" />
+  <path d="M0 96 L26 82 L50 94 L80 76 L116 98 L116 116 L0 116 Z" fill="#0d0a08" />
+</svg>

@@ -29,6 +29,20 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     private static final String ADOBE_AUTH_URL = "https://ims-na1.adobelogin.com/ims/authorize/v2";
 
+    /**
+     * Marks a flow that started in the Android app rather than in a browser on the website. Sent as
+     * the OAuth {@code state}, which is the one value IMS hands back to the callback unchanged, so
+     * the callback can tell the two apart — the app needs its tokens delivered to a custom scheme,
+     * a browser needs them delivered to the site.
+     */
+    private static final String APP_CLIENT = "app";
+
+    /**
+     * Where the app's tokens go. Matches the intent filter in the Android project's manifest;
+     * Android launches the app for this scheme, and MainActivity turns it back into a page load.
+     */
+    private static final String APP_RETURN_URL = "photokeeper://auth";
+
     private final AdobeConfig config;
     private final ImsTokenService imsTokenService;
 
@@ -38,12 +52,16 @@ public class AuthController {
     }
 
     @GetMapping("/login")
-    public void login(HttpServletResponse response) throws IOException {
+    public void login(
+            @RequestParam(required = false) String client,
+            HttpServletResponse response) throws IOException {
+
         String authUrl = UriComponentsBuilder.fromUriString(ADOBE_AUTH_URL)
                 .queryParam("client_id", config.getClientId())
                 .queryParam("redirect_uri", config.getRedirectUri())
                 .queryParam("scope", "openid,offline_access,lr_partner_apis,lr_partner_rendition_apis")
                 .queryParam("response_type", "code")
+                .queryParam("state", APP_CLIENT.equals(client) ? APP_CLIENT : "")
                 .build().toUriString();
 
         log.debug("Redirecting to Adobe auth: {}", authUrl);
@@ -55,11 +73,16 @@ public class AuthController {
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String error,
             @RequestParam(name = "error_description", required = false) String errorDescription,
+            @RequestParam(required = false) String state,
             HttpServletResponse response) throws IOException {
+
+        // Whoever started the flow is who it has to end at. For the app that is a custom scheme
+        // Android can route back to it, because by this point the user is in the system browser.
+        String returnUrl = APP_CLIENT.equals(state) ? APP_RETURN_URL : config.getFrontendUrl();
 
         if (error != null) {
             log.error("Adobe OAuth error: {} — {}", error, errorDescription);
-            response.sendRedirect(config.getFrontendUrl() + "?auth_error=" + error);
+            response.sendRedirect(returnUrl + "?auth_error=" + error);
             return;
         }
 
@@ -70,16 +93,22 @@ public class AuthController {
             tokens = imsTokenService.exchangeCode(code);
         } catch (Exception e) {
             log.error("Token exchange failed: {}", e.getMessage(), e);
-            response.sendRedirect(config.getFrontendUrl() + "?auth_error=token_exchange_failed&detail="
+            response.sendRedirect(returnUrl + "?auth_error=token_exchange_failed&detail="
                     + URLEncoder.encode(String.valueOf(e.getMessage()), StandardCharsets.UTF_8));
             return;
         }
 
-        // Hand the tokens to the device via the URL fragment (not sent to servers, kept out of logs).
-        String fragment = "#access_token=" + enc(tokens.accessToken())
+        String tokenParams = "access_token=" + enc(tokens.accessToken())
                 + "&refresh_token=" + enc(tokens.refreshToken())
                 + "&expires_in=" + tokens.expiresIn();
-        response.sendRedirect(config.getFrontendUrl() + fragment);
+
+        // A browser gets them in the fragment, which is never sent to a server and stays out of
+        // logs. The app cannot: Chrome drops the fragment when it launches an external app from a
+        // redirect, so the tokens arrive as a query instead — which never crosses the network
+        // either, since photokeeper:// is resolved locally by Android. MainActivity puts them back
+        // in the fragment before handing them to the web app.
+        String separator = APP_CLIENT.equals(state) ? "?" : "#";
+        response.sendRedirect(returnUrl + separator + tokenParams);
     }
 
     @PostMapping("/refresh")

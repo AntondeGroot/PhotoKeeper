@@ -1,0 +1,11 @@
+<!-- Adaptive icon, background layer: sky only. No detail, because a launcher may
+     crop, scale or parallax this layer to any shape. See icon-only.svg. -->
+<svg width="1024" height="1024" viewBox="0 0 116 116" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2f26" />
+      <stop offset="1" stop-color="#1c1714" />
+    </linearGradient>
+  </defs>
+  <rect width="116" height="116" fill="url(#sky)" />
+</svg>

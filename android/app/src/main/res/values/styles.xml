@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+    </style>
+
+
+    <!-- The launch window, kept deliberately blank.
+
+         The app has a splash of its own — the developing-print animation in
+         frontend/src/app/splash/ — and a native one in front of it would just be a
+         second, worse splash the user has to sit through first. Android 12+ will
+         not let the launch window be skipped, so instead it is made to disappear:
+         the app's own background colour, and a transparent icon.
+
+         Left unset, this is not neutral. The system default is white, which flashes
+         hard against a very dark app, and Capacitor's stock theme only sets
+         android:background — an attribute Android 12+ ignores entirely. -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- Pre-Android-12 devices, which do use the window background. -->
+        <item name="android:background">@color/splash_background</item>
+
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_none</item>
+        <!-- No postSplashScreenTheme: BridgeActivity.onCreate already calls
+             setTheme(AppTheme_NoActionBar) itself. -->
+    </style>
+</resources>

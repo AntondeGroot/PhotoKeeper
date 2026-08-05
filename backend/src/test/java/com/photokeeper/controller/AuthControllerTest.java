@@ -44,6 +44,30 @@ class AuthControllerTest {
     }
 
     @Test
+    void loginFromTheAppMarksTheFlowSoTheCallbackCanReturnToIt() throws Exception {
+        when(config.getClientId()).thenReturn("my-client-id");
+        when(config.getRedirectUri()).thenReturn("http://localhost:8080/api/auth/callback");
+
+        mockMvc.perform(get("/api/auth/login").param("client", "app"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", containsString("state=app")));
+    }
+
+    @Test
+    void callbackFromTheAppDeliversTokensToTheAppScheme() throws Exception {
+        when(imsTokenService.exchangeCode("test-code"))
+                .thenReturn(new TokenResponse("acc", "ref", 3599));
+
+        // A query, not a fragment: Chrome drops the fragment when launching an external app from a
+        // redirect, so the app would be handed an empty URI. No frontend URL is stubbed on purpose
+        // either — the app flow must not fall back to the website the user is leaving behind.
+        mockMvc.perform(get("/api/auth/callback").param("code", "test-code").param("state", "app"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string(
+                        "Location", "photokeeper://auth?access_token=acc&refresh_token=ref&expires_in=3599"));
+    }
+
+    @Test
     void callbackWithErrorRedirectsToFrontendWithError() throws Exception {
         when(config.getFrontendUrl()).thenReturn("http://localhost:6200");
 

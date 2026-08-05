@@ -17,6 +17,24 @@
   justify-content: center;
 }
 
+/* On a phone — and so in the Android shell, which is only ever this width — the
+   card treatment works against itself. This gradient is not the wrapper's, so at
+   80vh inside .app's padding the rounded corners read as a faint square hanging
+   in the middle of the screen rather than as a card. A splash is a full-screen
+   moment: edge to edge, no seam for the eye to find. Wider viewports keep the
+   card, where it sits at the width the authenticated shell will occupy. */
+@media (max-width: 480px) {
+  :host {
+    max-width: none;
+  }
+
+  .screen {
+    border-radius: 0;
+    min-height: 100vh;
+    min-height: 100dvh; // excludes the browser chrome that 100vh counts in
+  }
+}
+
 /* Faint safelight vignette that slowly breathes behind the print. */
 .screen::after {
   content: '';
