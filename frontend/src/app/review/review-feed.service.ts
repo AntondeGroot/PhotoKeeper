@@ -22,7 +22,7 @@ import {
 } from '../photo';
 
 /** Local-date key (YYYY-MM-DD), so the daily selection doesn't flip a day early/late at UTC midnight. */
-function dateKey(d: Date): string {
+export function dateKey(d: Date): string {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${d.getFullYear()}-${month}-${day}`;
@@ -36,6 +36,21 @@ export function tomorrowKey(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return dateKey(d);
+}
+
+/**
+ * The header's date line, e.g. "Tuesday 9 June".
+ *
+ * <p>Fixed to en-GB rather than the device locale: the rest of the interface is written in English,
+ * and a Dutch weekday under an English wordmark reads as a bug rather than as localisation. When the
+ * app is actually translated, this should follow whatever that chooses.
+ */
+export function dayLabel(d: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(d);
 }
 
 /**
@@ -56,6 +71,9 @@ export class ReviewFeedService {
   // The review queue, starting on mock data until real photos load. The cursor, whether photos have
   // loaded, and whether more can be sampled.
   readonly photos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO]);
+  // The day the review belongs to, spelled out for the header. This service already decides where a
+  // day starts (see dateKey), so it is the one place that should answer "which day is this".
+  readonly todayLabel = dayLabel(new Date());
   readonly index = signal(0);
   readonly loaded = signal(false);
   readonly canLoadMore = signal(true);

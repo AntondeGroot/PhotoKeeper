@@ -5,6 +5,7 @@ import { GroupOverrideStore } from '../storage/detection/group-override-store';
 import { BackgroundScanService } from '../detection/scan/background-scan.service';
 import { PreferencesService } from '../preferences.service';
 import { ReviewFeedService, todayKey } from './review-feed.service';
+import { StreakService } from './streak.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
 import { Burst, BurstPhoto, Pano, Photo, ReviewItem } from '../photo';
 
@@ -64,9 +65,17 @@ export class ReviewDecisionsService {
   private readonly groupOverrides = inject(GroupOverrideStore);
   private readonly scan = inject(BackgroundScanService);
   private readonly prefs = inject(PreferencesService);
+  private readonly streak = inject(StreakService);
 
   /** The current in-app celebration heads-up (or null). Celebrations only — earned, in-the-moment wins. */
   readonly celebration = signal<HeadsUp | null>(null);
+
+  /**
+   * Consecutive days the daily goal has been met, re-exposed for the header chip. Surfaced from here
+   * rather than from {@link StreakService} directly because this is what advances it — the chip and
+   * the goal celebration are the same event seen twice.
+   */
+  readonly streakDays = this.streak.days;
   /** How many edits were promoted to print this session (drives the edit progress bar). */
   readonly editedToday = signal(0);
 
@@ -234,7 +243,8 @@ export class ReviewDecisionsService {
   }
 
   // Fires the "goal hit" celebration the moment the day's reviewed count reaches the sorting goal —
-  // once per day (persisted), so reopening the app after finishing doesn't re-congratulate you.
+  // once per day (persisted), so reopening the app after finishing doesn't re-congratulate you. The
+  // same moment is what the streak counts, so today is recorded here rather than tracked separately.
   private maybeCelebrateGoal(): void {
     if (!this.feed.loaded()) return;
     const goal = this.prefs.dailyGoal();
@@ -243,6 +253,7 @@ export class ReviewDecisionsService {
     const today = todayKey();
     if (localStorage.getItem('celebratedGoal') === today) return;
     localStorage.setItem('celebratedGoal', today);
+    this.streak.recordGoalMet();
     this.celebration.set({
       icon: '🎉',
       title: `That's ${goal} — daily goal done`,
