@@ -44,6 +44,23 @@ export class CatalogScanService {
     return this.scanAllAlbums();
   }
 
+  /**
+   * Forces re-detection of a single album, addressed by *name* because that is how stereo tags are
+   * keyed (see PreferencesService) while manifests are keyed by album id.
+   *
+   * <p>Tagging an album as stereo changes which detectors run over it, but not a single one of its
+   * assets — so the change gate in {@link DetectionScanService#scanAlbum} sees an unchanged, fully
+   * scanned album and skips it before detection is reached. Dropping its manifest is what makes the
+   * next pass look again. Cheap: per-asset hashes survive, so re-detection is mostly re-clustering.
+   *
+   * <p>Untagging invalidates too — otherwise the stereo groups it already found would outlive the tag.
+   */
+  async invalidateAlbumByName(name: string): Promise<void> {
+    const albums = await firstValueFrom(this.svc.getAlbums());
+    const album = albums.find((a) => a.name === name);
+    if (album) await this.manifests.delete(album.id);
+  }
+
   async scanAllAlbums(imageBudget: number = DEFAULT_IMAGE_BUDGET): Promise<CatalogScanSummary> {
     const albums = await firstValueFrom(this.svc.getAlbums());
     const summary: CatalogScanSummary = {

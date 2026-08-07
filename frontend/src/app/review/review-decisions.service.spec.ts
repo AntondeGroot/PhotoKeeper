@@ -166,6 +166,88 @@ describe('ReviewDecisionsService', () => {
     });
   });
 
+  it('never stores device photos in the day, since loadToday re-appends them on every load', () => {
+    const device: Photo = { ...photo('dev1'), source: 'device' };
+    photos.set([burst('grp', ['f1', 'f2']), device]);
+    index.set(0);
+
+    service.dissolveBurst();
+
+    expect(photos().map((p) => p.id)).toEqual(['f1', 'f2', 'dev1']); // still on screen
+    expect(dailyFeeds.get(todayKey())?.map((p) => p.id)).toEqual(['f1', 'f2']); // but not stored
+  });
+
+  describe('withdrawAlbum()', () => {
+    const inAlbum = (id: string, album: string, status: Photo['status'] = 'backlog'): Photo => ({
+      ...photo(id, status),
+      album,
+    });
+
+    it("removes the album's undecided units and persists the shortened day", () => {
+      photos.set([inAlbum('a', 'Houten'), photo('b'), inAlbum('c', 'Houten')]);
+      index.set(1);
+
+      service.withdrawAlbum('Houten');
+
+      expect(photos().map((p) => p.id)).toEqual(['b']);
+      expect(dailyFeeds.get(todayKey())?.map((p) => p.id)).toEqual(['b']);
+    });
+
+    it('keeps units the user already decided on, so no verdict is silently discarded', () => {
+      photos.set([inAlbum('a', 'Houten', 'kept'), inAlbum('b', 'Houten'), photo('c')]);
+
+      service.withdrawAlbum('Houten');
+
+      expect(photos().map((p) => p.id)).toEqual(['a', 'c']);
+    });
+
+    it('leaves other albums alone', () => {
+      photos.set([inAlbum('a', 'Houten'), inAlbum('b', 'Lisbon')]);
+
+      service.withdrawAlbum('Houten');
+
+      expect(photos().map((p) => p.id)).toEqual(['b']);
+    });
+
+    it('holds the cursor on the unit being viewed when it survives', () => {
+      photos.set([inAlbum('a', 'Houten'), photo('b'), photo('c')]);
+      index.set(2); // looking at 'c'
+
+      service.withdrawAlbum('Houten');
+
+      expect(photos()[index()].id).toBe('c');
+    });
+
+    it('falls to the next undecided unit when the viewed one is withdrawn', () => {
+      photos.set([photo('a', 'kept'), inAlbum('b', 'Houten'), photo('c')]);
+      index.set(1); // looking at the unit about to go
+
+      service.withdrawAlbum('Houten');
+
+      expect(photos()[index()].id).toBe('c');
+    });
+
+    it('does nothing when the album has no undecided units in the deck', () => {
+      photos.set([photo('a'), photo('b')]);
+
+      service.withdrawAlbum('Houten');
+
+      expect(photos().map((p) => p.id)).toEqual(['a', 'b']);
+      expect(dailyFeeds.has(todayKey())).toBe(false); // no pointless write
+    });
+  });
+
+  it('re-typing back and forth returns the original id instead of stacking prefixes', () => {
+    photos.set([burst('burst:alb1:f1', ['f1', 'f2'])]);
+    index.set(0);
+
+    service.markBurstAsPano();
+    expect(photos()[0].id).toBe('pano:alb1:f1');
+
+    service.markPanoAsBurst();
+    expect(photos()[0].id).toBe('burst:alb1:f1'); // the id it started from, not burst:pano:burst:…
+  });
+
   it('promoteToPrint() marks the photo toPrint and bumps the edit count', () => {
     service.promoteToPrint('a');
     expect(photos()[0].status).toBe('toPrint');

@@ -7,7 +7,7 @@ import { PreferencesService } from '../preferences.service';
 import { ReviewFeedService, todayKey } from './review-feed.service';
 import { StreakService } from './streak.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
-import { Burst, BurstPhoto, Pano, Photo, ReviewItem } from '../photo';
+import { Burst, BurstPhoto, Pano, Photo, ReviewItem, isDevicePhoto } from '../photo';
 
 /** Turns a dissolved burst's frame into a standalone review photo, carrying over the burst's album. */
 function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
@@ -24,10 +24,20 @@ function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
   };
 }
 
+/**
+ * The id a unit takes when re-typed. Replaces the type prefix rather than stacking another, so
+ * burst→pano→burst lands back on the id it started from instead of growing `pano:burst:pano:…`
+ * forever — the id keys the stored verdict and the day's feed, so every flip otherwise stranded the
+ * previous key. Hydrated group ids read `burst:<albumId>:<firstMemberId>` (see unit-selection).
+ */
+function retypedId(type: 'burst' | 'pano', id: string): string {
+  return `${type}:${id.replace(/^(?:burst:|pano:)+/, '')}`;
+}
+
 /** Re-types a burst as a (horizontal) pano in place, keeping its frames, album, time and status. */
 function burstToPano(burst: Burst): Pano {
   return {
-    id: `pano:${burst.id}`,
+    id: retypedId('pano', burst.id),
     name: `Panorama · ${burst.photos.length} frames`,
     album: burst.album,
     taken: burst.taken,
@@ -41,7 +51,7 @@ function burstToPano(burst: Burst): Pano {
 /** Re-types a pano as a burst in place, keeping its frames, album, time and status. */
 function panoToBurst(pano: Pano): Burst {
   return {
-    id: `burst:${pano.id}`,
+    id: retypedId('burst', pano.id),
     name: `Burst · ${pano.frames.length} frames`,
     album: pano.album,
     taken: pano.taken,
@@ -152,8 +162,52 @@ export class ReviewDecisionsService {
     this.feed.photos.update((list) =>
       list.flatMap((item) => (item.id === current.id ? singles : [item])),
     );
-    void this.reviewStore.setDailyFeed(todayKey(), this.feed.photos());
+    this.persistDay();
     void this.recordDissolve(current);
+  }
+
+  /**
+   * Takes an album's still-undecided units out of today's deck.
+   *
+   * <p>Called when an album is tagged as stereo. Its frames are halves of pairs, and judging a lone
+   * eye is not merely wasteful but wrong — you would be deciding on half a photograph, and the
+   * verdict would then keep that eye out of any future selection, so the pair could never be shown
+   * whole. Withdrawing them costs nothing: they carry no verdict yet, and once the next scan has
+   * re-detected the album (its manifest is dropped at the same moment) they come back as stereo
+   * units with the eyes linked.
+   *
+   * <p>Only undecided units go. Anything already reviewed keeps its verdict — that decision was
+   * made and removing it would silently discard it.
+   */
+  withdrawAlbum(album: string): void {
+    const before = this.feed.photos();
+    const remaining = before.filter((item) => !(item.album === album && item.status === 'backlog'));
+    if (remaining.length === before.length) return;
+
+    // Hold the cursor on whatever the user was looking at; if that was one of the withdrawn units,
+    // fall to the next thing still needing a decision rather than jumping to the top of the deck.
+    const current = this.feed.current();
+    const kept = current ? remaining.findIndex((item) => item.id === current.id) : -1;
+    const firstUndecided = remaining.findIndex((item) => item.status === 'backlog');
+
+    this.feed.photos.set(remaining);
+    this.feed.index.set(kept !== -1 ? kept : Math.max(firstUndecided, 0));
+    this.persistDay();
+  }
+
+  /**
+   * Re-persists today's deck after an edit to it.
+   *
+   * <p>Device photos are excluded. They are not part of the stored selection — {@link
+   * ReviewFeedService#loadToday} rebuilds them from the source settings and *appends* them to
+   * whatever it reads back, so storing them here would hand them back doubled on the next load, and
+   * doubled again after the next edit.
+   */
+  private persistDay(): void {
+    void this.reviewStore.setDailyFeed(
+      todayKey(),
+      this.feed.photos().filter((item) => !isDevicePhoto(item)),
+    );
   }
 
   // "This is actually a pano" — relabel the current burst in place, persisting the correction. Stays put.
@@ -194,7 +248,7 @@ export class ReviewDecisionsService {
   // Swaps one review unit for a re-typed version of itself (burst↔pano), re-persisting the day's feed.
   private replaceCurrentUnit(from: ReviewItem, to: ReviewItem): void {
     this.feed.photos.update((list) => list.map((item) => (item.id === from.id ? to : item)));
-    void this.reviewStore.setDailyFeed(todayKey(), this.feed.photos());
+    this.persistDay();
   }
 
   // Saves the (already-updated) unit's verdict so it survives a reload, then runs the post-decision
