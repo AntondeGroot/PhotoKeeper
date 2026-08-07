@@ -168,7 +168,7 @@ export class ReviewDecisionsService {
     );
   }
 
-  // "This is actually a burst" — relabel the current pano in place.
+  // "This is actually a burst" — relabel the current pano in place
   markPanoAsBurst(): void {
     const current = this.feed.current();
     if (current?.kind !== 'pano') return;
