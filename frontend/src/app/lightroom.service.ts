@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, isDevMode } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map, tap } from 'rxjs';
 import { PhotoAsset } from './lightroom-types';
@@ -7,10 +7,35 @@ const ACCESS_KEY = 'lr-access-token';
 const REFRESH_KEY = 'lr-refresh-token';
 const CATALOG_KEY = 'lr-catalog-id';
 
-// The backend's own origin. Most calls go through the dev-server proxy as relative `api/...` URLs, but
-// OAuth login is a full-page navigation that must hit the backend directly — on the same origin as the
-// registered redirect-uri (the callback) — not whatever client port happens to serve the page.
-const BACKEND_ORIGIN = 'https://localhost:8080';
+// Under `ng serve` the page is on the dev-server port while the backend is on 8080. The proxy cannot
+// help here: OAuth login is a full-page navigation, and Adobe sends the browser back to the origin
+// named by the registered redirect-uri — the backend's — so login has to start there too.
+const DEV_BACKEND_ORIGIN = 'https://localhost:8080';
+
+// Appended to the user agent by the Android shell (see capacitor.config.ts). The shell cannot finish
+// OAuth in its own webview — Google refuses to authenticate inside one — so sign-in runs in the
+// system browser, and the backend has to be told to deliver the tokens back to the app's custom
+// scheme rather than to the website the browser is already sitting on.
+const NATIVE_SHELL_UA = 'PhotoKeeperApp';
+
+/**
+ * Absolute URL that starts the OAuth flow, resolved against whichever base the backend answers on.
+ * It has to be absolute because this is a full-page navigation rather than an XHR, and it has to
+ * follow the base rather than assume a host: deployed, the app lives under a path prefix
+ * (`/photokeeper/`), and the Android shell loads that same deployed URL.
+ */
+export function loginHrefUnder(backendBaseUri: string, userAgent: string): string {
+  const url = new URL('api/auth/login', backendBaseUri);
+  if (userAgent.includes(NATIVE_SHELL_UA)) {
+    url.searchParams.set('client', 'app');
+  }
+  return url.href;
+}
+
+/** Where the backend answers: its own origin under `ng serve`, otherwise wherever it serves the app. */
+function backendBaseUri(): string {
+  return isDevMode() ? `${DEV_BACKEND_ORIGIN}/` : document.baseURI;
+}
 
 /** Token set returned by the backend (device-stored). */
 export interface TokenSet {
@@ -24,7 +49,7 @@ export class LightroomService {
   private readonly http = inject(HttpClient);
 
   loginHref(): string {
-    return `${BACKEND_ORIGIN}/api/auth/login`;
+    return loginHrefUnder(backendBaseUri(), navigator.userAgent);
   }
 
   // ── Device-stored tokens + catalog id ───────────────────────────────────────

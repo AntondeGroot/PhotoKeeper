@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { LightroomService } from './lightroom.service';
+import { LightroomService, loginHrefUnder } from './lightroom.service';
 
 const ACCESS_KEY = 'lr-access-token';
 const REFRESH_KEY = 'lr-refresh-token';
@@ -52,8 +52,25 @@ describe('LightroomService', () => {
   });
 
   describe('loginHref', () => {
-    it('points at the backend origin so OAuth starts on the same origin as the callback', () => {
-      expect(service.loginHref()).toBe('https://localhost:8080/api/auth/login');
+    const BROWSER_UA = 'Mozilla/5.0 (Linux; Android 15) Chrome/150.0.0.0 Mobile Safari/537.36';
+    const SHELL_UA = `${BROWSER_UA} PhotoKeeperApp`;
+
+    it('points at the backend port under ng serve, where the page is on a different origin', () => {
+      expect(loginHrefUnder('https://localhost:8080/', BROWSER_UA)).toBe(
+        'https://localhost:8080/api/auth/login',
+      );
+    });
+
+    it('keeps the deployment path prefix instead of jumping to the host root', () => {
+      expect(loginHrefUnder('https://antondegroot.uk/photokeeper/', BROWSER_UA)).toBe(
+        'https://antondegroot.uk/photokeeper/api/auth/login',
+      );
+    });
+
+    it('asks the backend to return to the app when the Android shell is the caller', () => {
+      expect(loginHrefUnder('https://antondegroot.uk/photokeeper/', SHELL_UA)).toBe(
+        'https://antondegroot.uk/photokeeper/api/auth/login?client=app',
+      );
     });
   });
 

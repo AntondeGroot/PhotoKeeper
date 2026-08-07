@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The web splash's ground colour, the c-bg custom property in
+         frontend/src/styles.scss, so the native splash and the Angular splash it
+         hands off to are the same shade and the transition is invisible. -->
+    <color name="splash_background">#131110</color>
+</resources>

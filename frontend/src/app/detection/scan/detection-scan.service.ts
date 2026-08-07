@@ -184,34 +184,32 @@ export class DetectionScanService {
           prefix.filter(isCaptureFrame).map(toStereoAsset),
           hashes,
           this.settings.stereoOptions(),
-        ).map(
-          (c): DetectedGroup => ({
-            type: 'stereo',
-            sourceAlbumId: albumId,
-            memberIds: c.memberIds,
-          }),
-        )
+        ).map((c): DetectedGroup => ({
+          type: 'stereo',
+          sourceAlbumId: albumId,
+          memberIds: c.memberIds,
+        }))
       : [];
     const claimed = new Set(stereoGroups.flatMap((g) => g.memberIds));
 
     const burstGroups = clusterBursts(detectAssets, hashes, opts)
       .filter((c) => !c.memberIds.some((id) => claimed.has(id)))
-      .map(
-        (c): DetectedGroup => ({ type: 'burst', sourceAlbumId: albumId, memberIds: c.memberIds }),
-      );
+      .map((c): DetectedGroup => ({
+        type: 'burst',
+        sourceAlbumId: albumId,
+        memberIds: c.memberIds,
+      }));
     for (const g of burstGroups) for (const id of g.memberIds) claimed.add(id);
 
     const panoAssets = prefix.map((a): PanoAsset => toPanoAsset(a, aspects.get(a.id)));
     const panoGroups = clusterPanos(panoAssets, signatures, hashes, this.settings.panoOptions())
       .filter((c) => !c.memberIds.some((id) => claimed.has(id)))
-      .map(
-        (c): DetectedGroup => ({
-          type: 'pano',
-          sourceAlbumId: albumId,
-          memberIds: c.memberIds,
-          orientation: c.orientation,
-        }),
-      );
+      .map((c): DetectedGroup => ({
+        type: 'pano',
+        sourceAlbumId: albumId,
+        memberIds: c.memberIds,
+        orientation: c.orientation,
+      }));
 
     const groups = [...stereoGroups, ...burstGroups, ...panoGroups];
     await this.groups.replaceForAlbum(albumId, groups);

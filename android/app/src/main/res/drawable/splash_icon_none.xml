@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A deliberately invisible splash icon.
+
+     Android 12+ always draws a splash window on cold start; it cannot be turned
+     off. What it can be is empty: point windowSplashScreenAnimatedIcon at a
+     transparent drawable and set the background to the app's own colour, and the
+     system splash becomes a flat dark panel indistinguishable from the screen
+     that follows it. The real splash is then the Angular one in
+     frontend/src/app/splash/, which is the only one the user perceives. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+</shape>

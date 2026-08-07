@@ -7,6 +7,14 @@
   padding: 28px 12px 48px;
 }
 
+/* The splash goes edge to edge on a phone (see splash.scss); this padding would
+   put the seam straight back, as a strip of wrapper gradient around it. */
+@media (max-width: 480px) {
+  .app.splashing {
+    padding: 0;
+  }
+}
+
 /* ── Authenticated shell ── */
 .keeper-shell {
   width: 100%;

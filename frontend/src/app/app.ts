@@ -80,7 +80,7 @@ const SPLASH_MIN_MS = 1800;
 export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
   private readonly previews = inject(PreviewCacheService);
-  private readonly feed = inject(ReviewFeedService);
+  readonly feed = inject(ReviewFeedService); // public: the template reads feed.todayLabel
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
   private readonly scan = inject(BackgroundScanService);
@@ -94,6 +94,7 @@ export class AppComponent implements OnInit, OnDestroy {
   // The review decisions (verdicts + burst/pano corrections) live in ReviewDecisionsService; these
   // reference its signals so the celebration heads-up + edit progress bar keep working unchanged.
   readonly celebration = this.decisions.celebration;
+  readonly streakDays = this.decisions.streakDays; // 0 hides the chip, rather than "0-day streak"
   readonly editedToday = this.decisions.editedToday;
 
   // Persisted preferences live in PreferencesService; these are references to its signals so existing

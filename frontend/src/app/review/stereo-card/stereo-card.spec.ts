@@ -50,37 +50,26 @@ describe('StereoCardComponent', () => {
     expect(component.allChosen()).toBe(true);
   });
 
-  it('confirm emits "rejected" when every baseline is rejected', () => {
-    component.setVerdict('3m', 'reject');
-    component.setVerdict('10m', 'reject');
+  // How the per-baseline verdicts collapse into the one verdict the deck records for the unit:
+  // editing anywhere wins, then keeping anywhere, and only an all-reject rejects the pair.
+  it.each([
+    { close: 'reject', far: 'reject', emits: 'rejected', when: 'every baseline is rejected' },
+    {
+      close: 'keep',
+      far: 'reject',
+      emits: 'kept',
+      when: 'a baseline is kept and none need editing',
+    },
+    { close: 'edit', far: 'keep', emits: 'toEdit', when: 'any baseline needs editing' },
+  ] as const)('confirm emits "$emits" when $when', ({ close, far, emits }) => {
+    component.setVerdict('3m', close);
+    component.setVerdict('10m', far);
     let emitted: string | undefined;
     component.swiped.subscribe((value) => (emitted = value));
 
     component.confirm();
 
-    expect(emitted).toBe('rejected');
-  });
-
-  it('confirm emits "kept" when a baseline is kept and none need editing', () => {
-    component.setVerdict('3m', 'keep');
-    component.setVerdict('10m', 'reject');
-    let emitted: string | undefined;
-    component.swiped.subscribe((value) => (emitted = value));
-
-    component.confirm();
-
-    expect(emitted).toBe('kept');
-  });
-
-  it('confirm emits "toEdit" when any baseline needs editing', () => {
-    component.setVerdict('3m', 'edit');
-    component.setVerdict('10m', 'keep');
-    let emitted: string | undefined;
-    component.swiped.subscribe((value) => (emitted = value));
-
-    component.confirm();
-
-    expect(emitted).toBe('toEdit');
+    expect(emitted).toBe(emits);
   });
 
   it('confirm emits "toEdit" when 2D is selected, overriding keep verdicts', () => {

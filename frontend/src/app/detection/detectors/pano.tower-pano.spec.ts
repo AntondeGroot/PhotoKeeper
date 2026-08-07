@@ -7,6 +7,8 @@ import { detectFixtureGroups } from './pano-fixtures.fixture';
 // KNOWN LIMITATION (accepted for now): this should be one vertical pano. Distinguishing a sky-dominated
 // real pan from a near-duplicate needs content-aware dedup that ignores flat regions — future work.
 describe('full pipeline on the tower panorama', () => {
+  // Skipped, not broken: the known limitation described above, kept as the executable record of what
+  // content-aware dedup should make pass.
   it.skip('should group all three frames as one vertical pano (sky-dominated — not yet)', () => {
     const { panos } = detectFixtureGroups('tower-pano');
 
