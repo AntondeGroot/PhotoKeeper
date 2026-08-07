@@ -26,9 +26,11 @@
       <header class="keeper-header">
         <div>
           <div class="brand">keeper</div>
-          <div class="date-line">Tuesday 9 June</div>
+          <div class="date-line">{{ feed.todayLabel }}</div>
         </div>
-        <span class="chip chip-amber">7-day streak</span>
+        @if (streakDays() > 0) {
+          <span class="chip chip-amber">{{ streakDays() }}-day streak</span>
+        }
       </header>
       <nav class="tab-bar">
         <button

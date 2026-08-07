@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { ReviewFeedService, todayKey } from './review-feed.service';
+import { ReviewFeedService, dayLabel, todayKey } from './review-feed.service';
 import { LightroomService } from '../lightroom.service';
 import { ReviewStore } from '../storage/review/review-store';
 import { DailyUnitsService } from './selection/daily-units.service';
@@ -102,5 +102,17 @@ describe('ReviewFeedService', () => {
     const ids = service.photos().map((p) => p.id);
     expect(ids).toContain('lr-1'); // Lightroom photo kept
     expect(ids.some((id) => id.startsWith('DEV_'))).toBe(true);
+  });
+});
+
+describe('dayLabel', () => {
+  it('spells the day out the way the header reads it', () => {
+    expect(dayLabel(new Date(2026, 5, 9))).toBe('Tuesday 9 June');
+  });
+
+  it('stays English regardless of the device locale', () => {
+    // The phone this runs on is set to nl-NL; a Dutch weekday under an English wordmark would
+    // read as a bug, not as localisation.
+    expect(dayLabel(new Date(2026, 7, 6))).toBe('Thursday 6 August');
   });
 });
