@@ -7,6 +7,8 @@ import { detectFixtureGroups } from './pano-fixtures.fixture';
 // so those two frames form a 2-frame burst that suppresses the whole pano. A known cost of burst-wins:
 // a distinct-looking pano transition that happens to sit at the burst boundary loses the pano.
 describe('full pipeline on the real bridge panorama', () => {
+  // Skipped, not broken: this is the accepted cost of burst-wins described above, kept as the
+  // executable record of what changing that rule should make pass.
   it.skip('should group the seven source frames as one horizontal pano (burst-wins drops it — not yet)', () => {
     const { panos } = detectFixtureGroups('bridge-pano');
 

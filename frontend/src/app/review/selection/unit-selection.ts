@@ -249,14 +249,12 @@ export function hydrateStereo(
   const baselines = [...byMeters.entries()]
     .filter(([meters]) => meters > 0)
     .sort(([a], [b]) => a - b)
-    .map(
-      ([meters, frames], i): StereoBaseline => ({
-        key: `b${i}`,
-        label: `${meters} m`,
-        hint: frameCount(frames.length),
-        frames: frames.map(toStereoFrame),
-      }),
-    );
+    .map(([meters, frames], i): StereoBaseline => ({
+      key: `b${i}`,
+      label: `${meters} m`,
+      hint: frameCount(frames.length),
+      frames: frames.map(toStereoFrame),
+    }));
 
   // Every frame within a metre of the reference: GPS is too coarse to resolve the baseline, so keep the
   // first frame as the left eye and the rest as one sub-metre pair (still flagged as a tight baseline).
