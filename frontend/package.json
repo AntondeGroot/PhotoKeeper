@@ -35,7 +35,7 @@
     "angular-eslint": "^22.1.0",
     "eslint": "^10.8.0",
     "eslint-import-resolver-typescript": "^4.4.5",
-    "eslint-plugin-boundaries": "^6.0.2",
+    "eslint-plugin-boundaries": "^7.1.0",
     "eslint-plugin-sonarjs": "^4.2.0",
     "fake-indexeddb": "^6.2.5",
     "jpeg-js": "^0.4.4",
