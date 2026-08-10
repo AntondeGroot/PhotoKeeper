@@ -13,8 +13,9 @@ const HISTORY_KEY = 'headsUpHistory';
  * active {@link NOTIFICATION_SENDER}. Pure selection lives in picker.ts; this owns the side effects
  * (persistence + send). On the web PoC the sender is a no-op logger; native swaps in Capacitor.
  *
- * Not yet wired to a schedule: a native build calls {@link maybeNotify} from the morning/evening
- * reminder fire (the OS notification is the "you're away" nudge — never while the app is foreground).
+ * Two ways in. {@link maybeNotify} picks and delivers now. {@link pickAndRecord} only picks — that's
+ * what the reminder scheduler uses, because a notification handed to the OS in advance has to carry
+ * its text at scheduling time, not at fire time.
  */
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
@@ -25,13 +26,25 @@ export class NotificationService {
 
   /** Picks, records, and sends the best-fitting notification for `stats`. Returns it, or null. */
   async maybeNotify(stats: ReviewStats): Promise<RenderedNotification | null> {
+    const picked = this.pickAndRecord(stats);
+    if (!picked) return null;
+
+    await this.sender.send(picked);
+    return picked;
+  }
+
+  /**
+   * Picks the best-fitting message for `stats` and records it against the cooldowns, without sending.
+   * Recording at pick time is deliberate: the caller is about to hand it to the OS, so it *will* be
+   * shown, and two picks in a row (morning + evening) then get different messages.
+   */
+  pickAndRecord(stats: ReviewStats): RenderedNotification | null {
     const history = this.loadHistory();
     const picked = pickNotification(CATALOG, stats, history, this.rng);
     if (!picked) return null;
 
     history[picked.id] = stats.date.getTime();
     this.saveHistory(history);
-    await this.sender.send(picked);
     return picked;
   }
 

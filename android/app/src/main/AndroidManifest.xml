@@ -43,4 +43,13 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Daily reminders. RECEIVE_BOOT_COMPLETED / WAKE_LOCK / POST_NOTIFICATIONS are merged in by
+         @capacitor/local-notifications' own manifest; only the exact-alarm permission is ours to ask
+         for. Without it Android batches the alarm with whatever else it feels like waking for, and a
+         09:00 reminder arrives whenever — which is the whole point of the setting. The plugin falls
+         back to an inexact alarm on its own if this is ever refused, so nothing breaks without it.
+         Note this is a Play-restricted permission; fine for a sideloaded build (scripts/install-android.sh),
+         and it would need justifying if the app were ever published. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 </manifest>
