@@ -41,7 +41,7 @@
     "jpeg-js": "^0.4.4",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
-    "typescript": "~6.0.3",
+    "typescript": "~7.0.2",
     "typescript-eslint": "^8.65.0",
     "vitest": "^4.0.8"
   }
