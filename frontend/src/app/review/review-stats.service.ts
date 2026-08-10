@@ -45,6 +45,11 @@ export class ReviewStatsService {
     () => this.feed.photos().filter((p) => p.status === 'maybe').length,
   );
 
+  /** Units still undecided — the "pile waiting" the reminder nudges are about. */
+  readonly backlogCount = computed(
+    () => this.feed.photos().filter((p) => p.status === 'backlog').length,
+  );
+
   /** Progress against the daily sorting / editing goals (clamped to 100%). */
   readonly progressReviewPercent = computed(() =>
     Math.min(100, (this.doneToday() / this.prefs.dailyGoal()) * 100),

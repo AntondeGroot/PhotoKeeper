@@ -13,6 +13,7 @@
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/local-notifications": "^8.2.1",
     "husky": "^9.1.0",
     "lint-staged": "^15.0.0",
     "typescript": "~6.0.3"
