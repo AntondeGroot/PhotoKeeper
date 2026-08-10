@@ -24,12 +24,14 @@ describe('CatalogScanService', () => {
   let behavior: Record<string, ScanReport | 'throw'>;
   let calls: { id: string; budget: number }[];
   let events: string[]; // ordered log of manifest-clear + per-album scans, for ordering assertions
+  let deleted: string[]; // album ids whose manifest was dropped
 
   beforeEach(() => {
     albums = [];
     behavior = {};
     calls = [];
     events = [];
+    deleted = [];
 
     const svcStub = { getAlbums: () => of(albums) };
     const scanStub = {
@@ -43,6 +45,10 @@ describe('CatalogScanService', () => {
     const manifestStub = {
       clear: () => {
         events.push('clear');
+        return Promise.resolve();
+      },
+      delete: (id: string) => {
+        deleted.push(id);
         return Promise.resolve();
       },
     };
@@ -143,5 +149,27 @@ describe('CatalogScanService', () => {
 
     expect(events).toEqual(['clear', 'scan:a', 'scan:b']); // manifests wiped first, then a full scan
     expect(summary.processed).toBe(2);
+  });
+
+  describe('invalidateAlbumByName', () => {
+    // Stereo tags are keyed by album name, manifests by album id — so the lookup has to cross between
+    // the two. An album whose name differs from its id is what makes that visible.
+    const houten: Album = { id: 'alb-7', name: 'Houten' };
+
+    it('drops the manifest of the album with that name, addressed by its id', async () => {
+      albums = [album('a'), houten];
+
+      await service.invalidateAlbumByName('Houten');
+
+      expect(deleted).toEqual(['alb-7']);
+    });
+
+    it('does nothing when no album carries that name', async () => {
+      albums = [album('a'), houten];
+
+      await service.invalidateAlbumByName('Vacation 2019');
+
+      expect(deleted).toEqual([]);
+    });
   });
 });

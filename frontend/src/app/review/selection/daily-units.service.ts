@@ -4,7 +4,7 @@ import { LightroomService } from '../../lightroom.service';
 import { PhotoAsset } from '../../lightroom-types';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { GroupStore } from '../../storage/detection/group-store';
-import { GroupOverrideStore, groupSignature } from '../../storage/detection/group-override-store';
+import { GroupOverrideStore, coversSameGroup } from '../../storage/detection/group-override-store';
 import { AssetMeta } from '../../storage/photokeeper-db';
 import { DetectedGroup } from '../../detection/detectors/detection-types';
 import { ReviewItem } from '../../photo';
@@ -34,7 +34,7 @@ export class DailyUnitsService {
       firstValueFrom(this.svc.getAlbums()),
       this.meta.getAll(),
       this.groups.getAll(),
-      this.overrides.signatures(),
+      this.overrides.getAll(),
       this.overrides.reclassifications(),
     ]);
 
@@ -47,11 +47,12 @@ export class DailyUnitsService {
     }
     const groupsByAlbum = new Map<string, DetectedGroup[]>();
     for (const group of allGroups) {
-      const sig = groupSignature(group.memberIds);
-      // A dissolved group ("not a burst") is skipped — its members fall through to singles below.
-      if (dissolved.has(sig)) continue;
+      // Corrections follow the group they were made about even if re-detection shifted it by a
+      // frame — see coversSameGroup. A dissolved group ("not a burst") is skipped; its members fall
+      // through to singles below.
+      if (dissolved.some((o) => coversSameGroup(o.memberIds, group.memberIds))) continue;
       // A reclassified group is re-typed before hydration ("this burst is actually a pano").
-      const reclass = reclassified.get(sig);
+      const reclass = reclassified.find((r) => coversSameGroup(r.memberIds, group.memberIds));
       const effective = reclass
         ? { ...group, type: reclass.type, orientation: reclass.orientation }
         : group;
