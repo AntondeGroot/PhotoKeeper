@@ -56,9 +56,15 @@ export class CatalogScanService {
    * <p>Untagging invalidates too — otherwise the stereo groups it already found would outlive the tag.
    */
   async invalidateAlbumByName(name: string): Promise<void> {
-    const albums = await firstValueFrom(this.svc.getAlbums());
-    const album = albums.find((a) => a.name === name);
-    if (album) await this.manifests.delete(album.id);
+    try {
+      const albums = await firstValueFrom(this.svc.getAlbums());
+      const album = albums.find((a) => a.name === name);
+      if (album) await this.manifests.delete(album.id);
+    } catch {
+      // Best-effort, like the other user corrections: tagging an album must not fail because the
+      // album list could not be fetched. The cost of losing this is a stale change gate, which the
+      // next tag toggle — or any change to the album's contents — clears anyway.
+    }
   }
 
   async scanAllAlbums(imageBudget: number = DEFAULT_IMAGE_BUDGET): Promise<CatalogScanSummary> {
