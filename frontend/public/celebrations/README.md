@@ -38,10 +38,20 @@ That same path works in the Android build too: `npx cap sync` copies the built
 Everything in this folder ships — it is copied verbatim into the bundle, the
 backend jar and the APK. So only finished, downsized images belong here.
 
-The raw generated contact sheets and the tooling that slices, culls and
-regenerates them live in `tools/celebration-review/`, outside the build. Pick and
-restyle there, then export the chosen images into the folders above at the sizes
-listed under Conventions.
+The raw contact sheets and the tooling that slices, culls and regenerates them
+live in `tools/celebration-review/`, outside the build. **Do not hand-edit the
+images here**: they are written by
+
+    cd tools/celebration-review && python3 export_to_app.py
+
+which takes the chosen tiles, downsizes each to ≤1080px webp under 200 KB, and
+writes it under the name the picker keys on. Re-running overwrites by name, so
+redoing a single image means restyling it in the tool and exporting again.
+`tools/celebration-review/exported.json` records which tile each file came from.
+
+The current set is 58 images, ~2 MB. Note that the ones never regenerated are
+sliced straight out of a contact sheet and so are only 200–550px on the long
+edge — fine small, soft if shown full-width.
 
 ## Not wired up yet
 

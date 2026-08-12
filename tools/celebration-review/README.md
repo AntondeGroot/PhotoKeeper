@@ -75,6 +75,22 @@ A newly flagged tile has no subject written for it yet, so its row gets an
 editable subject field — fill it in, or ask for one to be written into
 `prompts.json` from the artwork.
 
+## Shipping the result
+
+```sh
+python3 export_to_app.py --dry-run    # show the tile -> filename mapping
+python3 export_to_app.py              # write them into frontend/public/celebrations/
+```
+
+Takes `export-set.json` (the keepers, and whether each one's accepted restyle or
+its original crop won), downsizes to ≤1080px webp under 200 KB, and writes each
+under an **occasion** name — `first-album-printed`, not `raccoon-with-boxes`, so
+the name survives the art being redrawn. `NAMES` in the script is the mapping and
+the place to edit it; the script refuses to run if a keeper has no name or two
+share one. `exported.json` records what was written and from where.
+
+Calendar-gated images go to `special-dates/`, the rest to `session-done/`.
+
 ## Style
 
 Three incompatible looks are mixed across the sheets — see `inventory.md`. The
