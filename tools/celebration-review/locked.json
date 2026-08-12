@@ -1,0 +1,847 @@
+{
+  "lockedAt": "2026-08-11T21:52:02.950Z",
+  "round": 1,
+  "count": 60,
+  "tiles": [
+    {
+      "id": "celebrations8-18",
+      "sheet": "celebrations8",
+      "tier": "A",
+      "box": [
+        41,
+        695,
+        258,
+        856
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "mascot-00",
+      "sheet": "mascot",
+      "tier": "A",
+      "box": [
+        235,
+        186,
+        1062,
+        1071
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-00",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        54,
+        42,
+        256,
+        242
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "reactions1-02",
+      "sheet": "reactions1",
+      "tier": "A",
+      "box": [
+        1100,
+        81,
+        1461,
+        527
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "reactions2-04",
+      "sheet": "reactions2",
+      "tier": "A",
+      "box": [
+        426,
+        575,
+        732,
+        924
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-02",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        543,
+        40,
+        736,
+        240
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-03",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        794,
+        22,
+        975,
+        239
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-04",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        1022,
+        45,
+        1208,
+        239
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-05",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        1257,
+        35,
+        1485,
+        252
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-08",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        265,
+        315,
+        508,
+        453
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-09",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        502,
+        257,
+        753,
+        462
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "reactions2-02",
+      "sheet": "reactions2",
+      "tier": "A",
+      "box": [
+        985,
+        132,
+        1502,
+        515
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "reactions1-04",
+      "sheet": "reactions1",
+      "tier": "A",
+      "box": [
+        840,
+        560,
+        1313,
+        967
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "reactions2-01",
+      "sheet": "reactions2",
+      "tier": "A",
+      "box": [
+        602,
+        138,
+        955,
+        499
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "reactions1-00",
+      "sheet": "reactions1",
+      "tier": "A",
+      "box": [
+        65,
+        71,
+        501,
+        515
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "reactions2-05",
+      "sheet": "reactions2",
+      "tier": "A",
+      "box": [
+        757,
+        604,
+        1119,
+        873
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "reactions2-00",
+      "sheet": "reactions2",
+      "tier": "A",
+      "box": [
+        17,
+        89,
+        552,
+        499
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-10",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        1018,
+        279,
+        1234,
+        470
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-00",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        21,
+        20,
+        198,
+        222
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements1-11",
+      "sheet": "achievements1",
+      "tier": "A",
+      "box": [
+        787,
+        355,
+        1047,
+        509
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements1-18",
+      "sheet": "achievements1",
+      "tier": "A",
+      "box": [
+        31,
+        801,
+        247,
+        987
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements1-22",
+      "sheet": "achievements1",
+      "tier": "A",
+      "box": [
+        1060,
+        811,
+        1272,
+        991
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-17",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        1220,
+        488,
+        1502,
+        676
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements5-16",
+      "sheet": "achievements5",
+      "tier": "A",
+      "box": [
+        1004,
+        458,
+        1260,
+        654
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-19",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        260,
+        686,
+        465,
+        856
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-22",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        1019,
+        693,
+        1218,
+        862
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements5-25",
+      "sheet": "achievements5",
+      "tier": "A",
+      "box": [
+        363,
+        863,
+        631,
+        1015
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements5-19",
+      "sheet": "achievements5",
+      "tier": "A",
+      "box": [
+        290,
+        672,
+        538,
+        860
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-06",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        768,
+        250,
+        996,
+        470
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations5-07",
+      "sheet": "celebrations5",
+      "tier": "A",
+      "box": [
+        34,
+        262,
+        260,
+        453
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations8-26",
+      "sheet": "celebrations8",
+      "tier": "A",
+      "box": [
+        974,
+        870,
+        1264,
+        1014
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations5-16",
+      "sheet": "celebrations5",
+      "tier": "A",
+      "box": [
+        1010,
+        484,
+        1223,
+        656
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-21",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        774,
+        691,
+        984,
+        859
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements4-24",
+      "sheet": "achievements4",
+      "tier": "A",
+      "box": [
+        424,
+        848,
+        669,
+        1011
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations8-19",
+      "sheet": "celebrations8",
+      "tier": "A",
+      "box": [
+        319,
+        694,
+        564,
+        850
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-22",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        1052,
+        657,
+        1243,
+        835
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations3-24",
+      "sheet": "celebrations3",
+      "tier": "A",
+      "box": [
+        665,
+        587,
+        825,
+        743
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-27",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        771,
+        843,
+        971,
+        1016
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations3-32",
+      "sheet": "celebrations3",
+      "tier": "A",
+      "box": [
+        885,
+        764,
+        1061,
+        932
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations3-33",
+      "sheet": "celebrations3",
+      "tier": "A",
+      "box": [
+        1090,
+        765,
+        1258,
+        901
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements2-00",
+      "sheet": "achievements2",
+      "tier": "B",
+      "box": [
+        31,
+        33,
+        223,
+        221
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-02",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        507,
+        22,
+        733,
+        221
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-04",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        1037,
+        22,
+        1261,
+        224
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-05",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        1300,
+        27,
+        1484,
+        234
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-17",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        1287,
+        456,
+        1501,
+        650
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-13",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        270,
+        460,
+        468,
+        639
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x3-25",
+      "sheet": "x3",
+      "tier": "C",
+      "box": [
+        275,
+        832,
+        490,
+        1014
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations2-17",
+      "sheet": "celebrations2",
+      "tier": "C",
+      "box": [
+        1169,
+        489,
+        1377,
+        681
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x-35",
+      "sheet": "x",
+      "tier": "B",
+      "box": [
+        1259,
+        876,
+        1515,
+        1016
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x2-16",
+      "sheet": "x2",
+      "tier": "B",
+      "box": [
+        986,
+        366,
+        1246,
+        554
+      ],
+      "group": "",
+      "round": 1,
+      "caption": "Album Everest Summit!"
+    },
+    {
+      "id": "celebrations9-02",
+      "sheet": "celebrations9",
+      "tier": "B",
+      "box": [
+        600,
+        16,
+        876,
+        284
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "x-14",
+      "sheet": "x",
+      "tier": "B",
+      "box": [
+        495,
+        383,
+        735,
+        555
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "celebrations3-25",
+      "sheet": "celebrations3",
+      "tier": "A",
+      "box": [
+        858,
+        561,
+        1038,
+        745
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements1-17",
+      "sheet": "achievements1",
+      "tier": "A",
+      "box": [
+        1283,
+        560,
+        1501,
+        756
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements2-05",
+      "sheet": "achievements2",
+      "tier": "B",
+      "box": [
+        1269,
+        51,
+        1505,
+        219
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements2-06",
+      "sheet": "achievements2",
+      "tier": "B",
+      "box": [
+        20,
+        315,
+        264,
+        467
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements2-01",
+      "sheet": "achievements2",
+      "tier": "B",
+      "box": [
+        280,
+        44,
+        508,
+        220
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements2-08",
+      "sheet": "achievements2",
+      "tier": "B",
+      "box": [
+        520,
+        317,
+        740,
+        465
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements2-09",
+      "sheet": "achievements2",
+      "tier": "B",
+      "box": [
+        779,
+        291,
+        975,
+        471
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    },
+    {
+      "id": "achievements2-16",
+      "sheet": "achievements2",
+      "tier": "B",
+      "box": [
+        1016,
+        532,
+        1236,
+        704
+      ],
+      "group": "",
+      "round": 1,
+      "caption": ""
+    }
+  ]
+}

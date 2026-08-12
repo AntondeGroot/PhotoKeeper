@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Celebration tile review</title>
+<style>
+  :root {
+    --bg: #14120f; --panel: #1e1b17; --line: #322c25; --line-hi: #6b5c4c;
+    --ink: #ece5da; --dim: #9a8f80; --sel: #7aa2d6;
+    --keep: #4a9e5c; --cut: #b04a41; --flag: #c08a2e; --new: #4f8fb0;
+    --check-a: #efe9df; --check-b: #ddd5c8;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); overflow: hidden;
+         font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+         display: flex; flex-direction: column; }
+
+  /* ---------- header ---------- */
+  header { flex: none; background: var(--panel); border-bottom: 1px solid var(--line);
+           padding: 8px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 14px; margin: 0; font-weight: 600; }
+  .round { background: #3a3128; border: 1px solid var(--line-hi); border-radius: 999px;
+           padding: 2px 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .stat { color: var(--dim); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .stat b { color: var(--ink); }
+  .stat .k { color: var(--keep); } .stat .c { color: var(--cut); }
+  .stat .f { color: var(--flag); }
+  .spacer { flex: 1; }
+
+  button, select { background: #2b2620; color: var(--ink); border: 1px solid var(--line);
+           border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px;
+           font-family: inherit; }
+  button:hover, select:hover { background: #383129; }
+  button.on { background: #4a4036; border-color: var(--line-hi); }
+  button:disabled { opacity: .4; cursor: default; }
+  .group { display: flex; }
+  .group button { border-radius: 0; margin-left: -1px; }
+  .group button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+  .group button:last-child { border-radius: 0 6px 6px 0; }
+
+  .bar { flex: none; height: 3px; background: #262019; }
+  .bar > i { display: block; height: 100%; background: var(--keep); transition: width .18s; }
+
+  /* ---------- shared card art ----------
+     The art box always has a definite size (flex-grown in focus, a definite grid
+     row in the grid) and the image fills it with object-fit: contain. Sizing the
+     image with percentage max-height instead silently fails: the percentage has
+     nothing definite to resolve against, the image keeps its natural height, and
+     the card clips it to just the top strip. */
+  .art { display: flex; align-items: center; justify-content: center; overflow: hidden;
+         background-color: var(--check-a);
+         background-image:
+           linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%),
+           linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%);
+         background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+  .art img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+  /* ---------- focus view ---------- */
+  #focus { flex: 1; min-height: 0; display: flex; gap: 14px; padding: 14px; }
+  .fcard { flex: 1; min-width: 0; display: flex; flex-direction: column;
+           border: 2px solid var(--line); border-radius: 12px; overflow: hidden;
+           background: var(--panel); }
+  .fcard.cursor { border-color: var(--sel); }
+  .fcard.keep { border-color: var(--keep); }
+  .fcard.cut  { border-color: var(--cut); }
+  .fcard .art { flex: 1; min-height: 0; padding: 10px; cursor: zoom-in; }
+  .fmeta { flex: none; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
+  .id { font: 11px ui-monospace, monospace; color: var(--dim); }
+  .tier { font: 11px ui-monospace, monospace; padding: 1px 6px; border-radius: 4px;
+          background: #342d24; color: #d8c7ac; }
+  .cap { font-size: 12px; color: var(--dim); font-style: italic; }
+  .acts { display: flex; gap: 6px; margin-left: auto; }
+  .acts button { padding: 4px 14px; font-weight: 600; }
+  .acts .k { border-color: #3d6b47; color: #a8dfb4; }
+  .acts .c { border-color: #6b3d39; color: #e6b0ab; }
+
+  /* ---------- grid view ---------- */
+  #grid { flex: 1; min-height: 0; overflow: auto; padding: 14px 14px 60px; }
+  .section + .section { margin-top: 22px; }
+  .shead { position: sticky; top: -14px; z-index: 3; background: var(--bg);
+           display: flex; gap: 8px; align-items: center;
+           padding: 6px 2px; margin-bottom: 9px; border-bottom: 1px solid var(--line); }
+  .shead .name { font-weight: 600; font-size: 13px; background: none; border: none;
+                 color: var(--ink); padding: 2px 4px; border-radius: 4px; width: auto;
+                 font-family: inherit; }
+  .shead .name:focus { outline: 1px solid var(--line-hi); background: #241f1a; }
+  .shead .n { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .shead button { padding: 2px 8px; font-size: 12px; }
+  .shead.over { border-bottom-color: var(--sel); }
+
+  .cells { display: grid; gap: 10px; align-content: start;
+           grid-template-columns: repeat(auto-fill, minmax(var(--cell, 150px), 1fr));
+           /* Definite row height: an aspect-ratio inside a 1fr column is circular
+              (width needs the column, the column needs the height), which collapses
+              the row to the label and spills the art out under overflow:hidden. */
+           grid-auto-rows: calc(var(--cell, 150px) + 26px);
+           min-height: calc(var(--cell, 150px) * .5); }
+  .cells.empty { border: 1px dashed var(--line); border-radius: 9px; }
+  .cells.over { border-color: var(--sel); }
+
+  .gcard { position: relative; border: 2px solid var(--line); border-radius: 9px;
+           overflow: hidden; background: var(--panel);
+           display: flex; flex-direction: column; }
+  .gcard.keep { border-color: var(--keep); }
+  .gcard.cut  { border-color: var(--cut); opacity: .38; }
+  .gcard.sel  { outline: 2px solid var(--sel); outline-offset: 1px; }
+  .gcard.dragging { opacity: .35; }
+  .gcard.dropbefore::before, .gcard.dropafter::before {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 3px;
+    background: var(--sel); z-index: 4; }
+  .gcard.dropbefore::before { left: -6px; }
+  .gcard.dropafter::before { right: -6px; }
+  .gcard .art { flex: 1; min-height: 0; width: 100%; cursor: pointer; }
+  .gcard .lab { flex: none; padding: 3px 6px; font: 10px ui-monospace, monospace;
+                color: var(--dim); white-space: nowrap; overflow: hidden;
+                text-overflow: ellipsis; }
+  /* Provenance markers. `flagged` is a dashed accent so it reads as a queue
+     marker rather than a verdict - a tile can be kept and flagged at once. */
+  .tags { position: absolute; top: 5px; left: 5px; display: flex; gap: 4px;
+          pointer-events: none; }
+  .tag { font: 10px ui-monospace, monospace; padding: 1px 5px; border-radius: 4px;
+         background: rgba(20,18,15,.82); }
+  .tag.new { color: #a9d3e8; border: 1px solid var(--new); }
+  .tag.pend { color: #d9c79a; border: 1px solid var(--line-hi); }
+  .tag.flag { color: #e2cd93; border: 1px solid var(--flag); }
+  .gcard.flagged, .fcard.flagged { border-style: dashed; border-color: var(--flag); }
+  .fcard .art { position: relative; }
+
+  .gacts { position: absolute; top: 5px; right: 5px; display: none; gap: 4px; }
+  .gcard:hover .gacts { display: flex; }
+  .gacts button { padding: 2px 8px; font-size: 12px; line-height: 1.3;
+                  background: rgba(20,18,15,.88); }
+
+  .done { flex: 1; display: grid; place-items: center; text-align: center; color: var(--dim); }
+  .done h2 { color: var(--ink); font-size: 20px; margin: 0 0 6px; }
+  .done p { margin: 4px 0 14px; }
+
+  #box { position: fixed; inset: 0; background: rgba(10,9,7,.92); display: none;
+         place-items: center; z-index: 50; cursor: zoom-out; padding: 30px; }
+  #box.open { display: grid; }
+  #box img { max-width: 96vw; max-height: 92vh;
+             background-color: var(--check-a);
+             background-image:
+               linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%),
+               linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%);
+             background-size: 22px 22px; background-position: 0 0, 11px 11px; }
+
+  footer { flex: none; background: var(--panel); border-top: 1px solid var(--line);
+           padding: 5px 14px; color: var(--dim); font-size: 11.5px; }
+  kbd { background: #2b2620; border: 1px solid var(--line); border-radius: 3px;
+        padding: 0 4px; font: 11px ui-monospace, monospace; color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Celebration tiles</h1>
+  <span class="round" id="round">round 1</span>
+  <span class="stat"><b id="n-left">0</b> left ·
+        <b class="k" id="n-keep">0</b> keep ·
+        <b class="c" id="n-cut">0</b> cut ·
+        <b class="f" id="n-flag">0</b> to restyle</span>
+
+  <span class="spacer"></span>
+
+  <span class="group">
+    <button id="m-focus" class="on">Focus</button>
+    <button id="m-grid">All</button>
+  </span>
+  <span class="group" id="perview">
+    <button data-n="1" class="on">1</button>
+    <button data-n="2">2</button>
+    <button data-n="3">3</button>
+  </span>
+  <select id="sheet"><option value="">all sheets</option></select>
+  <select id="show">
+    <option value="todo">undecided</option>
+    <option value="all">everything</option>
+    <option value="keep">kept</option>
+    <option value="cut">cut</option>
+    <option value="flagged">flagged for restyle</option>
+    <option value="restyled">has a restyle</option>
+  </select>
+  <span class="group" id="cellsize">
+    <button data-px="90">S</button>
+    <button data-px="150" class="on">M</button>
+    <button data-px="240">L</button>
+  </span>
+  <button id="newgroup">+ Group</button>
+  <button id="undo" disabled>Undo</button>
+  <button id="next">Next round →</button>
+  <button id="lock">Lock selection</button>
+  <button id="export">Export</button>
+</header>
+<div class="bar"><i id="prog"></i></div>
+
+<div id="focus"></div>
+<div id="grid" style="display:none"></div>
+
+<div id="box"><img alt=""></div>
+
+<footer id="hint"></footer>
+
+<script src="tiles.js"></script>
+<script src="captions.js"></script>
+<script>
+/* ------------------------------------------------------------------ state --
+ * tiles[id] = { v: ''|'keep'|'cut', r: round the verdict was given in }
+ *   A cut tile is gone for good. A kept tile survives into the next round with
+ *   its verdict cleared, so it has to earn its place again - the culling loop.
+ *
+ * layout = { '<group name>': [tileId, ...] }
+ *   One entry per tile, exactly once, across all groups. '' is the ungrouped
+ *   bucket. This is the single source of truth for BOTH grouping and manual
+ *   order, so a drag is just a splice.
+ */
+const KEY = 'keeper-tile-review-v2';
+const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+const state = saved.tiles || {};
+let round = saved.round || 1;
+let layout = saved.layout || {};
+let groups = saved.groups || [];          // user group names, in display order
+
+const GUESS = window.GUESS || {};
+// Crop filenames are stable across rebuilds so verdicts survive, which also means
+// the browser would happily serve the previous cut. window.BUILD (written by
+// build_crops.py) changes every rebuild, so the URL changes with the content.
+const V = '?v=' + (window.BUILD || 0);
+
+/* A tile can have a regenerated version standing in for the original. The
+   restyle page owns those verdicts and lives on the same origin, so its storage
+   is read directly rather than duplicating the decision here. Only an *accepted*
+   restyle stands in - one that is merely pasted is still a proposal. */
+const RESTYLE_KEY = 'keeper-restyle';
+let restyleDecisions = {};
+let restyledOnDisk = {};                      // id -> mtime, from the server
+
+const restyleState = id => restyleDecisions[id] || {};
+const isRestyled = id => restyleState(id).verdict === 'accept' && !!restyledOnDisk[id];
+const isPending  = id => restyleState(id).pasted && !isRestyled(id);
+
+const THUMB = id => isRestyled(id)
+  ? `restyled/thumbs/${id}.webp?v=${restyledOnDisk[id]}`
+  : 'crops/thumbs/' + id + '.webp' + V;
+const FULL = id => isRestyled(id)
+  ? `restyled/${id}.png?v=${restyledOnDisk[id]}`
+  : 'crops/' + id + '.png' + V;
+
+let mode = 'focus', perView = 1, cursor = 0, sheetFilter = '', show = 'todo';
+const undoStack = [];
+const selection = new Set();
+
+function rec(id) { return state[id] || (state[id] = { v: '', r: 0 }); }
+
+/* Flagged for restyling. Orthogonal to keep/cut: a tile you are keeping can still
+   need its art regenerated, and that is exactly the interesting case. */
+const flagged = id => !!rec(id).restyle;
+function toggleRestyle(ids) {
+  const on = !ids.every(flagged);
+  ids.forEach(id => { rec(id).restyle = on; });
+  save(); render();
+}
+
+async function loadRestyled() {
+  restyleDecisions = JSON.parse(localStorage.getItem(RESTYLE_KEY) || '{}');
+  restyledOnDisk = await fetch('/api/restyled').then(r => r.json()).catch(() => ({}));
+}
+
+function save() {
+  localStorage.setItem(KEY, JSON.stringify({ round, tiles: state, layout, groups }));
+}
+
+/* Every tile lives in exactly one bucket; unknown ones fall into ungrouped. */
+function normalizeLayout() {
+  layout[''] = layout[''] || [];
+  groups.forEach(g => { layout[g] = layout[g] || []; });
+  const seen = new Set();
+  for (const g of Object.keys(layout)) {
+    layout[g] = layout[g].filter(id => {
+      if (seen.has(id) || !TILES.some(t => t.id === id)) return false;
+      seen.add(id); return true;
+    });
+  }
+  TILES.forEach(t => { if (!seen.has(t.id)) layout[''].push(t.id); });
+}
+
+function groupOf(id) {
+  for (const g of Object.keys(layout)) if (layout[g].includes(id)) return g;
+  return '';
+}
+
+/* ------------------------------------------------------------- what's live -- */
+function alive(t) { return rec(t.id).v !== 'cut'; }
+function undecided(t) { const r = rec(t.id); return r.v === '' || r.r < round; }
+function verdictOf(t) {
+  const r = rec(t.id);
+  if (r.v === 'cut') return 'cut';
+  if (r.v === 'keep' && r.r === round) return 'keep';
+  return '';
+}
+function passesFilters(t) {
+  if (sheetFilter && t.sheet !== sheetFilter) return false;
+  if (show === 'cut')  return rec(t.id).v === 'cut';
+  if (!alive(t)) return false;
+  if (show === 'todo') return undecided(t);
+  if (show === 'keep') return verdictOf(t) === 'keep';
+  if (show === 'flagged') return flagged(t.id);
+  if (show === 'restyled') return isRestyled(t.id) || isPending(t.id);
+  return true;
+}
+const byId = id => TILES.find(t => t.id === id);
+
+function queue() {                        // focus mode walks this
+  return layout[''].concat(...groups.map(g => layout[g]))
+    .map(byId).filter(t => t && alive(t) && undecided(t) &&
+                           (!sheetFilter || t.sheet === sheetFilter));
+}
+
+/* ---------------------------------------------------------------- verdicts -- */
+function setVerdict(id, v) {
+  const r = rec(id);
+  undoStack.push([{ id, v: r.v, r: r.r }]);
+  if (verdictOf(byId(id)) === v) { r.v = ''; r.r = 0; }
+  else { r.v = v; r.r = round; }
+  save(); render();
+}
+function setVerdictMany(ids, v) {
+  undoStack.push(ids.map(id => ({ id, v: rec(id).v, r: rec(id).r })));
+  ids.forEach(id => { const r = rec(id); r.v = v; r.r = round; });
+  save(); render();
+}
+function undo() {
+  const last = undoStack.pop();
+  if (!last) return;
+  last.forEach(({ id, v, r }) => { const c = rec(id); c.v = v; c.r = r; });
+  save(); render();
+}
+
+/* -------------------------------------------------------------------- move --
+ * Move `ids` into `target` group, inserted before `anchorId` (or appended when
+ * anchor is null). Works while filtered because the anchor is a real tile id.
+ */
+function moveTiles(ids, target, anchorId) {
+  const set = new Set(ids);
+  for (const g of Object.keys(layout)) layout[g] = layout[g].filter(id => !set.has(id));
+  const dest = layout[target] || (layout[target] = []);
+  const at = anchorId ? dest.indexOf(anchorId) : -1;
+  dest.splice(at < 0 ? dest.length : at, 0, ...ids);
+  save(); render();
+}
+
+function addGroup() {
+  const name = prompt('Group name');
+  if (!name) return;
+  const clean = name.trim();
+  if (!clean || groups.includes(clean)) return;
+  groups.push(clean); layout[clean] = [];
+  save();
+  if (mode !== 'grid') setMode('grid'); else render();
+}
+function renameGroup(old, next) {
+  const clean = (next || '').trim();
+  if (!clean || clean === old || groups.includes(clean)) { render(); return; }
+  groups[groups.indexOf(old)] = clean;
+  layout[clean] = layout[old]; delete layout[old];
+  save(); render();
+}
+function deleteGroup(g) {
+  layout[''] = layout[''].concat(layout[g]);
+  delete layout[g];
+  groups.splice(groups.indexOf(g), 1);
+  save(); render();
+}
+
+/* ------------------------------------------------------------- focus view -- */
+function renderFocus() {
+  const q = queue();
+  const host = document.getElementById('focus');
+  if (!q.length) { host.innerHTML = emptyState(); wireEmpty(host); return; }
+  cursor = Math.max(0, Math.min(cursor, Math.min(perView, q.length) - 1));
+  host.innerHTML = q.slice(0, perView).map((t, i) => `
+    <div class="fcard ${verdictOf(t)} ${i === cursor ? 'cursor' : ''}
+                ${flagged(t.id) ? 'flagged' : ''}">
+      <div class="art"><img src="${FULL(t.id)}" alt="">${tags(t.id)}</div>
+      <div class="fmeta">
+        <span class="tier">${t.tier}</span>
+        <span class="id">${t.id}</span>
+        ${GUESS[t.id] ? `<span class="cap">${GUESS[t.id]}</span>` : ''}
+        <span class="acts">
+          <button data-s>${flagged(t.id) ? '↻ Flagged' : '↻ Restyle'}</button>
+          <button class="k" data-v="keep">Keep</button>
+          <button class="c" data-v="cut">Cut</button>
+        </span>
+      </div>
+    </div>`).join('');
+  host.querySelectorAll('.fcard').forEach((el, i) => {
+    el.querySelector('.art').onclick = () => zoom(q[i].id);
+    el.querySelectorAll('[data-v]').forEach(b =>
+      b.onclick = () => { cursor = i; setVerdict(q[i].id, b.dataset.v); });
+    el.querySelector('[data-s]').onclick = () => { cursor = i; toggleRestyle([q[i].id]); };
+  });
+}
+
+function emptyState() {
+  const kept = TILES.filter(t => verdictOf(t) === 'keep').length;
+  return `<div class="done"><div>
+      <h2>Round ${round} done</h2>
+      <p>${kept} tiles kept. Cut them down again, or sort them into groups.</p>
+      <button id="e-next">Start round ${round + 1}</button>
+      <button id="e-grid">Look at all ${kept} together</button>
+    </div></div>`;
+}
+function wireEmpty(host) {
+  const n = host.querySelector('#e-next'), g = host.querySelector('#e-grid');
+  if (n) n.onclick = nextRound;
+  if (g) g.onclick = () => { show = 'keep'; document.getElementById('show').value = 'keep';
+                             setMode('grid'); };
+}
+
+/* -------------------------------------------------------------- grid view -- */
+function gcard(t) {
+  return `
+    <div class="gcard ${verdictOf(t)} ${selection.has(t.id) ? 'sel' : ''}
+                ${flagged(t.id) ? 'flagged' : ''}" draggable="true" data-id="${t.id}">
+      <!-- Deliberately not loading="lazy": the whole point of this view is seeing
+           every tile at once, and Chrome defers lazy images hard whenever the tab
+           is not frontmost, which leaves the grid full of empty cards. At ~11 KB a
+           thumb the entire set is a few MB. -->
+      <div class="art"><img src="${THUMB(t.id)}" alt="" draggable="false"></div>
+      ${tags(t.id)}
+      <div class="lab">${t.id}</div>
+      <div class="gacts">
+        <button data-v="keep" title="keep">✓</button>
+        <button data-v="cut" title="cut">✕</button>
+        <button data-s title="flag for restyle (S)">↻</button>
+      </div>
+    </div>`;
+}
+
+/* Corner markers: where the shown image came from, and whether it is queued for
+   regeneration. */
+function tags(id) {
+  const out = [];
+  if (isRestyled(id)) out.push('<span class="tag new">restyled</span>');
+  else if (isPending(id)) out.push('<span class="tag pend">pending</span>');
+  if (flagged(id)) out.push('<span class="tag flag">↻</span>');
+  return out.length ? `<div class="tags">${out.join('')}</div>` : '';
+}
+
+function section(g) {
+  const ids = layout[g].map(byId).filter(t => t && passesFilters(t));
+  const title = g === ''
+    ? `<span class="name" style="opacity:.8">Ungrouped</span>`
+    : `<input class="name" value="${g.replace(/"/g, '&quot;')}" data-group="${g}">`;
+  const del = g === '' ? '' : `<button data-del="${g}">remove</button>`;
+  return `
+    <div class="section" data-group="${g}">
+      <div class="shead">${title}<span class="n">${ids.length}</span>
+        <span class="spacer"></span>${del}</div>
+      <div class="cells ${ids.length ? '' : 'empty'}">${ids.map(gcard).join('')}</div>
+    </div>`;
+}
+
+function renderGrid() {
+  const host = document.getElementById('grid');
+  // Ungrouped is only worth a header once there is something to contrast it with.
+  const sections = groups.length ? [''].concat(groups) : [''];
+  host.innerHTML = sections.map(section).join('');
+  if (!groups.length) host.querySelector('.shead').style.display = 'none';
+
+  host.querySelectorAll('.gcard').forEach(el => {
+    const id = el.dataset.id;
+    el.querySelector('.art').onclick = e => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { toggleSel(id); return; }
+      zoom(id);
+    };
+    el.querySelectorAll('[data-v]').forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      if (selection.has(id) && selection.size > 1) setVerdictMany([...selection], b.dataset.v);
+      else setVerdict(id, b.dataset.v);
+    });
+    el.querySelector('[data-s]').onclick = e => {
+      e.stopPropagation();
+      toggleRestyle(selection.has(id) && selection.size > 1 ? [...selection] : [id]);
+    };
+  });
+  host.querySelectorAll('.name[data-group]').forEach(inp => {
+    inp.onchange = () => renameGroup(inp.dataset.group, inp.value);
+    inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); e.stopPropagation(); };
+  });
+  host.querySelectorAll('[data-del]').forEach(b =>
+    b.onclick = () => deleteGroup(b.dataset.del));
+  wireDnd(host);
+}
+
+function toggleSel(id) {
+  selection.has(id) ? selection.delete(id) : selection.add(id);
+  render();
+}
+
+/* --------------------------------------------------------- drag and drop --- */
+let dragIds = [];
+
+function wireDnd(host) {
+  host.querySelectorAll('.gcard').forEach(el => {
+    el.ondragstart = e => {
+      const id = el.dataset.id;
+      dragIds = selection.has(id) ? [...selection] : [id];
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragIds.join(' '));
+    };
+    el.ondragend = () => { el.classList.remove('dragging'); clearMarks(host); dragIds = []; };
+
+    el.ondragover = e => {
+      if (!dragIds.length) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      const r = el.getBoundingClientRect();
+      const after = e.clientX > r.left + r.width / 2;
+      clearMarks(host);
+      el.classList.add(after ? 'dropafter' : 'dropbefore');
+    };
+    el.ondrop = e => {
+      if (!dragIds.length) return;
+      e.preventDefault(); e.stopPropagation();
+      const r = el.getBoundingClientRect();
+      const after = e.clientX > r.left + r.width / 2;
+      const g = el.closest('.section').dataset.group;
+      const siblings = layout[g].filter(id => !dragIds.includes(id));
+      const i = siblings.indexOf(el.dataset.id);
+      const anchor = after ? siblings[i + 1] || null : el.dataset.id;
+      clearMarks(host);
+      moveTiles(dragIds, g, anchor);
+    };
+  });
+
+  // Dropping on the section background (or its header) appends to that group.
+  host.querySelectorAll('.section').forEach(sec => {
+    const zone = sec.querySelector('.cells'), head = sec.querySelector('.shead');
+    [zone, head].forEach(z => {
+      z.ondragover = e => {
+        if (!dragIds.length) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        z.classList.add('over');
+      };
+      z.ondragleave = () => z.classList.remove('over');
+      z.ondrop = e => {
+        if (!dragIds.length) return;
+        e.preventDefault();
+        z.classList.remove('over');
+        moveTiles(dragIds, sec.dataset.group, null);
+      };
+    });
+  });
+}
+function clearMarks(host) {
+  host.querySelectorAll('.dropbefore, .dropafter, .over')
+      .forEach(el => el.classList.remove('dropbefore', 'dropafter', 'over'));
+}
+
+/* ------------------------------------------------------------------ chrome -- */
+function render() {
+  normalizeLayout();
+  document.getElementById('round').textContent = 'round ' + round;
+  const live = TILES.filter(t => alive(t) && (!sheetFilter || t.sheet === sheetFilter));
+  const left = live.filter(undecided).length;
+  document.getElementById('n-left').textContent = left;
+  document.getElementById('n-keep').textContent = live.filter(t => verdictOf(t) === 'keep').length;
+  document.getElementById('n-cut').textContent = TILES.filter(t => rec(t.id).v === 'cut').length;
+  document.getElementById('n-flag').textContent =
+    TILES.filter(t => alive(t) && flagged(t.id)).length;
+  document.getElementById('prog').style.width =
+    (live.length ? 100 * (live.length - left) / live.length : 0) + '%';
+  document.getElementById('undo').disabled = !undoStack.length;
+  document.getElementById('hint').innerHTML = mode === 'focus'
+    ? `<kbd>K</kbd>/<kbd>→</kbd> keep · <kbd>X</kbd>/<kbd>←</kbd> cut · <kbd>S</kbd> flag for
+       restyle · <kbd>U</kbd> undo · <kbd>Tab</kbd> move cursor · <kbd>Space</kbd> zoom ·
+       <kbd>G</kbd> grid`
+    : `drag a tile to reorder or drop it on a group · <kbd>⌘/ctrl+click</kbd> multi-select
+       (${selection.size} selected) · <kbd>K</kbd>/<kbd>X</kbd> verdict ·
+       <kbd>S</kbd> flag for restyle · <kbd>Esc</kbd> clear · <kbd>G</kbd> focus`;
+  if (mode === 'focus') renderFocus(); else renderGrid();
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('focus').style.display = m === 'focus' ? 'flex' : 'none';
+  document.getElementById('grid').style.display  = m === 'grid'  ? 'block' : 'none';
+  document.getElementById('m-focus').classList.toggle('on', m === 'focus');
+  document.getElementById('m-grid').classList.toggle('on', m === 'grid');
+  cursor = 0; render();
+}
+
+function nextRound() {
+  if (!TILES.some(t => verdictOf(t) === 'keep')) return;
+  round += 1; undoStack.length = 0; selection.clear();
+  save(); cursor = 0; setMode('focus');
+}
+
+function zoom(id) {
+  const box = document.getElementById('box');
+  box.querySelector('img').src = FULL(id);
+  box.classList.add('open');
+}
+document.getElementById('box').onclick = () =>
+  document.getElementById('box').classList.remove('open');
+
+document.getElementById('m-focus').onclick = () => setMode('focus');
+document.getElementById('m-grid').onclick  = () => setMode('grid');
+document.querySelectorAll('#perview button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#perview button').forEach(o => o.classList.remove('on'));
+  b.classList.add('on'); perView = +b.dataset.n; cursor = 0; render();
+});
+document.querySelectorAll('#cellsize button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#cellsize button').forEach(o => o.classList.remove('on'));
+  b.classList.add('on');
+  document.getElementById('grid').style.setProperty('--cell', b.dataset.px + 'px');
+});
+document.getElementById('newgroup').onclick = addGroup;
+document.getElementById('undo').onclick = undo;
+document.getElementById('next').onclick = nextRound;
+document.getElementById('show').onchange = e => { show = e.target.value; render(); };
+document.getElementById('sheet').onchange = e => {
+  sheetFilter = e.target.value; cursor = 0; render();
+};
+
+const sheetSel = document.getElementById('sheet');
+[...new Set(TILES.map(t => t.sheet))].forEach(s =>
+  sheetSel.appendChild(new Option(`${s} (${TILES.filter(t => t.sheet === s).length})`, s)));
+
+/* The locked set is the point of reference for restyling, so it lives on disk
+   rather than in this browser's storage - the restyle page reads it back. */
+document.getElementById('lock').onclick = async () => {
+  const kept = keepers();
+  if (!kept.length) return;
+  const btn = document.getElementById('lock');
+  const payload = { lockedAt: new Date().toISOString(), round, count: kept.length, tiles: kept };
+  try {
+    const r = await fetch('/api/write?name=locked.json',
+                          { method: 'POST', body: JSON.stringify(payload, null, 2) });
+    if (!r.ok) throw new Error(await r.text());
+    btn.textContent = `Locked ${kept.length} ✓`;
+    setTimeout(() => { btn.textContent = 'Lock selection'; }, 2500);
+  } catch (e) {
+    btn.textContent = 'Lock failed';
+    setTimeout(() => { btn.textContent = 'Lock selection'; }, 2500);
+  }
+};
+
+function keepers() {
+  const out = [];
+  ['', ...groups].forEach(g => layout[g].forEach(id => {
+    const t = byId(id);
+    if (!t || rec(id).v !== 'keep') return;
+    out.push({ id, sheet: t.sheet, tier: t.tier, box: t.box, group: g,
+               round: rec(id).r, caption: GUESS[id] || '',
+               restyle: flagged(id), restyled: isRestyled(id) });
+  }));
+  return out;
+}
+
+document.getElementById('export').onclick = () => {
+  const blob = new Blob([JSON.stringify(keepers(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `keepers-round${round}.json`;
+  a.click();
+};
+
+document.onkeydown = e => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  const box = document.getElementById('box');
+  if (box.classList.contains('open')) { box.classList.remove('open'); e.preventDefault(); return; }
+  const k = e.key.toLowerCase();
+
+  if (k === 'g') { setMode(mode === 'focus' ? 'grid' : 'focus'); e.preventDefault(); return; }
+  if (k === 'u') { undo(); e.preventDefault(); return; }
+  if (e.key === 'Escape') { selection.clear(); render(); return; }
+
+  if (mode === 'grid') {
+    if ((k === 'k' || k === 'x') && selection.size) {
+      setVerdictMany([...selection], k === 'k' ? 'keep' : 'cut');
+      selection.clear(); e.preventDefault();
+    } else if (k === 's' && selection.size) {
+      toggleRestyle([...selection]); e.preventDefault();
+    }
+    return;
+  }
+
+  const q = queue().slice(0, perView);
+  const t = q[cursor];
+  if (k === 's' && t) { toggleRestyle([t.id]); e.preventDefault(); return; }
+  if (e.key === 'Tab') { cursor = (cursor + (e.shiftKey ? -1 : 1) + q.length) % q.length;
+                         render(); e.preventDefault(); }
+  else if (e.key === ' ') { if (t) zoom(t.id); e.preventDefault(); }
+  else if ((k === 'k' || e.key === 'ArrowRight') && t) { setVerdict(t.id, 'keep'); e.preventDefault(); }
+  else if ((k === 'x' || e.key === 'ArrowLeft') && t)  { setVerdict(t.id, 'cut');  e.preventDefault(); }
+};
+
+normalizeLayout(); save();
+render();
+// Which tiles already have a regenerated version is server-side state, so the
+// first paint uses the originals and this swaps in whatever has been accepted.
+loadRestyled().then(render);
+// The restyle page writes to the same storage; pick up its verdicts on return.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) loadRestyled().then(render);
+});
+</script>
+</body>
+</html>

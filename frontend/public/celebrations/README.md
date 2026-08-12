@@ -33,6 +33,16 @@ That same path works in the Android build too: `npx cap sync` copies the built
   content — e.g. `streak-7.webp`, `first-session.webp`, `new-year.webp`,
   `birthday.webp`. The filename is what the (future) picker logic will key on.
 
+## Where the artwork comes from
+
+Everything in this folder ships — it is copied verbatim into the bundle, the
+backend jar and the APK. So only finished, downsized images belong here.
+
+The raw generated contact sheets and the tooling that slices, culls and
+regenerates them live in `tools/celebration-review/`, outside the build. Pick and
+restyle there, then export the chosen images into the folders above at the sizes
+listed under Conventions.
+
 ## Not wired up yet
 
 Nothing reads this folder at the moment. When it gets wired up, the mapping from
