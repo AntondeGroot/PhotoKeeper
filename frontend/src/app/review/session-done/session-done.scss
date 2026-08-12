@@ -6,6 +6,16 @@
   text-align: center;
   margin-top: 8px;
 
+  // Half the artwork is only ~200px on the long edge (sliced from a contact sheet), so it is
+  // capped well below its natural size rather than blown up to fill the card.
+  .celebration {
+    display: block;
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    margin: 0 auto 14px;
+  }
+
   h2 {
     font-family: var(--font-head);
     font-style: italic;

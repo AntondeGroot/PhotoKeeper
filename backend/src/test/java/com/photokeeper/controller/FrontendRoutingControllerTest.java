@@ -45,4 +45,14 @@ class FrontendRoutingControllerTest {
         // forward; in the real deploy the bundled file is served directly.)
         mockMvc.perform(get("/main-Y5QQKEH7.js")).andExpect(forwardedUrl(null));
     }
+
+    @Test
+    void doesNotForwardNestedAssetWithFileExtension() throws Exception {
+        // The regression this class exists to prevent: a nested asset under a dotless folder. The
+        // earlier `/{path:[^\.]*}/**` mapping matched on the folder alone and swallowed the rest of
+        // the path, so the celebration images were served as index.html — a 200 with the wrong
+        // content type, which renders as a silently broken image rather than an error.
+        mockMvc.perform(get("/celebrations/session-done/thumbs-up.webp")).andExpect(forwardedUrl(null));
+        mockMvc.perform(get("/celebrations/special-dates/valentine.webp")).andExpect(forwardedUrl(null));
+    }
 }
