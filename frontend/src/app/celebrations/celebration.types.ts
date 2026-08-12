@@ -104,3 +104,16 @@ export interface PickedCelebration {
   id: string;
   src: string;
 }
+
+/**
+ * The pick standing for the current session, remembered so that closing the app and coming back
+ * shows the same picture rather than rolling again.
+ *
+ * `id` is null when the session was already decided and nothing qualified — worth recording, so a
+ * restart doesn't keep retrying a draw that has no candidates. Only the id is kept: the path comes
+ * from the catalog, so artwork can be renamed without stranding a stored URL.
+ */
+export interface CurrentPick {
+  sessionKey: string;
+  id: string | null;
+}

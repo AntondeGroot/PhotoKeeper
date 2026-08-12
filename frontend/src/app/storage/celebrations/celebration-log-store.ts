@@ -1,6 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { ShownLog, ShownRecord } from '../../celebrations/celebration.types';
+import { CurrentPick, ShownLog, ShownRecord } from '../../celebrations/celebration.types';
 import { PhotoKeeperDb } from '../photokeeper-db';
+
+/** There is only ever one current pick, so it lives under a fixed key. */
+const CURRENT_KEY = 'current';
 
 /**
  * Device-local record of which celebration images have been shown: when each was last seen, how
@@ -27,5 +30,18 @@ export class CelebrationLogStore {
   /** Writes one image's record. Only the shown image changes, so there's no need to rewrite the log. */
   async put(id: string, record: ShownRecord): Promise<void> {
     await (await this.db.open()).put('celebrationLog', record, id);
+  }
+
+  /**
+   * The pick standing for the current session, if one was made. Kept alongside the log because it
+   * answers the same question — what has already been shown — just for the session in progress
+   * rather than for all time.
+   */
+  async loadCurrent(): Promise<CurrentPick | undefined> {
+    return (await this.db.open()).get('celebrationCurrent', CURRENT_KEY);
+  }
+
+  async saveCurrent(pick: CurrentPick): Promise<void> {
+    await (await this.db.open()).put('celebrationCurrent', pick, CURRENT_KEY);
   }
 }

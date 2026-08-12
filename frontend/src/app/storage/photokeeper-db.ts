@@ -3,7 +3,7 @@ import { DBSchema, IDBPDatabase, openDB } from 'idb';
 import { Photo, ReviewItem } from '../photo';
 import { Tag } from '../tagging/tags';
 import { AlbumPrintState } from '../prints/prints.types';
-import { ShownRecord } from '../celebrations/celebration.types';
+import { CurrentPick, ShownRecord } from '../celebrations/celebration.types';
 import {
   DetectedGroup,
   FrameSignature,
@@ -117,6 +117,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   assetTags: { key: string; value: string[] };
   albumPrint: { key: string; value: AlbumPrintState };
   celebrationLog: { key: string; value: ShownRecord };
+  celebrationCurrent: { key: string; value: CurrentPick };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -130,9 +131,11 @@ export class PhotoKeeperDb {
     // manifests so every album re-scans. v11 added 'groupReclass' (burst↔pano user corrections).
     // v12 added 'tags' (the user-defined content-tag catalog); v13 added 'assetTags' (Tag-mode
     // per-photo assignments); v14 added 'albumPrint' (the Prints tab's per-album fulfilment state).
-    // v18 added 'celebrationLog' (which celebration images have been shown, and when).
+    // v18 added 'celebrationLog' (which celebration images have been shown, and when); v19
+    // added 'celebrationCurrent' (the pick standing for the current session, so a restart shows
+    // the same picture).
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 18, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 19, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -158,6 +161,7 @@ export class PhotoKeeperDb {
           'assetTags',
           'albumPrint',
           'celebrationLog',
+          'celebrationCurrent',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

@@ -49,12 +49,19 @@ export class SessionDoneComponent implements OnInit {
       // Milestones read lifetime totals, not the counts on this screen — those are today's, and
       // "100 photos deleted" should mean a hundred ever, not a hundred this afternoon.
       const counters = await this.totals.counters();
+      // This component is rebuilt every time the tab is revisited, so the pick has to be keyed to
+      // something that only moves when real work happens. The lifetime reviewed count is exactly
+      // that: unchanged while you browse around, different the moment you decide another photo.
+      const sessionKey = `reviewed:${counters.photosReviewed ?? 0}`;
       this.celebration.set(
-        await this.celebrations.pickAndRecord({
-          date: new Date(),
-          event: 'sessionFinished',
-          counters: { ...counters, streakDays: this.streakDays },
-        }),
+        await this.celebrations.pickAndRecord(
+          {
+            date: new Date(),
+            event: 'sessionFinished',
+            counters: { ...counters, streakDays: this.streakDays },
+          },
+          sessionKey,
+        ),
       );
     } catch {
       // The log lives in IndexedDB, which private browsing can refuse outright. A missing picture

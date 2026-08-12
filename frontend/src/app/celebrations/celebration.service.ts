@@ -26,18 +26,59 @@ export class CelebrationService {
   /** Random source for the pool draw — overridable in tests for determinism. */
   rng: () => number = Math.random;
 
+  /** The last pick and the session it belongs to, so revisiting that session is not a re-roll. */
+  private lastPick: { sessionKey: string; picked: PickedCelebration | null } | null = null;
+
   /**
    * Picks the image that fits `context`, records it, and returns it ready to display.
    * Null when nothing qualifies — every candidate is out of season, or resting on a cooldown.
+   *
+   * `sessionKey` identifies the occasion being celebrated. Asked again for the same key, this
+   * returns the same image without re-picking or re-recording: leaving the tab and coming back
+   * should not be a fresh draw. Recording again would be worse than cosmetic — it burns cooldowns
+   * and spends guarantee claims, so a second look at Valentine's day would find the claim already
+   * gone and quietly show something else.
    */
-  async pickAndRecord(context: CelebrationContext): Promise<PickedCelebration | null> {
+  async pickAndRecord(
+    context: CelebrationContext,
+    sessionKey: string,
+  ): Promise<PickedCelebration | null> {
+    if (this.lastPick?.sessionKey === sessionKey) return this.lastPick.picked;
+
+    const restored = await this.restore(sessionKey);
+    if (restored !== undefined) {
+      this.lastPick = { sessionKey, picked: restored };
+      return restored;
+    }
+
     const shown = await this.log.load();
     const image = pickCelebration(CELEBRATION_CATALOG, context, shown, this.rng);
-    if (!image) return null;
+    const picked = image ? { id: image.id, src: IMAGE_BASE + image.file } : null;
 
-    const updated = recordShown(image, context, shown);
-    await this.log.put(image.id, updated[image.id]);
+    if (image) {
+      const updated = recordShown(image, context, shown);
+      await this.log.put(image.id, updated[image.id]);
+    }
+    await this.log.saveCurrent({ sessionKey, id: image?.id ?? null });
+    this.lastPick = { sessionKey, picked };
+    return picked;
+  }
 
-    return { id: image.id, src: IMAGE_BASE + image.file };
+  /**
+   * The stored pick for this session, re-resolved against the catalog — so closing the app and
+   * reopening it shows the same picture rather than rolling again.
+   *
+   * `undefined` means there is nothing usable to restore (no record, a different session, or an id
+   * the catalog no longer has) and a fresh pick should be made. That is deliberately distinct from
+   * `null`, which is a recorded "this session had no candidate" and must be honoured — otherwise a
+   * restart retries a draw that has already come up empty.
+   */
+  private async restore(sessionKey: string): Promise<PickedCelebration | null | undefined> {
+    const current = await this.log.loadCurrent();
+    if (!current || current.sessionKey !== sessionKey) return undefined;
+    if (current.id === null) return null;
+
+    const image = CELEBRATION_CATALOG.find((entry) => entry.id === current.id);
+    return image ? { id: image.id, src: IMAGE_BASE + image.file } : undefined;
   }
 }
