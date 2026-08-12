@@ -10,24 +10,46 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** `dd-MM` for a date, in local time (matches how date conditions are authored). */
-function dayMonth(date: Date): string {
-  const d = String(date.getDate()).padStart(2, '0');
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  return `${d}-${m}`;
+/**
+ * A date spec as a year-major ordinal (year×10000 + month×100 + day), so dates compare
+ * chronologically with a numeric (not lexical) compare — "31-01" must sort before "01-02".
+ *
+ * A spec without a year (`dd-MM`) takes the year being tested, which is what makes it recur
+ * annually. One with a year (`dd-MM-yyyy`) keeps it, pinning the condition to that year alone.
+ */
+function ordinalOf(spec: string, yearIfAbsent: number): number {
+  const [day, month, year] = spec.split('-').map(Number);
+  return (year ?? yearIfAbsent) * 10000 + month * 100 + day;
 }
 
-/** A `dd-MM` string as a month-major ordinal (month×100 + day), so ranges compare chronologically. */
-function ordinalOf(dayMonthStr: string): number {
-  const [day, month] = dayMonthStr.split('-').map(Number);
-  return month * 100 + day;
+/** The date under test, in local time (matching how date conditions are authored). */
+function ordinalOfDate(date: Date): number {
+  return date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
+}
+
+/** Whether a spec pins a year (`dd-MM-yyyy`) rather than recurring (`dd-MM`). */
+function hasYear(spec: string): boolean {
+  return spec.split('-').length === 3;
 }
 
 function dateMatches(cond: DateCondition, date: Date): boolean {
-  if ('onDate' in cond) return dayMonth(date) === cond.onDate;
-  // Numeric (not lexical) compare: "31-01" must sort before "01-02". Inclusive; no year-boundary wrap.
-  const today = (date.getMonth() + 1) * 100 + date.getDate();
-  return ordinalOf(cond.fromDate) <= today && today <= ordinalOf(cond.toDate);
+  const today = ordinalOfDate(date);
+  const year = date.getFullYear();
+  if ('onDate' in cond) return ordinalOf(cond.onDate, year) === today;
+
+  const from = ordinalOf(cond.fromDate, year);
+  const to = ordinalOf(cond.toDate, year);
+  if (from <= to) return from <= today && today <= to; // inclusive, within one year
+
+  // A recurring range that ends before it starts wraps the new year: 21-12 → 20-03 reads as
+  // "from late December onwards, or up until late March". Both ends took the year under test,
+  // so each half of the comparison already sits in the right year.
+  //
+  // Only recurring ranges wrap. With years pinned the ends are absolute, so end-before-start is
+  // a typo, not an intent — matching nothing surfaces that, where wrapping would silently match
+  // almost every day.
+  if (hasYear(cond.fromDate) || hasYear(cond.toDate)) return false;
+  return today >= from || today <= to;
 }
 
 function statMatches(cond: StatCondition, stats: ReviewStats): boolean {

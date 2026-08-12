@@ -29,6 +29,19 @@ describe('conditionMet', () => {
     expect(conditionMet(m, stats({ date: new Date('2026-02-15T10:00') }))).toBe(false);
   });
 
+  it('keeps matching a yearless day in every year', () => {
+    const m = msg({ id: 'kd', type: 'date', date: { onDate: '27-04' } });
+    expect(conditionMet(m, stats({ date: new Date('2026-04-27T10:00') }))).toBe(true);
+    expect(conditionMet(m, stats({ date: new Date('2031-04-27T10:00') }))).toBe(true);
+  });
+
+  it('matches a year-qualified day only in that year (dd-MM-yyyy)', () => {
+    const m = msg({ id: 'kd', type: 'date', date: { onDate: '26-04-2031' } });
+    expect(conditionMet(m, stats({ date: new Date('2031-04-26T10:00') }))).toBe(true);
+    expect(conditionMet(m, stats({ date: new Date('2032-04-26T10:00') }))).toBe(false);
+    expect(conditionMet(m, stats({ date: new Date('2031-04-27T10:00') }))).toBe(false);
+  });
+
   it('matches an inclusive date range (dd-MM)', () => {
     const m = msg({ id: 'ny', type: 'date', date: { fromDate: '01-01', toDate: '07-01' } });
     expect(conditionMet(m, stats({ date: new Date('2026-01-01T00:00') }))).toBe(true);
@@ -42,6 +55,42 @@ describe('conditionMet', () => {
     expect(conditionMet(m, stats({ date: new Date('2026-02-01T10:00') }))).toBe(true);
     expect(conditionMet(m, stats({ date: new Date('2026-01-30T10:00') }))).toBe(true);
     expect(conditionMet(m, stats({ date: new Date('2026-02-04T10:00') }))).toBe(false);
+  });
+
+  it('wraps the new year when a recurring range ends before it starts', () => {
+    // Winter, authored once: 21-12 → 20-03 reads as "late December onwards, or up to late March".
+    const m = msg({ id: 'winter', type: 'date', date: { fromDate: '21-12', toDate: '20-03' } });
+    expect(conditionMet(m, stats({ date: new Date('2026-12-25T10:00') }))).toBe(true);
+    expect(conditionMet(m, stats({ date: new Date('2027-01-15T10:00') }))).toBe(true);
+    expect(conditionMet(m, stats({ date: new Date('2026-01-15T10:00') }))).toBe(true);
+    expect(conditionMet(m, stats({ date: new Date('2026-06-01T10:00') }))).toBe(false);
+    expect(conditionMet(m, stats({ date: new Date('2026-03-21T10:00') }))).toBe(false);
+  });
+
+  it('never wraps a pinned range, so a backwards one matches nothing', () => {
+    // Absolute ends make end-before-start a typo rather than an intent. Wrapping it would match
+    // almost every day; matching nothing makes the mistake visible.
+    const m = msg({
+      id: 'typo',
+      type: 'date',
+      date: { fromDate: '21-12-2027', toDate: '20-03-2026' },
+    });
+    expect(conditionMet(m, stats({ date: new Date('2027-12-25T10:00') }))).toBe(false);
+    expect(conditionMet(m, stats({ date: new Date('2026-02-10T10:00') }))).toBe(false);
+    expect(conditionMet(m, stats({ date: new Date('2026-07-01T10:00') }))).toBe(false);
+  });
+
+  it('spans the year boundary when both range ends carry a year', () => {
+    // Winter: only expressible because year-qualified ends are absolute points in time.
+    const m = msg({
+      id: 'winter',
+      type: 'date',
+      date: { fromDate: '21-12-2026', toDate: '20-03-2027' },
+    });
+    expect(conditionMet(m, stats({ date: new Date('2026-12-25T10:00') }))).toBe(true);
+    expect(conditionMet(m, stats({ date: new Date('2027-01-15T10:00') }))).toBe(true);
+    expect(conditionMet(m, stats({ date: new Date('2026-12-20T10:00') }))).toBe(false);
+    expect(conditionMet(m, stats({ date: new Date('2027-03-21T10:00') }))).toBe(false);
   });
 
   it('matches stat conditions from the fixed vocabulary', () => {
