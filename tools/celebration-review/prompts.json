@@ -1,0 +1,146 @@
+{
+ "style": "Flat children's-book vector illustration of a chubby raccoon mascot. Oversized rounded head on a small round body, short stubby limbs. Large glossy black eyes with a single white catch-light, cream muzzle and brow patches, dark chocolate-brown eye mask, warm grey-brown fur with a faint paper-grain texture, bushy tail with dark rings. Soft cel shading with gentle gradients and no hard ink outline. Muted desaturated palette of warm greys, chocolate brown and cream, with small accents of mustard-gold and dusty teal. Plain flat cream background (#EFE9DF) that is completely empty, with one soft elliptical shadow under the character. Full body visible, centred, generous margin. Square image.",
+ "avoid": "Avoid: painterly or watercolour brushwork, heavy canvas texture, ornate or dark border, rounded-rectangle card frame, vignette, sepia wash, detailed scenery or landscape background, horizon line, sky, any lettering or caption.",
+ "prompts": [
+  {
+   "id": "x3-00",
+   "title": "Photographer",
+   "subject": "The raccoon sits upright and holds a chunky black DSLR camera to its eye with both paws, elbows tucked in. Three or four small sepia-toned instant photos lie scattered on the ground beside it."
+  },
+  {
+   "id": "x3-22",
+   "title": "Halloween",
+   "subject": "The raccoon sits beside a carved orange jack-o'-lantern almost as big as itself, one paw resting on the pumpkin's lid. A couple of small sepia instant photos lie on the ground."
+  },
+  {
+   "id": "x3-27",
+   "title": "Easter",
+   "subject": "The raccoon wears a soft bunny-ear headband and holds up a pastel-painted Easter egg in both paws. A small woven basket of eggs sits on the ground next to it."
+  },
+  {
+   "id": "achievements2-00",
+   "title": "Map reader",
+   "subject": "The raccoon stands and holds an open paper map wide in both paws, reading it with a curious tilted head. Nothing else in frame."
+  },
+  {
+   "id": "x3-02",
+   "title": "Autumn",
+   "subject": "The raccoon sits in a small heap of orange and amber autumn leaves and holds a single large maple leaf up in one paw. A few loose leaves drift beside it."
+  },
+  {
+   "id": "x3-04",
+   "title": "Stargazer",
+   "subject": "The raccoon peers into the eyepiece of a small brass telescope on a wooden tripod, one paw steadying the barrel. A slim crescent moon and three or four small gold stars float above it."
+  },
+  {
+   "id": "x3-05",
+   "title": "Valentine",
+   "subject": "The raccoon hugs a large rounded red heart against its chest with both paws, cheeks lifted in a happy squint. Two or three small hearts float beside its head."
+  },
+  {
+   "id": "x3-17",
+   "title": "Winter",
+   "subject": "The raccoon wears a chunky knit beanie and a long scarf and pats the head of a small two-ball snowman beside it. A few simple snowflakes float around them."
+  },
+  {
+   "id": "x3-13",
+   "title": "Sparkler",
+   "subject": "The raccoon stands on its hind legs and holds a lit sparkler up in one paw, head tipped back watching it. Small mustard-gold sparks radiate from the sparkler tip."
+  },
+  {
+   "id": "x3-25",
+   "title": "Christmas",
+   "subject": "The raccoon stands beside a small decorated Christmas tree with a gold star on top, one paw resting on a branch. A few round baubles and a small wrapped gift at the base."
+  },
+  {
+   "id": "celebrations2-17",
+   "title": "New Year",
+   "subject": "The raccoon wears a black top hat and a bow tie and raises a champagne flute in one paw in a toast. A few small gold firework bursts float in the empty background."
+  },
+  {
+   "id": "x-35",
+   "title": "Treasured photo",
+   "subject": "The raccoon sits and holds a single framed photograph out in front of itself with both paws, looking down at it fondly. A soft mustard-gold glow radiates immediately behind the frame only - no full-width sunburst."
+  },
+  {
+   "id": "x2-16",
+   "title": "Summit",
+   "subject": "The raccoon wears a small gold crown and stands triumphantly on top of a compact stack of three or four archive boxes, planting a small pennant flag with both paws. Keep the stack tight and central - no mountain, no landscape."
+  },
+  {
+   "id": "celebrations9-02",
+   "title": "King of the archive",
+   "subject": "The raccoon wears a small gold crown and sits proudly on top of a neat pile of stacked vintage album boxes, one paw raised in triumph, a small pennant flag in the other."
+  },
+  {
+   "id": "x-14",
+   "title": "Explorer at rest",
+   "subject": "The raccoon wears a small canvas backpack and sits on a single wooden crate, seen from behind over its shoulder, gazing off to one side with a paw shading its eyes. No landscape - keep the background empty."
+  },
+  {
+   "id": "achievements2-05",
+   "title": "Panorama",
+   "subject": "The raccoon holds up a long horizontal panoramic photo strip that curves gently across the frame, gripping it at both ends. The strip shows only a simple flat suggestion of hills, drawn in the same muted flat style."
+  },
+  {
+   "id": "achievements2-06",
+   "title": "Burst mode",
+   "subject": "The raccoon dashes forward holding a camera, with two or three lighter offset duplicates of itself trailing behind to suggest burst-mode motion, plus a couple of small speed lines."
+  },
+  {
+   "id": "achievements2-01",
+   "title": "Telephoto",
+   "subject": "The raccoon stands behind a camera with a comically long telephoto lens mounted on a wooden tripod, one eye to the viewfinder and one paw on the focus ring."
+  },
+  {
+   "id": "achievements2-08",
+   "title": "Hidden photographer",
+   "subject": "The raccoon crouches inside a compact rounded leafy bush with only its eyes and a camera lens poking out of the foliage."
+  },
+  {
+   "id": "achievements2-09",
+   "title": "Field photographer",
+   "subject": "The raccoon wears a small canvas backpack and stands beside a camera on a wooden tripod, one paw on the tripod leg, looking out ahead. Background completely empty."
+  },
+  {
+   "id": "achievements2-16",
+   "title": "Well travelled",
+   "subject": "The raccoon stands and points a paw at a simple flat world-map panel held upright beside it, with four or five small gold location pins joined by thin dotted lines."
+  },
+  {
+   "id": "achievements1-11",
+   "title": "Macro shot",
+   "subject": "The raccoon lies flat on its belly, front paws holding a chunky black camera at ground level, aiming at a single small daisy growing right in front of its nose. Rear end and ringed tail raised behind it."
+  },
+  {
+   "id": "achievements1-17",
+   "title": "Drone pilot",
+   "subject": "The raccoon stands upright holding a small remote-control handset in both paws, looking up and grinning. A little four-rotor drone hovers in the air just above and to one side of its head."
+  },
+  {
+   "id": "achievements4-24",
+   "title": "Archaeologist",
+   "subject": "The raccoon wears a wide safari pith helmet and kneels in a low mound of loose earth, brushing dirt off a half-buried photograph with a small brush. Two or three more photo corners poke out of the mound."
+  },
+  {
+   "id": "celebrations3-24",
+   "title": "Christmas gifts",
+   "subject": "The raccoon sits wearing a red Santa hat with a white fluffy trim, one paw resting on a red wrapped gift box with a green ribbon, and a plump brown sack of presents leaning against its other side."
+  },
+  {
+   "id": "celebrations3-25",
+   "title": "Sinterklaas",
+   "subject": "The raccoon is dressed as Sinterklaas in long red bishop's robes with gold trim, wearing a tall red mitre with a gold cross on the front, and holding a tall gold crozier with a curled top in one paw. It rides a calm white horse, shown side-on with all four legs visible. Leave clear space above the mitre and the crozier so neither is cropped. One character and one horse only."
+  },
+  {
+   "id": "celebrations3-32",
+   "title": "Norwegian national day",
+   "subject": "The raccoon celebrates syttende mai, wearing a dark embroidered bunad dress over a white blouse with a small flower wreath on its head, waving a Norwegian flag on a slim pole held in one paw, a few small flowers in the other. Draw the flag correctly and clearly: a red field with a white Nordic cross, and a narrower blue cross centred inside the white one. The cross is NOT centred - both the vertical bars sit noticeably closer to the pole than to the flying end, at roughly a quarter of the flag's width from the pole. One raccoon only."
+  },
+  {
+   "id": "celebrations3-33",
+   "title": "Swedish midsommar",
+   "subject": "The raccoon wears a full flower crown of daisies and buttercups and stands beside a Swedish midsommarstang: an upright pole wrapped in green leaves with a horizontal cross-arm near the top, and a leafy ring hanging from each end of that cross-arm. It is decidedly not a conifer and has no star on top. A couple of small music notes float beside it. One raccoon only."
+  }
+ ]
+}

@@ -1,0 +1,7 @@
+# Derived from the sheets in frontend/public/celebrations/ by build_crops.py.
+# ~50 MB, and reproducible in about 15 seconds, so it stays out of the repo.
+crops/
+tiles.js
+
+# Written by the pages at runtime.
+server.log

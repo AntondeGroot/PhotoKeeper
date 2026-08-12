@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Restyle workbench</title>
+<style>
+  :root {
+    --bg: #14120f; --panel: #1e1b17; --line: #322c25; --line-hi: #6b5c4c;
+    --ink: #ece5da; --dim: #9a8f80; --sel: #7aa2d6;
+    --keep: #4a9e5c; --cut: #b04a41; --redo: #c08a2e;
+    --check-a: #efe9df; --check-b: #ddd5c8;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); overflow: hidden;
+         font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+         display: flex; flex-direction: column; }
+
+  header { flex: none; background: var(--panel); border-bottom: 1px solid var(--line);
+           padding: 8px 14px; display: flex; gap: 12px; align-items: center; }
+  h1 { font-size: 14px; margin: 0; font-weight: 600; }
+  .stat { color: var(--dim); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .stat b { color: var(--ink); }
+  .stat .k { color: var(--keep); } .stat .c { color: var(--cut); }
+  .stat .r { color: var(--redo); }
+  .spacer { flex: 1; }
+  button { background: #2b2620; color: var(--ink); border: 1px solid var(--line);
+           border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px;
+           font-family: inherit; }
+  button:hover { background: #383129; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.on { background: #4a4036; border-color: var(--line-hi); }
+  .group { display: flex; }
+  .group button { border-radius: 0; margin-left: -1px; }
+  .group button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+  .group button:last-child { border-radius: 0 6px 6px 0; }
+
+  main { flex: 1; min-height: 0; overflow: auto; padding: 14px; }
+
+  .row { border: 2px solid var(--line); border-radius: 12px; background: var(--panel);
+         margin-bottom: 14px; overflow: hidden; }
+  .row.accepted { border-color: var(--keep); }
+  .row.declined { border-color: var(--cut); opacity: .5; }
+  .row.redo { border-color: var(--redo); }
+  .row.cursor { border-color: var(--sel); }
+
+  .rhead { display: flex; gap: 10px; align-items: center; padding: 8px 12px;
+           border-bottom: 1px solid var(--line); }
+  .rhead .t { font-weight: 600; }
+  .id { font: 11px ui-monospace, monospace; color: var(--dim); }
+  .badge { font: 11px ui-monospace, monospace; padding: 1px 6px; border-radius: 4px;
+           background: #342d24; color: #d8c7ac; }
+
+  .body { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 12px; padding: 12px; }
+  @media (max-width: 1100px) { .body { grid-template-columns: 1fr 1fr; } }
+
+  .pane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .pane > .cap { font-size: 11px; color: var(--dim); text-transform: uppercase;
+                 letter-spacing: .06em; }
+  .art { height: 260px; border-radius: 9px; overflow: hidden;
+         display: flex; align-items: center; justify-content: center; cursor: zoom-in;
+         background-color: var(--check-a);
+         background-image:
+           linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%),
+           linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%);
+         background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+  .art img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+  .drop { height: 260px; border: 2px dashed var(--line-hi); border-radius: 9px;
+          display: grid; place-items: center; text-align: center; color: var(--dim);
+          font-size: 12.5px; padding: 12px; cursor: pointer; }
+  .drop.armed { border-color: var(--sel); color: var(--ink); background: #221d18; }
+  .drop b { color: var(--ink); }
+
+  textarea { width: 100%; height: 260px; resize: vertical; background: #171410;
+             color: var(--ink); border: 1px solid var(--line); border-radius: 9px;
+             padding: 10px; font: 12px/1.5 ui-monospace, monospace; }
+  .prow { display: flex; gap: 6px; }
+  .prow button { flex: none; }
+
+  .verdict { display: flex; gap: 8px; padding: 0 12px 12px; }
+  .verdict button { flex: 1; font-weight: 600; }
+  .verdict .a { border-color: #3d6b47; color: #a8dfb4; }
+  .verdict .r { border-color: #6b5a2e; color: #e2cd93; }
+  .verdict .d { border-color: #6b3d39; color: #e6b0ab; }
+
+  .art.armed { outline: 2px dashed var(--sel); outline-offset: -4px; }
+  input.tweak { width: 100%; background: #171410; color: var(--ink);
+                border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+                font: 12px ui-sans-serif, system-ui, sans-serif; }
+  input.tweak:focus { outline: none; border-color: var(--line-hi); }
+
+  #box { position: fixed; inset: 0; background: rgba(10,9,7,.93); display: none;
+         place-items: center; z-index: 50; cursor: zoom-out; padding: 24px; }
+  #box.open { display: grid; }
+  #box .pair { display: flex; gap: 18px; align-items: center; }
+  #box img { max-width: 46vw; max-height: 88vh; background: var(--check-a); border-radius: 8px; }
+  footer { flex: none; background: var(--panel); border-top: 1px solid var(--line);
+           padding: 5px 14px; color: var(--dim); font-size: 11.5px; }
+  kbd { background: #2b2620; border: 1px solid var(--line); border-radius: 3px;
+        padding: 0 4px; font: 11px ui-monospace, monospace; color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Restyle workbench</h1>
+  <span class="stat"><b id="n-total">0</b> off-style ·
+        <b id="n-pasted">0</b> pasted ·
+        <b class="k" id="n-acc">0</b> accepted ·
+        <b class="r" id="n-redo">0</b> redo ·
+        <b class="c" id="n-dec">0</b> declined</span>
+  <span class="spacer"></span>
+  <span class="group" id="filter">
+    <button data-f="all" class="on">All</button>
+    <button data-f="todo">Not done</button>
+    <button data-f="pasted">Pasted</button>
+    <button data-f="accepted">Accepted</button>
+    <button data-f="redo">Redo</button>
+    <button data-f="flagged">Flagged</button>
+  </span>
+  <button id="copyredo" disabled>Copy redo prompts</button>
+  <button id="copyall">Copy all prompts</button>
+  <button id="save">Save decisions</button>
+</header>
+
+<main id="list"></main>
+
+<div id="box"><div class="pair"></div></div>
+
+<footer>
+  Click a paste zone (or <b>Replace image</b>) to arm it, then <kbd>⌘V</kbd> ·
+  drag-and-drop a file works too · <kbd>A</kbd> accept · <kbd>R</kbd> redo ·
+  <kbd>D</kbd> decline · click either image to compare them full size
+</footer>
+
+<!-- Only for window.BUILD, which busts the crop cache after a re-slice. -->
+<script src="tiles.js"></script>
+<script>
+/* The locked selection and the prompts both live on disk (written by the review
+   page and by the analysis step), so this workbench is stateless apart from the
+   decisions, which are mirrored to localStorage and saved back to disk. */
+const KEY = 'keeper-restyle';
+const decisions = JSON.parse(localStorage.getItem(KEY) || '{}');
+
+let PROMPTS = { style: '', avoid: '', prompts: [] };
+let LOCKED = {};
+const FLAGGED = new Set();
+let filter = 'all', armed = null, cursor = 0;
+// Bumped whenever an image is written, to defeat the cache on a re-paste.
+const stamp = {};
+
+const V = '?v=' + (window.BUILD || 0);
+
+/* A redo with the identical prompt tends to reproduce whatever was wrong with
+   the first attempt, so the row's note is appended as a final instruction. */
+function fullPrompt(p) {
+  const r = rec(p.id);
+  const subject = (r.subject || p.subject || '').trim();
+  const note = (r.tweak || '').trim();
+  return [PROMPTS.style, subject, PROMPTS.avoid,
+          note && `Most importantly, correct this from the previous attempt: ${note}`]
+         .filter(Boolean).join('\n\n');
+}
+
+/* navigator.clipboard needs a focused document and a secure context; on http://
+   it is missing in some setups, and copying the prompt is the whole point of the
+   page, so fall back to a throwaway textarea. */
+async function copy(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  }
+}
+const rec = id => decisions[id] || (decisions[id] = { pasted: false, verdict: '', tweak: '' });
+
+/* Tiles the review page has flagged with S / the ↻ button. Its storage is the
+   live source, so a flag shows up here on reload with no lock step. */
+const REVIEW_KEY = 'keeper-tile-review-v2';
+function flaggedInReview() {
+  const tiles = (JSON.parse(localStorage.getItem(REVIEW_KEY) || '{}')).tiles || {};
+  return Object.entries(tiles).filter(([, r]) => r.restyle && r.v !== 'cut').map(([id]) => id);
+}
+const save = () => localStorage.setItem(KEY, JSON.stringify(decisions));
+
+async function boot() {
+  const [pr, lk] = await Promise.all([
+    fetch('prompts.json?t=' + Date.now()).then(r => r.json()),
+    fetch('locked.json?t=' + Date.now()).then(r => r.json()),
+  ]);
+  PROMPTS = pr;
+  // A flagged tile need not be in the locked set, so tiles.js backfills its sheet.
+  (window.TILES || []).forEach(t => { LOCKED[t.id] = t; });
+  lk.tiles.forEach(t => { LOCKED[t.id] = t; });
+
+  /* prompts.json is the authored list, but the review page can flag any tile for
+     restyling and those should show up here straight away - reading its storage
+     directly (same origin) avoids making you re-lock the selection just to
+     publish a flag. Flagged tiles have no subject written yet, so they get a row
+     with an editable one rather than being silently dropped. */
+  const known = new Set(PROMPTS.prompts.map(p => p.id));
+  flaggedInReview().forEach(id => {
+    FLAGGED.add(id);
+    if (!known.has(id)) PROMPTS.prompts.push({ id, title: id, subject: '', unwritten: true });
+  });
+  // Which restyled images already exist on disk from a previous session?
+  await Promise.all(PROMPTS.prompts.map(async p => {
+    const ok = await fetch(`restyled/${p.id}.png`, { method: 'HEAD' })
+                     .then(r => r.ok).catch(() => false);
+    if (ok) rec(p.id).pasted = true;
+  }));
+  save();
+  render();
+}
+
+function visible() {
+  return PROMPTS.prompts.filter(p => {
+    const r = rec(p.id);
+    if (filter === 'todo') return !r.verdict;
+    if (filter === 'pasted') return r.pasted && !r.verdict;
+    if (filter === 'accepted') return r.verdict === 'accept';
+    if (filter === 'redo') return r.verdict === 'redo';
+    if (filter === 'flagged') return FLAGGED.has(p.id);
+    return true;
+  });
+}
+
+const CLASS = { accept: 'accepted', decline: 'declined', redo: 'redo' };
+
+function card(p, i) {
+  const r = rec(p.id);
+  const t = LOCKED[p.id] || {};
+  const cls = CLASS[r.verdict] || '';
+  // A redo keeps its image on screen - you are judging the next attempt against
+  // the one you rejected, not against a blank slot.
+  const newPane = r.pasted
+    ? `<div class="art ${armed === p.id ? 'armed' : ''}" data-zoom="new">
+         <img src="restyled/${p.id}.png?v=${stamp[p.id] || 0}" alt="">
+       </div>
+       <button data-arm="${p.id}">${armed === p.id ? 'Armed — paste now' : 'Replace image'}</button>`
+    : `<div class="drop" data-drop="${p.id}">
+         <div><b>Click to arm</b>, then paste the generated image<br>or drop a file here</div>
+       </div>`;
+  return `
+    <div class="row ${cls} ${i === cursor ? 'cursor' : ''}" data-id="${p.id}">
+      <div class="rhead">
+        <span class="t">${p.title}</span>
+        <span class="badge">${t.sheet || ''}</span>
+        <span class="id">${p.id}</span>
+        <span class="spacer"></span>
+        ${r.pasted ? `<button data-clear="${p.id}">Clear image</button>` : ''}
+      </div>
+      <div class="body">
+        <div class="pane">
+          <span class="cap">Current</span>
+          <div class="art" data-zoom="old"><img src="crops/${p.id}.png${V}" alt=""></div>
+        </div>
+        <div class="pane">
+          <span class="cap">Regenerated</span>
+          ${newPane}
+        </div>
+        <div class="pane">
+          <span class="cap">Prompt${p.unwritten ? ' — subject not written yet' : ''}</span>
+          ${p.unwritten ? `<input class="tweak" data-subject="${p.id}" spellcheck="false"
+                 placeholder="Describe the subject: pose, props, what it is doing"
+                 value="${(r.subject || '').replace(/"/g, '&quot;')}">` : ''}
+          <textarea spellcheck="false">${fullPrompt(p).replace(/</g, '&lt;')}</textarea>
+          <input class="tweak" data-tweak="${p.id}" spellcheck="false"
+                 placeholder="What to fix on the retry — appended to the prompt"
+                 value="${(r.tweak || '').replace(/"/g, '&quot;')}">
+          <div class="prow"><button data-copy="${p.id}">Copy prompt</button></div>
+        </div>
+      </div>
+      ${r.pasted ? `<div class="verdict">
+          <button class="a" data-v="accept">Accept — style is better</button>
+          <button class="r" data-v="redo">Redo — try again</button>
+          <button class="d" data-v="decline">Decline — keep original</button>
+        </div>` : ''}
+    </div>`;
+}
+
+function render() {
+  const list = visible();
+  cursor = Math.max(0, Math.min(cursor, list.length - 1));
+  document.getElementById('list').innerHTML = list.map(card).join('');
+  const all = PROMPTS.prompts;
+  document.getElementById('n-total').textContent = all.length;
+  document.getElementById('n-pasted').textContent = all.filter(p => rec(p.id).pasted).length;
+  document.getElementById('n-acc').textContent = all.filter(p => rec(p.id).verdict === 'accept').length;
+  document.getElementById('n-dec').textContent = all.filter(p => rec(p.id).verdict === 'decline').length;
+  const redo = all.filter(p => rec(p.id).verdict === 'redo');
+  document.getElementById('n-redo').textContent = redo.length;
+  document.getElementById('copyredo').disabled = !redo.length;
+  document.getElementById('copyredo').textContent =
+    redo.length ? `Copy ${redo.length} redo prompt${redo.length > 1 ? 's' : ''}` : 'Copy redo prompts';
+  wire(list);
+}
+
+function wire(list) {
+  const host = document.getElementById('list');
+  host.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+    const p = PROMPTS.prompts.find(x => x.id === b.dataset.copy);
+    const ok = await copy(fullPrompt(p));
+    b.textContent = ok ? 'Copied ✓' : 'Copy failed';
+    setTimeout(() => { b.textContent = 'Copy prompt'; }, 1600);
+  });
+  host.querySelectorAll('[data-drop]').forEach(z => {
+    z.onclick = () => { armed = z.dataset.drop; markArmed(); };
+    z.ondragover = e => { e.preventDefault(); z.classList.add('armed'); };
+    z.ondragleave = () => z.classList.remove('armed');
+    z.ondrop = async e => {
+      e.preventDefault();
+      const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/'));
+      if (f) await upload(z.dataset.drop, await f.arrayBuffer());
+    };
+  });
+  host.querySelectorAll('[data-arm]').forEach(b => b.onclick = () => {
+    armed = armed === b.dataset.arm ? null : b.dataset.arm;
+    render();
+  });
+  host.querySelectorAll('[data-clear]').forEach(b => b.onclick = () => {
+    const r = rec(b.dataset.clear);
+    r.pasted = false; r.verdict = '';
+    save(); render();
+  });
+  [['tweak', 'tweak'], ['subject', 'subject']].forEach(([attr, field]) => {
+    host.querySelectorAll(`[data-${attr}]`).forEach(inp => {
+      inp.onchange = () => { rec(inp.dataset[attr])[field] = inp.value; save(); render(); };
+      inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); e.stopPropagation(); };
+    });
+  });
+  host.querySelectorAll('.row').forEach((row, i) => {
+    row.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+      cursor = i; setVerdict(row.dataset.id, b.dataset.v);
+    });
+    row.querySelectorAll('[data-zoom]').forEach(a => a.onclick = () => zoom(row.dataset.id));
+  });
+  markArmed();
+}
+
+function markArmed() {
+  document.querySelectorAll('[data-drop]').forEach(z =>
+    z.classList.toggle('armed', z.dataset.drop === armed));
+}
+
+function setVerdict(id, v) {
+  const r = rec(id);
+  r.verdict = r.verdict === v ? '' : v;
+  save(); render();
+}
+
+async function upload(id, buf) {
+  const res = await fetch('/api/image?id=' + encodeURIComponent(id),
+                          { method: 'POST', body: buf });
+  if (!res.ok) { alert('Upload failed: ' + await res.text()); return; }
+  stamp[id] = Date.now();
+  rec(id).pasted = true; rec(id).verdict = '';
+  armed = null;
+  save(); render();
+}
+
+document.addEventListener('paste', async e => {
+  if (!armed) return;
+  const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+  if (!item) return;
+  e.preventDefault();
+  await upload(armed, await item.getAsFile().arrayBuffer());
+});
+
+function zoom(id) {
+  const box = document.getElementById('box');
+  box.querySelector('.pair').innerHTML =
+    `<img src="crops/${id}.png${V}" alt=""><img src="restyled/${id}.png?v=${stamp[id] || 0}" alt="">`;
+  box.classList.add('open');
+}
+document.getElementById('box').onclick = () =>
+  document.getElementById('box').classList.remove('open');
+
+document.querySelectorAll('#filter button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#filter button').forEach(o => o.classList.remove('on'));
+  b.classList.add('on'); filter = b.dataset.f; cursor = 0; render();
+});
+
+document.getElementById('copyredo').onclick = async () => {
+  const redo = PROMPTS.prompts.filter(p => rec(p.id).verdict === 'redo');
+  const txt = redo.map(p => `### ${p.title}  [${p.id}]\n${fullPrompt(p)}`).join('\n\n---\n\n');
+  const b = document.getElementById('copyredo');
+  const label = b.textContent;
+  b.textContent = (await copy(txt)) ? 'Copied ✓' : 'Copy failed';
+  setTimeout(() => { b.textContent = label; }, 1600);
+};
+
+document.getElementById('copyall').onclick = async () => {
+  const txt = PROMPTS.prompts.map(p => `### ${p.title}  [${p.id}]\n${fullPrompt(p)}`).join('\n\n---\n\n');
+  const b = document.getElementById('copyall');
+  b.textContent = (await copy(txt)) ? 'Copied ✓' : 'Copy failed';
+  setTimeout(() => { b.textContent = 'Copy all prompts'; }, 1600);
+};
+
+document.getElementById('save').onclick = async () => {
+  const payload = { savedAt: new Date().toISOString(), decisions };
+  const b = document.getElementById('save');
+  const r = await fetch('/api/write?name=restyle-decisions.json',
+                        { method: 'POST', body: JSON.stringify(payload, null, 2) });
+  b.textContent = r.ok ? 'Saved ✓' : 'Save failed';
+  setTimeout(() => { b.textContent = 'Save decisions'; }, 2000);
+};
+
+document.onkeydown = e => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  const box = document.getElementById('box');
+  if (box.classList.contains('open')) { box.classList.remove('open'); return; }
+  const list = visible(), row = list[cursor];
+  const k = e.key.toLowerCase();
+  if (e.key === 'Escape') { armed = null; markArmed(); }
+  else if (k === 'a' && row && rec(row.id).pasted) { setVerdict(row.id, 'accept'); e.preventDefault(); }
+  else if (k === 'r' && row && rec(row.id).pasted) { setVerdict(row.id, 'redo'); e.preventDefault(); }
+  else if (k === 'd' && row && rec(row.id).pasted) { setVerdict(row.id, 'decline'); e.preventDefault(); }
+  else if (e.key === 'ArrowDown') { cursor++; render(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { cursor--; render(); e.preventDefault(); }
+};
+
+boot();
+</script>
+</body>
+</html>
