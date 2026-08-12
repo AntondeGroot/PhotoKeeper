@@ -1,4 +1,7 @@
 <div class="session-done">
+  @if (celebration(); as picked) {
+    <img class="celebration" [src]="picked.src" alt="" />
+  }
   <h2>All caught up.</h2>
   <p>{{ keptCount }} kept</p>
   <p>{{ rejectedCount }} rejected</p>

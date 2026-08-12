@@ -32,7 +32,11 @@ function hasYear(spec: string): boolean {
   return spec.split('-').length === 3;
 }
 
-function dateMatches(cond: DateCondition, date: Date): boolean {
+/**
+ * Whether a calendar condition holds on `date`. Exported because the celebration picker evaluates
+ * the same `dd-MM` / `dd-MM-yyyy` vocabulary — one implementation, one set of wrap rules.
+ */
+export function dateMatches(cond: DateCondition, date: Date): boolean {
   const today = ordinalOfDate(date);
   const year = date.getFullYear();
   if ('onDate' in cond) return ordinalOf(cond.onDate, year) === today;
