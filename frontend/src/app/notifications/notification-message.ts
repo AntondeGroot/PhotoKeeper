@@ -9,7 +9,15 @@
 /** Which family a message belongs to — also its default selection priority (date > stat > evergreen). */
 export type HeadsUpType = 'evergreen' | 'date' | 'stat';
 
-/** A calendar trigger, by day-month (`dd-MM`). Single day, or an inclusive range (no year wrap). */
+/**
+ * A calendar trigger. Single day, or an inclusive range.
+ *
+ * Each endpoint is `dd-MM`, which recurs every year, or `dd-MM-yyyy`, which fires in that year
+ * only — for dates that move, like Koningsdag shifting to the 26th when the 27th is a Sunday.
+ *
+ * A recurring range whose end falls before its start wraps the new year, so winter is just
+ * `21-12`→`20-03`. Pinned ranges do not wrap: with absolute ends, end-before-start is a typo.
+ */
 export type DateCondition = { onDate: string } | { fromDate: string; toDate: string };
 
 /** A review-statistics trigger. A fixed vocabulary — not a general expression language. */

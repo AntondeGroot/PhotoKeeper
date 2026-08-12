@@ -18,7 +18,7 @@ export const DATE_MESSAGES: NotificationMessage[] = [
     id: 'koningsdag',
     type: 'date',
     icon: '🦁',
-    date: { onDate: '14-02' },
+    date: { onDate: '27-04' },
     title: "Happy King's day",
     text: 'Dig out the photos of your parties.',
   },
