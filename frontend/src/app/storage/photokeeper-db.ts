@@ -118,6 +118,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   albumPrint: { key: string; value: AlbumPrintState };
   celebrationLog: { key: string; value: ShownRecord };
   celebrationCurrent: { key: string; value: CurrentPick };
+  reviewBuffer: { key: string; value: ReviewItem[] };
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -133,9 +134,9 @@ export class PhotoKeeperDb {
     // per-photo assignments); v14 added 'albumPrint' (the Prints tab's per-album fulfilment state).
     // v18 added 'celebrationLog' (which celebration images have been shown, and when); v19
     // added 'celebrationCurrent' (the pick standing for the current session, so a restart shows
-    // the same picture).
+    // the same picture). v20 added 'reviewBuffer' (units selected ahead of being needed).
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 19, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 20, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -162,6 +163,7 @@ export class PhotoKeeperDb {
           'albumPrint',
           'celebrationLog',
           'celebrationCurrent',
+          'reviewBuffer',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

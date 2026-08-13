@@ -8,6 +8,7 @@ import { StoredVerdict } from '../storage/photokeeper-db';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { PreviewCacheService } from './preview-cache.service';
 import { PreferencesService } from '../preferences.service';
+import { ReviewBufferService } from './review-buffer.service';
 import {
   DEVICE_PHOTOS,
   MOCK_BURST,
@@ -67,6 +68,7 @@ export class ReviewFeedService {
   private readonly dailyUnits = inject(DailyUnitsService);
   private readonly previews = inject(PreviewCacheService);
   private readonly prefs = inject(PreferencesService);
+  private readonly buffer = inject(ReviewBufferService);
 
   // The review queue, starting on mock data until real photos load. The cursor, whether photos have
   // loaded, and whether more can be sampled.
@@ -120,7 +122,10 @@ export class ReviewFeedService {
     const today = todayKey();
     let photos = await this.reviewStore.getDailyFeed(today);
     if (!photos) {
-      photos = await this.selectUnits();
+      // Off the buffer, whose front was warmed during the last session — that is what makes the
+      // first session of a day open instantly, and it is the job the tomorrow-precompute did.
+      photos = await this.buffer.take(this.prefs.dailyGoal());
+      if (photos.length === 0) photos = await this.selectUnits(); // buffer empty or unavailable
       if (photos.length > 0) await this.reviewStore.setDailyFeed(today, photos);
     }
     if (photos.length === 0) return;
@@ -135,12 +140,16 @@ export class ReviewFeedService {
     this.loaded.set(true);
     this.canLoadMore.set(true);
 
-    // Drop previews + stored selections from earlier days, keeping today AND tomorrow (precomputed).
+    // Stock the buffer behind the first paint, so the first "review more" is already a slice.
+    void this.buffer.refill(new Set(deck.flatMap(unitAssetIds)));
+
+    // Drop previews + stored selections from earlier days. Today's deck is kept, and so is the
+    // buffer's warm front — those previews were fetched precisely so the next batch opens without
+    // a wait, and evicting them here would undo that work on every start.
     const keep = new Set(withVerdicts.map((p) => p.id));
-    const tomorrow = await this.reviewStore.getDailyFeed(tomorrowKey());
-    tomorrow?.forEach((p) => keep.add(p.id));
+    this.buffer.warmedIds().forEach((id) => keep.add(id));
     void this.previews.evictDurableExcept(keep);
-    void this.reviewStore.pruneDailyFeedExcept(new Set([today, tomorrowKey()]));
+    void this.reviewStore.pruneDailyFeedExcept(new Set([today]));
   }
 
   /**
@@ -181,29 +190,6 @@ export class ReviewFeedService {
   }
 
   /**
-   * Warm-ahead: pick tomorrow's selection and fetch its previews into the durable store now, so opening
-   * the app tomorrow needs no sample and no downloads. Idempotent + best-effort.
-   */
-  async precomputeTomorrow(): Promise<void> {
-    try {
-      const tomorrow = tomorrowKey();
-      let units = await this.reviewStore.getDailyFeed(tomorrow);
-      if (!units) {
-        units = await this.selectUnits();
-        if (units.length === 0) return;
-        await this.reviewStore.setDailyFeed(tomorrow, units);
-      }
-      for (const unit of units) {
-        for (const id of unitAssetIds(unit)) {
-          await this.previews.warmDurable(id);
-        }
-      }
-    } catch {
-      // Precompute is best-effort; never surface an error to the user.
-    }
-  }
-
-  /**
    * Reconciles the device photos in the deck with the current device settings: strips the existing
    * device photos and re-appends the ones the settings now call for (verdicts overlaid), keeping the
    * Lightroom photos and the review index intact.
@@ -218,10 +204,26 @@ export class ReviewFeedService {
   }
 
   /** Chooses the review queue on-device from scanned metadata + detected groups, server feed as fallback. */
+  /**
+   * Samples `limit` units worth showing — nothing already decided.
+   *
+   * The sampler is blind to verdicts: it draws album-weighted over every asset it knows, so without
+   * this a batch quietly fills with photos already reviewed. They arrive carrying their stored
+   * verdict, count as done the moment the day opens, and take a slot each.
+   *
+   * Only the local sampler is over-drawn — it is in-memory and free, so taking three times the
+   * batch leaves room to drop the decided ones and still come back full. The server fallback is the
+   * pre-scan bootstrap, where nothing has been decided yet and a bigger request would just be a
+   * bigger request.
+   */
   private async selectUnits(limit: number = this.prefs.dailyGoal()): Promise<ReviewItem[]> {
     const vacation = this.prefs.vacationAlbumIds();
-    const units = await this.dailyUnits.buildUnits(vacation, limit);
-    if (units.length > 0) return units;
+    const verdicts = await this.reviewStore.getVerdicts();
+    const undecided = (unit: ReviewItem): boolean =>
+      unitAssetIds(unit).every((id) => (verdicts.get(id)?.status ?? 'backlog') === 'backlog');
+
+    const units = await this.dailyUnits.buildUnits(vacation, limit * 3);
+    if (units.length > 0) return units.filter(undecided).slice(0, limit);
     const data = await firstValueFrom(this.svc.getFeed(vacation, limit));
     return (data?.resources ?? [])
       .filter((a) => a.subtype === 'image')
