@@ -37,7 +37,13 @@
           <div class="date-line">{{ feed.todayLabel }}</div>
         </div>
         @if (decisions.streakDays() > 0) {
-          <span class="chip chip-amber">{{ decisions.streakDays() }}-day streak</span>
+          <!-- Lit only once today's goal is met: before that the run is standing, not kept up. -->
+          <span
+            class="chip"
+            [class.chip-amber]="decisions.streakMetToday()"
+            [class.chip-dim]="!decisions.streakMetToday()"
+            >{{ decisions.streakDays() }}-day streak</span
+          >
         }
         @if (decisions.streakFreezes() > 0) {
           <span

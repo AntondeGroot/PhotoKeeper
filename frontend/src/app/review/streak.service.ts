@@ -162,6 +162,14 @@ export class StreakService {
   /** Consecutive days the goal has been met; 0 once a whole day has gone by without it. */
   readonly days = computed(() => streakOn(this.state(), todayKey()));
 
+  /**
+   * Whether today's goal has been met yet.
+   *
+   * A run stays alive through the day after it last reached, so the count on screen is the same
+   * before and after today's session — this is what separates "still standing" from "kept up".
+   */
+  readonly metToday = computed(() => this.state()?.lastDay === todayKey());
+
   /** Freezes banked and available to cover a missed day. */
   readonly freezes = computed(() => this.state()?.freezes ?? 0);
 

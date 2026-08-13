@@ -108,6 +108,8 @@ export class ReviewDecisionsService {
    */
   readonly streakDays = this.streak.days;
   readonly streakFreezes = this.streak.freezes;
+  /** Today's goal met — the streak chip is only lit once it has been. */
+  readonly streakMetToday = this.streak.metToday;
   /** Days a freeze covered on the way in, and the acknowledgement that clears the notice. */
   readonly freezesJustUsed = this.streak.freezesJustUsed;
   /** How many edits were promoted to print this session (drives the edit progress bar). */

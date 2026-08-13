@@ -50,6 +50,20 @@ describe('StreakService', () => {
     expect(readRun()).toEqual({ days: 12, lastDay: todayKey(), freezes: 1 });
   });
 
+  it("lights the streak only once today's goal is met", async () => {
+    // Yesterday's run: the count still shows, because a streak is broken by a missed day rather
+    // than by a day not yet finished — but today's work is outstanding.
+    storeRun(12, previousDay(todayKey()), 0);
+    const service = await open(true);
+
+    expect(service.days()).toBe(12);
+    expect(service.metToday()).toBe(false);
+
+    service.recordGoalMet();
+    expect(service.days()).toBe(13);
+    expect(service.metToday()).toBe(true);
+  });
+
   it('reports the unlock only on the day the run earns a freeze', async () => {
     // Day 59 in the bank, and yesterday was the last one met — so today makes 60.
     storeRun(59, previousDay(todayKey()), 0);
