@@ -92,7 +92,8 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly stats = inject(ReviewStatsService);
   private readonly viewer = inject(FullscreenViewerService);
   private readonly tagState = inject(TagState);
-  private readonly tagReview = inject(TagReviewService);
+  // public: the template reads canLoadMore off it for the Tag-more affordance
+  readonly tagReview = inject(TagReviewService);
   // public: the template reads the goal settings straight off it
   readonly prefs = inject(PreferencesService);
 
@@ -135,11 +136,6 @@ export class AppComponent implements OnInit, OnDestroy {
   // these reference its members so existing template bindings keep working unchanged.
   readonly tagReviewIndex = this.tagReview.cursor;
   readonly taggablePhotos = this.tagReview.taggablePhotos;
-  readonly currentTagPhoto = this.tagReview.currentPhoto;
-  readonly currentTagPhotoUrl = this.tagReview.currentPhotoUrl;
-  readonly currentTagPhotoTagIds = this.tagReview.currentPhotoTagIds;
-  readonly taggedCount = this.tagReview.taggedCount;
-  readonly progressTagPercent = this.tagReview.progressPercent;
   // Album list (from the backend) + the ids the user has tagged as "vacation", and whether the
   // Manage-albums sub-screen is open. Vacation tags persist to localStorage like the other settings.
   albums = signal<Album[]>([]);
@@ -500,6 +496,10 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   /** Swipe in Tag mode: apply the direction's bound tag and advance (delegated to TagReviewService). */
+  loadMoreTags(): void {
+    void this.tagReview.loadMore();
+  }
+
   swipeTag(dir: SwipeDir): void {
     this.tagReview.swipe(dir);
   }

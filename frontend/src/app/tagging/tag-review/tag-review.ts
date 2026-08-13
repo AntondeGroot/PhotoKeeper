@@ -41,6 +41,10 @@ export class TagReviewComponent {
   @Input() appliedTagIds: string[] = [];
   @Input() position = 0;
   @Input() total = 0;
+  /** False once the keeper backlog is exhausted, so the pass stops offering more. */
+  @Input() canLoadMore = true;
+  /** How many photos this sitting has labelled — the done screen reports it. */
+  @Input() taggedCount = 0;
 
   /** A directional swipe over a bound direction — the host applies that tag and advances. */
   @Output() swiped = new EventEmitter<SwipeDir>();
@@ -48,6 +52,7 @@ export class TagReviewComponent {
   @Output() tagToggled = new EventEmitter<string>();
   @Output() next = new EventEmitter<void>();
   @Output() prev = new EventEmitter<void>();
+  @Output() loadMore = new EventEmitter<void>();
 
   protected readonly dirs = SWIPE_DIRS;
   protected readonly arrow = DIR_ARROW;
