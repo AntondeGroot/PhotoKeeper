@@ -22,6 +22,7 @@ import { BackgroundScanService } from './detection/scan/background-scan.service'
 import { Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
 import { ReviewAlbumTagsComponent } from './review/review-album-tags/review-album-tags';
+import { StreakFrozenNoticeComponent } from './review/streak-frozen-notice/streak-frozen-notice';
 import { SessionDoneComponent } from './review/session-done/session-done';
 import { ReviewEditComponent } from './review/review-edit/review-edit';
 import { PrintsComponent } from './prints/prints';
@@ -57,6 +58,7 @@ const SPLASH_MIN_MS = 1800;
     ReviewSortComponent,
     ReviewAlbumTagsComponent,
     SessionDoneComponent,
+    StreakFrozenNoticeComponent,
     ReviewEditComponent,
     PrintsComponent,
     SettingsComponent,
@@ -84,7 +86,8 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
   private readonly scan = inject(BackgroundScanService);
-  private readonly decisions = inject(ReviewDecisionsService);
+  // public: the template reads decisions.streakDays / .streakFreezes for the header chips
+  readonly decisions = inject(ReviewDecisionsService);
   private readonly stats = inject(ReviewStatsService);
   private readonly viewer = inject(FullscreenViewerService);
   private readonly tagState = inject(TagState);
@@ -92,9 +95,6 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly prefs = inject(PreferencesService);
 
   // The review decisions (verdicts + burst/pano corrections) live in ReviewDecisionsService; these
-  // reference its signals so the celebration heads-up + edit progress bar keep working unchanged.
-  readonly celebration = this.decisions.celebration;
-  readonly streakDays = this.decisions.streakDays; // 0 hides the chip, rather than "0-day streak"
   readonly editedToday = this.decisions.editedToday;
 
   // Persisted preferences live in PreferencesService; these are references to its signals so existing

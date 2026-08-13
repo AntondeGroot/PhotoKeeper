@@ -88,3 +88,10 @@ button:active {
   color: var(--c-dim);
   border-color: var(--c-line);
 }
+
+/* Streak freezes. Cool against the amber streak chip beside it, so the two read as different
+   things at a glance rather than as one longer badge. */
+.chip-frost {
+  color: #7fb4d4;
+  border-color: rgba(127, 180, 212, 0.35);
+}
