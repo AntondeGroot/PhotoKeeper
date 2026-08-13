@@ -1,5 +1,5 @@
 import { Injectable, inject, isDevMode } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, map, tap } from 'rxjs';
 import { PhotoAsset } from './lightroom-types';
 
@@ -42,6 +42,21 @@ export interface TokenSet {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+}
+
+/**
+ * Whether a failure means the Lightroom session is genuinely no good, as opposed to the backend
+ * being unreachable for a moment.
+ *
+ * The distinction is the difference between "sign in to Adobe again" and "try again in a second".
+ * A deploy restarts the backend, so a 502 on the first call after one is routine — and treating
+ * that as an expired session throws away credentials that were perfectly valid.
+ *
+ * 401/403 only, and only after {@link authRefreshInterceptor} has already tried to refresh: by the
+ * time an error reaches here, a recoverable token has been recovered.
+ */
+export function isAuthFailure(err: unknown): boolean {
+  return err instanceof HttpErrorResponse && (err.status === 401 || err.status === 403);
 }
 
 @Injectable({ providedIn: 'root' })

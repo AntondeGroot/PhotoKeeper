@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { LightroomService, loginHrefUnder } from './lightroom.service';
+import { isAuthFailure, LightroomService, loginHrefUnder } from './lightroom.service';
 
 const ACCESS_KEY = 'lr-access-token';
 const REFRESH_KEY = 'lr-refresh-token';
@@ -199,5 +199,26 @@ describe('LightroomService', () => {
       expect(req.request.method).toBe('DELETE');
       req.flush(null);
     });
+  });
+});
+
+describe('isAuthFailure', () => {
+  const status = (code: number): HttpErrorResponse => new HttpErrorResponse({ status: code });
+
+  it('separates a rejected session from a backend that is merely unreachable', () => {
+    // Only these mean the credentials are no good.
+    expect(isAuthFailure(status(401))).toBe(true);
+    expect(isAuthFailure(status(403))).toBe(true);
+
+    // A deploy restarts the backend, so these are routine on the first call after one. Treating
+    // them as an expired session is what used to throw away perfectly valid Lightroom tokens.
+    expect(isAuthFailure(status(0))).toBe(false); // connection refused / offline
+    expect(isAuthFailure(status(502))).toBe(false); // Pi still coming up
+    expect(isAuthFailure(status(503))).toBe(false);
+    expect(isAuthFailure(status(500))).toBe(false);
+
+    // Anything that is not an HTTP failure at all cannot be an auth failure.
+    expect(isAuthFailure(new Error('boom'))).toBe(false);
+    expect(isAuthFailure(undefined)).toBe(false);
   });
 });

@@ -531,7 +531,7 @@ describe('App', () => {
         { ...photo('a'), status: 'kept' },
         { ...photo('b'), status: 'kept' },
       ]);
-      app.tagGoal.set(8);
+      app.prefs.tagGoal.set(8);
       expect(app.taggedCount()).toBe(0);
 
       app.swipeTag('left'); // tags photo 'a'
@@ -616,7 +616,7 @@ describe('App', () => {
 
       // p1 and p2 are already decided → the cursor resumes on p3, and the count still reflects 2 done.
       expect(app.currentReviewPhoto().id).toBe('p3');
-      expect(app.doneToday()).toBe(2);
+      expect(app.stats.doneToday()).toBe(2);
 
       httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
       httpMock.verify();
