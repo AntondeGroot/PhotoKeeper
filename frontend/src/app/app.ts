@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
-import { Album, LightroomService } from './lightroom.service';
+import { Album, isAuthFailure, LightroomService } from './lightroom.service';
 import { PreviewCacheService } from './review/preview-cache.service';
 import { ReviewFeedService } from './review/review-feed.service';
 import { ReviewDecisionsService } from './review/review-decisions.service';
@@ -88,20 +88,19 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly scan = inject(BackgroundScanService);
   // public: the template reads decisions.streakDays / .streakFreezes for the header chips
   readonly decisions = inject(ReviewDecisionsService);
-  private readonly stats = inject(ReviewStatsService);
+  // public: the template reads its computeds directly (tallies, goal progress, edit queue)
+  readonly stats = inject(ReviewStatsService);
   private readonly viewer = inject(FullscreenViewerService);
   private readonly tagState = inject(TagState);
   private readonly tagReview = inject(TagReviewService);
-  private readonly prefs = inject(PreferencesService);
+  // public: the template reads the goal settings straight off it
+  readonly prefs = inject(PreferencesService);
 
   // The review decisions (verdicts + burst/pano corrections) live in ReviewDecisionsService; these
-  readonly editedToday = this.decisions.editedToday;
 
   // Persisted preferences live in PreferencesService; these are references to its signals so existing
   // reads/writes (and template bindings) keep working unchanged.
   readonly dailyGoal = this.prefs.dailyGoal;
-  readonly editGoal = this.prefs.editGoal;
-  readonly tagGoal = this.prefs.tagGoal;
   // Reminder prefs (morning/silent toggles + times) are now read and written directly by
   // SettingsComponent via PreferencesService — the host no longer relays them.
   readonly taggingEnabled = this.prefs.taggingEnabled;
@@ -170,16 +169,7 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly currentUnitImageUrls = this.feed.currentUnitUrls;
   // The deck's derived stats (tallies, goal progress, Edit/Print queues) live in ReviewStatsService;
   // these reference its computeds so the template bindings keep working unchanged.
-  readonly doneToday = this.stats.doneToday;
-  readonly sessionDone = this.stats.sessionDone;
-  readonly keptCount = this.stats.keptCount;
-  readonly rejectedCount = this.stats.rejectedCount;
-  readonly toEditCount = this.stats.toEditCount;
-  readonly maybeCount = this.stats.maybeCount;
-  readonly progressReviewPercent = this.stats.progressReviewPercent;
-  readonly progressEditPercent = this.stats.progressEditPercent;
   readonly editBatch = this.stats.editBatch;
-  readonly editDone = this.stats.editDone;
   // Frame-id → preview URL for today's edit batch, so the Edit list can show each photo (read
   // reactively so a thumbnail appears as its preview finishes loading). The Prints tab's own component
   // reads previews directly; the host only warms its photos (see prefetchWindow).
@@ -301,24 +291,41 @@ export class AppComponent implements OnInit, OnDestroy {
     try {
       // Fetching the catalog id both caches it and validates the token (refreshing if expired).
       await firstValueFrom(this.svc.loadCatalogId());
-      this.authenticated.set(true);
-      this.connecting.set(false);
-      if (this.labMode()) {
-        this.loading.set(false);
-        return true; // the lab loads its own data; skip the review pipeline entirely
-      }
+    } catch (err) {
+      this.endSession(err, returningFromLogin);
+      return false;
+    }
+    this.authenticated.set(true);
+    this.connecting.set(false);
+    if (this.labMode()) {
+      this.loading.set(false);
+      return true; // the lab loads its own data; skip the review pipeline entirely
+    }
+    // Deliberately outside the check above: failing to load content says nothing about the
+    // credentials, so a backend still coming back up must not cost the Lightroom session.
+    try {
       await this.loadPhotos();
       await this.loadAlbums();
-      void this.feed.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
-      void this.scan.run(this.authenticated); // populate detection stores for future sessions
     } catch {
-      // Token couldn't be validated/refreshed — fall back to onboarding.
-      this.svc.clearTokens();
-      this.authenticated.set(false);
-      this.connecting.set(false);
-      if (returningFromLogin) this.error.set('Could not connect to Lightroom — please try again.');
+      this.error.set('Could not load your photos — check your connection and try again.');
     }
+    void this.feed.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
+    void this.scan.run(this.authenticated); // populate detection stores for future sessions
     return false;
+  }
+
+  // Only a genuine auth failure costs the stored tokens. Anything else — the Pi restarting after a
+  // deploy, a dropped connection — leaves them alone: signing in to Adobe again fixes nothing when
+  // the credentials were never the problem.
+  private endSession(err: unknown, returningFromLogin: boolean): void {
+    this.connecting.set(false);
+    if (!isAuthFailure(err)) {
+      this.error.set('Could not reach Lightroom — check your connection and try again.');
+      return;
+    }
+    this.svc.clearTokens();
+    this.authenticated.set(false);
+    if (returningFromLogin) this.error.set('Could not connect to Lightroom — please try again.');
   }
 
   /**

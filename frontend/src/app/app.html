@@ -81,23 +81,23 @@
           @if (reviewMode() === 'sort') {
             <div class="progress-bar-section">
               <span>Today's batch</span>
-              <span>{{ doneToday() }} / {{ dailyGoal() }} today</span>
+              <span>{{ stats.doneToday() }} / {{ dailyGoal() }} today</span>
               <div class="progress-track">
-                <div class="progress-fill" [style.width.%]="progressReviewPercent()"></div>
+                <div class="progress-fill" [style.width.%]="stats.progressReviewPercent()"></div>
               </div>
             </div>
           } @else if (reviewMode() === 'edit') {
             <div class="progress-bar-section">
               <span>Edit queue</span>
-              <span>{{ editedToday() }} / {{ editGoal() }} today</span>
+              <span>{{ decisions.editedToday() }} / {{ prefs.editGoal() }} today</span>
               <div class="progress-track">
-                <div class="progress-fill" [style.width.%]="progressEditPercent()"></div>
+                <div class="progress-fill" [style.width.%]="stats.progressEditPercent()"></div>
               </div>
             </div>
           } @else {
             <div class="progress-bar-section">
               <span>Tag keepers</span>
-              <span>{{ taggedCount() }} / {{ tagGoal() }} today</span>
+              <span>{{ taggedCount() }} / {{ prefs.tagGoal() }} today</span>
               <div class="progress-track">
                 <div class="progress-fill" [style.width.%]="progressTagPercent()"></div>
               </div>
@@ -129,7 +129,7 @@
             }
           </div>
           @if (reviewMode() === 'sort') {
-            @if (!sessionDone()) {
+            @if (!stats.sessionDone()) {
               <app-review-album-tags [album]="currentReviewPhoto().album" />
               @switch (currentReviewPhoto().kind) {
                 @case ('photo') {
@@ -171,10 +171,10 @@
               }
             } @else {
               <app-session-done
-                [keptCount]="keptCount()"
-                [rejectedCount]="rejectedCount()"
-                [toEditCount]="toEditCount()"
-                [maybeCount]="maybeCount()"
+                [keptCount]="stats.keptCount()"
+                [rejectedCount]="stats.rejectedCount()"
+                [toEditCount]="stats.toEditCount()"
+                [maybeCount]="stats.maybeCount()"
                 [streakDays]="decisions.streakDays()"
                 [canLoadMore]="canLoadMore()"
                 (printsClick)="setActiveTab('prints')"
@@ -186,7 +186,7 @@
               [queue]="editBatch()"
               [imageUrls]="editImageUrls()"
               [catalogId]="catalogId()"
-              [editDone]="editDone()"
+              [editDone]="stats.editDone()"
               (promoted)="promoteToPrint($event)"
             />
           } @else {
