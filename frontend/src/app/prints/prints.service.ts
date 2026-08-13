@@ -1,16 +1,8 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
 import { AlbumPrintStore } from '../storage/review/album-print-store';
-import { ReviewStatsService } from '../review/review-stats.service';
-import { LightroomService } from '../lightroom.service';
-import { PhotoAsset } from '../lightroom-types';
-import { AlbumGroup, Photo, splitFileName } from '../photo';
+import { FinishedAlbumsService } from './finished-albums.service';
+import { AlbumGroup } from '../photo';
 import { AlbumPrintState } from './prints.types';
-
-/** How many random albums to surface as a preview when nothing has actually been sent to print yet. */
-const DEMO_ALBUMS = 2;
-/** Photos to pull per demo album (enough to fill the stack). */
-const DEMO_PHOTOS = 9;
 
 /**
  * The Prints tab's two-stage fulfilment flow on top of the to-print albums. Each album starts in "To
@@ -22,22 +14,25 @@ const DEMO_PHOTOS = 9;
 @Injectable({ providedIn: 'root' })
 export class PrintsService {
   private readonly store = inject(AlbumPrintStore);
-  private readonly stats = inject(ReviewStatsService);
-  private readonly svc = inject(LightroomService);
+  private readonly finishedAlbums = inject(FinishedAlbumsService);
 
   private readonly states = signal<Map<string, AlbumPrintState>>(new Map());
   // A couple of random Lightroom albums, shown only while there are no real to-print albums.
-  private readonly demo = signal<AlbumGroup[]>([]);
+  /** Albums with every photo dealt with and at least one waiting to print. */
+  private readonly finished = signal<AlbumGroup[]>([]);
 
   constructor() {
     this.hydrate();
   }
 
-  // The albums the tab works over: real to-print albums when there are any, else the demo preview.
-  private readonly base = computed(() => {
-    const real = this.stats.toPrintByAlbum();
-    return real.length > 0 ? real : this.demo();
-  });
+  /**
+   * The albums the tab works over: those genuinely finished and waiting to be printed.
+   *
+   * No placeholder. It used to fall back to a couple of *random* Lightroom albums whenever nothing
+   * had reached print yet — so the page showed albums that had never been reviewed, indistinguishable
+   * from real work. An empty Prints tab is the honest answer.
+   */
+  private readonly base = computed(() => this.finished());
 
   /** Albums still to export/order — no recorded state yet. */
   readonly toPrint = computed(() => this.base().filter((g) => !this.states().has(g.album)));
@@ -69,7 +64,20 @@ export class PrintsService {
   // Sync wrapper keeps the async calls out of the constructor body (which sonarjs flags).
   private hydrate(): void {
     void this.load();
-    void this.loadDemo();
+    void this.loadFinished();
+  }
+
+  /** Recomputes which albums are finished. Cheap enough to redo whenever the tab is opened. */
+  async refresh(): Promise<void> {
+    await this.loadFinished();
+  }
+
+  private async loadFinished(): Promise<void> {
+    try {
+      this.finished.set(await this.finishedAlbums.load());
+    } catch {
+      // Best-effort: an unreadable library leaves the tab empty rather than showing guesses.
+    }
   }
 
   private async load(): Promise<void> {
@@ -82,51 +90,4 @@ export class PrintsService {
       // Leave as-is on failure — every album simply starts in "To print".
     }
   }
-
-  // Picks a couple of random Lightroom albums and pulls a few photos from each, so the Prints page has
-  // something to show before any real prints flow through. Best-effort: failure leaves the demo empty.
-  private async loadDemo(): Promise<void> {
-    try {
-      const albums = await firstValueFrom(this.svc.getAlbums());
-      const picked = shuffle(albums).slice(0, DEMO_ALBUMS);
-      const groups: AlbumGroup[] = [];
-      for (const album of picked) {
-        const assets = await firstValueFrom(this.svc.getAllAlbumAssets(album.id));
-        const photos = assets
-          .filter((a) => a.subtype === 'image')
-          .slice(0, DEMO_PHOTOS)
-          .map((a) => assetToPhoto(a, album.name));
-        if (photos.length > 0) groups.push({ album: album.name, photos });
-      }
-      this.demo.set(groups);
-    } catch {
-      // No demo data — the page falls back to its empty-state hints.
-    }
-  }
-}
-
-/** In-place-free Fisher–Yates shuffle, for picking random albums. */
-function shuffle<T>(items: readonly T[]): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    // eslint-disable-next-line sonarjs/pseudo-random -- a demo album pick, not security-sensitive
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
-function assetToPhoto(asset: PhotoAsset, album: string): Photo {
-  const { name, ext } = splitFileName(asset.payload?.importSource?.fileName ?? asset.id);
-  return {
-    id: asset.id,
-    name,
-    ext,
-    album,
-    taken: asset.payload?.captureDate ?? '',
-    status: 'toPrint',
-    kind: 'photo',
-    starred: false,
-    keepsake: false,
-  };
 }
