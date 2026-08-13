@@ -1,0 +1,14 @@
+<!-- No click-to-dismiss on the scrim: something was spent on your behalf without asking, so the
+     way out is the button, which is also the only version a keyboard can reach. -->
+<div class="frozen-scrim">
+  <div class="frozen-notice" role="alertdialog" aria-labelledby="frozen-title">
+    <img class="art" src="celebrations/session-done/frozen.webp" alt="" />
+    <h2 id="frozen-title">Your streak survived</h2>
+    <p class="lead">You missed {{ missedLabel }}.</p>
+    <p class="cost">{{ costLabel }}</p>
+    @if (streakDays > 0) {
+      <p class="run">Still going: {{ streakDays }} days.</p>
+    }
+    <button (click)="dismissed.emit()">Got it</button>
+  </div>
+</div>

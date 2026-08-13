@@ -40,7 +40,6 @@ const FILLERS = [
   'field-photographer',
   'flexing',
   'framing',
-  'frozen',
   'gallery-wall',
   'hauling-away',
   'hidden-photographer',

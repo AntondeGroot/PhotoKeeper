@@ -1,0 +1,63 @@
+.frozen-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 9, 7, 0.72);
+}
+
+.frozen-notice {
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+  padding: 22px 20px 20px;
+  border-radius: 18px;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+
+  // Cool rim, so it reads as the frost notice rather than as another amber celebration.
+  box-shadow: 0 0 0 1px rgba(127, 180, 212, 0.18);
+
+  .art {
+    display: block;
+    width: 160px;
+    height: auto;
+    margin: 0 auto 12px;
+  }
+
+  h2 {
+    font-family: var(--font-head);
+    font-style: italic;
+    font-size: 24px;
+    font-weight: 400;
+    color: #7fb4d4;
+    margin: 0 0 10px;
+  }
+
+  .lead {
+    font-size: 14px;
+    color: var(--c-text);
+    margin: 0 0 4px;
+  }
+
+  .cost,
+  .run {
+    font-size: 13px;
+    color: var(--c-dim);
+    margin: 0 0 4px;
+  }
+
+  button {
+    margin-top: 16px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #131110;
+    background: #7fb4d4;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 26px;
+    cursor: pointer;
+  }
+}

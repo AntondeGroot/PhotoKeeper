@@ -34,6 +34,27 @@ function retypedId(type: 'burst' | 'pano', id: string): string {
   return `${type}:${id.replace(/^(?:burst:|pano:)+/, '')}`;
 }
 
+/** The everyday "you're done for today" banner. */
+function goalDone(goal: number): HeadsUp {
+  return {
+    icon: '🎉',
+    title: `That's ${goal} — daily goal done`,
+    text: 'Lovely work. Everything from here is a bonus.',
+  };
+}
+
+/** Shown the day a run earns a freeze — and the one place the rule is spelled out. */
+function freezeUnlocked(held: number): HeadsUp {
+  return {
+    icon: '❄️',
+    title: 'Streak freeze unlocked',
+    text:
+      held === 1
+        ? 'One banked. It covers a day you miss, automatically.'
+        : `${held} banked. Each covers a day you miss, automatically.`,
+  };
+}
+
 /** Re-types a burst as a (horizontal) pano in place, keeping its frames, album, time and status. */
 function burstToPano(burst: Burst): Pano {
   return {
@@ -86,10 +107,17 @@ export class ReviewDecisionsService {
    * the goal celebration are the same event seen twice.
    */
   readonly streakDays = this.streak.days;
+  readonly streakFreezes = this.streak.freezes;
+  /** Days a freeze covered on the way in, and the acknowledgement that clears the notice. */
+  readonly freezesJustUsed = this.streak.freezesJustUsed;
   /** How many edits were promoted to print this session (drives the edit progress bar). */
   readonly editedToday = signal(0);
 
   private isAuthenticated: () => boolean = () => false;
+
+  acknowledgeFreezeUse(): void {
+    this.streak.acknowledgeFreezeUse();
+  }
 
   /** Lets the host supply the session check the scan refill reads at fire time. */
   bindAuth(isAuthenticated: () => boolean): void {
@@ -307,11 +335,9 @@ export class ReviewDecisionsService {
     const today = todayKey();
     if (localStorage.getItem('celebratedGoal') === today) return;
     localStorage.setItem('celebratedGoal', today);
-    this.streak.recordGoalMet();
-    this.celebration.set({
-      icon: '🎉',
-      title: `That's ${goal} — daily goal done`,
-      text: 'Lovely work. Everything from here is a bonus.',
-    });
+    // Unlocking a freeze outranks the daily goal: it happens once every sixty days, and the banner
+    // is the only place the mechanic is ever explained.
+    const unlockedFreeze = this.streak.recordGoalMet();
+    this.celebration.set(unlockedFreeze ? freezeUnlocked(this.streak.freezes()) : goalDone(goal));
   }
 }

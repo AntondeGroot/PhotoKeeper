@@ -1,5 +1,13 @@
 <div class="app" [class.splashing]="loading()">
-  <app-heads-up [message]="celebration()" (dismissed)="celebration.set(null)" />
+  <app-heads-up [message]="decisions.celebration()" (dismissed)="decisions.celebration.set(null)" />
+  @if (decisions.freezesJustUsed() > 0) {
+    <app-streak-frozen-notice
+      [daysCovered]="decisions.freezesJustUsed()"
+      [freezesLeft]="decisions.streakFreezes()"
+      [streakDays]="decisions.streakDays()"
+      (dismissed)="decisions.acknowledgeFreezeUse()"
+    />
+  }
   @if (loading()) {
     <app-splash
       [state]="splashState()"
@@ -28,8 +36,20 @@
           <div class="brand">keeper</div>
           <div class="date-line">{{ feed.todayLabel }}</div>
         </div>
-        @if (streakDays() > 0) {
-          <span class="chip chip-amber">{{ streakDays() }}-day streak</span>
+        @if (decisions.streakDays() > 0) {
+          <span class="chip chip-amber">{{ decisions.streakDays() }}-day streak</span>
+        }
+        @if (decisions.streakFreezes() > 0) {
+          <span
+            class="chip chip-frost"
+            title="Streak freezes: each covers one day you miss, automatically"
+            [attr.aria-label]="
+              decisions.streakFreezes() === 1
+                ? '1 streak freeze banked'
+                : decisions.streakFreezes() + ' streak freezes banked'
+            "
+            >❄ {{ decisions.streakFreezes() }}</span
+          >
         }
       </header>
       <nav class="tab-bar">
@@ -155,7 +175,7 @@
                 [rejectedCount]="rejectedCount()"
                 [toEditCount]="toEditCount()"
                 [maybeCount]="maybeCount()"
-                [streakDays]="streakDays()"
+                [streakDays]="decisions.streakDays()"
                 [canLoadMore]="canLoadMore()"
                 (printsClick)="setActiveTab('prints')"
                 (loadMore)="loadMore()"
