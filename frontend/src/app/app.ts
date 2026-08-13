@@ -305,7 +305,6 @@ export class AppComponent implements OnInit, OnDestroy {
     } catch {
       this.error.set('Could not load your photos — check your connection and try again.');
     }
-    void this.feed.precomputeTomorrow(); // warm tomorrow ahead; never blocks first paint
     void this.scan.run(this.authenticated); // populate detection stores for future sessions
     return false;
   }
@@ -407,7 +406,6 @@ export class AppComponent implements OnInit, OnDestroy {
   private async resampleDailyFeed(): Promise<void> {
     await this.feed.clearDailySelections();
     await this.loadPhotos(); // app wrapper surfaces any load error
-    void this.feed.precomputeTomorrow();
   }
 
   // Updates the burst-detection window (seconds) and, debounced, re-detects the whole library at the
