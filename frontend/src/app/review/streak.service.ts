@@ -197,7 +197,11 @@ export class StreakService {
     const current = this.state();
     if (!current) return; // no run yet — nothing to settle
 
-    const settled = settleStreak(current, todayKey(), await this.backlog.hasWorkWaiting());
+    // If the backlog cannot be read, assume there was work: settling then costs a freeze at worst,
+    // where the optimistic guess would silently stop streaks ever breaking. Best-effort either way —
+    // this runs fire-and-forget from the constructor, so a rejection would go nowhere.
+    const workWaiting = await this.backlog.hasWorkWaiting().catch(() => true);
+    const settled = settleStreak(current, todayKey(), workWaiting);
     if (settled.state === current) return;
 
     this.persist(settled.state);

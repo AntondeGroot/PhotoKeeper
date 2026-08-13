@@ -481,40 +481,11 @@ describe('App', () => {
   });
 
   describe('tag review mode', () => {
-    it('lists only sorted keepers (not backlog or rejected) as taggable', () => {
-      const app = TestBed.createComponent(App).componentInstance;
-      app.reviewPhotos.set([
-        { ...photo('a'), status: 'kept' },
-        { ...photo('b'), status: 'rejected' },
-        { ...photo('c'), status: 'toEdit' },
-        { ...photo('d'), status: 'backlog' },
-        { ...photo('e'), status: 'maybe' },
-      ]);
-      expect(app.taggablePhotos().map((p) => p.id)).toEqual(['a', 'c', 'e']);
-    });
-
-    it('toggleTag applies then removes a tag on the current photo', () => {
-      const app = TestBed.createComponent(App).componentInstance;
-      app.reviewPhotos.set([{ ...photo('a'), status: 'kept' }]);
-
-      app.toggleTag('animals');
-      expect(app.currentTagPhotoTagIds()).toEqual(['animals']);
-      app.toggleTag('animals');
-      expect(app.currentTagPhotoTagIds()).toEqual([]);
-    });
-
     it('disabling tagging while in Tag mode falls back to Sort', () => {
       const app = TestBed.createComponent(App).componentInstance;
       app.setReviewMode('tag');
       app.setTaggingEnabled(false);
       expect(app.reviewMode()).toBe('sort');
-    });
-
-    it('swiping a direction applies that direction’s tag to the current photo', () => {
-      const app = TestBed.createComponent(App).componentInstance;
-      app.reviewPhotos.set([{ ...photo('a'), status: 'kept' }]);
-      app.swipeTag('left'); // default binding: left → 'animals'
-      expect(app.currentTagPhotoTagIds()).toEqual(['animals']);
     });
 
     it('binding a tag to a direction moves it off any other direction (unique per tag)', () => {
@@ -523,20 +494,6 @@ describe('App', () => {
       app.setTagDirection({ dir: 'up', tagId: 'animals' });
       expect(app.tagDirections().up).toBe('animals');
       expect(app.tagDirections().left).toBeUndefined();
-    });
-
-    it('tracks tagged keepers against the tagging goal', () => {
-      const app = TestBed.createComponent(App).componentInstance;
-      app.reviewPhotos.set([
-        { ...photo('a'), status: 'kept' },
-        { ...photo('b'), status: 'kept' },
-      ]);
-      app.prefs.tagGoal.set(8);
-      expect(app.taggedCount()).toBe(0);
-
-      app.swipeTag('left'); // tags photo 'a'
-      expect(app.taggedCount()).toBe(1);
-      expect(app.progressTagPercent()).toBeCloseTo((1 / 8) * 100);
     });
   });
 

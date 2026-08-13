@@ -34,6 +34,20 @@ describe('ReviewStore', () => {
       expect(verdicts.get('a1')).toEqual({ status: 'kept', starred: true, keepsake: false });
     });
 
+    it('reads the store once, then keeps the cache in step with new verdicts', async () => {
+      await store.setVerdict('a1', { status: 'kept', starred: false, keepsake: false });
+      const first = await store.getVerdicts();
+
+      // The map is reused rather than rebuilt: every feed build, scan and streak check asks for
+      // this, and rereading the whole library each time is the cost being removed.
+      expect(await store.getVerdicts()).toBe(first);
+
+      // A later decision is written through, so the cache cannot go stale behind a caller's back.
+      await store.setVerdict('a2', { status: 'rejected', starred: false, keepsake: false });
+      expect((await store.getVerdicts()).get('a2')?.status).toBe('rejected');
+      expect((await store.getVerdicts()).size).toBe(2);
+    });
+
     it('overwrites an existing verdict for the same asset', async () => {
       await store.setVerdict('a1', { status: 'maybe', starred: false, keepsake: false });
       await store.setVerdict('a1', { status: 'rejected', starred: false, keepsake: false });

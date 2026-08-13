@@ -45,10 +45,22 @@
     <div class="tag-nav">
       <button class="tag-nav-btn" [disabled]="position <= 1" (click)="prev.emit()">‹ Prev</button>
       <span class="tag-nav-count">{{ position }} / {{ total }}</span>
-      <button class="tag-nav-btn" [disabled]="position >= total" (click)="next.emit()">
-        Skip ›
-      </button>
+      <!-- Not disabled on the last photo: skipping it is how you finish a batch without tagging it. -->
+      <button class="tag-nav-btn" (click)="next.emit()">Skip ›</button>
     </div>
+  </div>
+} @else if (total > 0) {
+  <div class="tag-empty">
+    <div class="tag-empty-title">{{ canLoadMore ? 'Batch done' : 'All done' }}</div>
+    <p class="tag-empty-text">
+      {{ taggedCount }} labelled.
+      {{
+        canLoadMore ? 'More keepers are waiting whenever you are.' : 'Every keeper has tags now.'
+      }}
+    </p>
+    @if (canLoadMore) {
+      <button class="tag-more-btn" (click)="loadMore.emit()">Tag more</button>
+    }
   </div>
 } @else {
   <div class="tag-empty">

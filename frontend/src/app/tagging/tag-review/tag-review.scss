@@ -193,3 +193,17 @@
   max-width: 260px;
   margin: 0 auto;
 }
+
+/* Matches the "Review more" button on the session-done screen, so finishing a tag batch and
+   finishing a review batch offer the same affordance in the same shape. */
+.tag-more-btn {
+  margin-top: 18px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #131110;
+  background: var(--c-amber);
+  border: none;
+  border-radius: 10px;
+  padding: 12px 26px;
+  cursor: pointer;
+}
