@@ -2,9 +2,21 @@ import { Injectable, inject } from '@angular/core';
 import { CatalogScanService } from './catalog-scan.service';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { ReviewStore } from '../../storage/review/review-store';
+import { REVIEW_BUFFER_TARGET } from '../../review/review-buffer-target';
 
-/** Target size of the "scanned but not yet reviewed" buffer the background detection pass maintains. */
-const SCAN_BUFFER_TARGET = 100;
+/**
+ * Target size of the "scanned but not yet reviewed" buffer the background detection pass maintains.
+ *
+ * Derived from the review queue's target rather than chosen separately: this scan is the *only*
+ * source the review buffer draws from, so anything smaller is a ceiling the queue can never get
+ * past. The two were once independent numbers — 100 here against 200 there — which left the queue
+ * permanently half-full at best and its indicator permanently lit.
+ *
+ * The half again on top covers the difference in what the two count. This target counts *images*;
+ * the review queue counts *units*, and a burst or a panorama is many images arriving as one unit.
+ * A catalog with plenty of groups in it therefore yields well under one unit per image scanned.
+ */
+export const SCAN_BUFFER_TARGET = Math.round(REVIEW_BUFFER_TARGET * 1.5);
 
 /** Debounce before a review-triggered refill, so a flurry of swipes coalesces into one pass. */
 const SCAN_REFILL_DEBOUNCE_MS = 4000;

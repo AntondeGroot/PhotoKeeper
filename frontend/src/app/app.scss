@@ -45,6 +45,32 @@
     text-transform: uppercase;
     margin-top: 3px;
   }
+
+  /* The right-hand half of the header, stacked to mirror the brand-over-date block opposite it:
+     the state on top, a quiet line qualifying it underneath. */
+  .header-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+  }
+
+  .status-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Deliberately the same register as .date-line — small, uppercase, widely tracked, faint. It is
+     the same kind of line, so it gets the same voice rather than a new one. Tabular figures keep
+     the number from shifting width as it climbs back to 100%. */
+  .buffer-note {
+    font-size: 10px;
+    color: var(--c-faint);
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* ── Tab bar ── */

@@ -68,7 +68,8 @@ export class ReviewFeedService {
   private readonly dailyUnits = inject(DailyUnitsService);
   private readonly previews = inject(PreviewCacheService);
   private readonly prefs = inject(PreferencesService);
-  private readonly buffer = inject(ReviewBufferService);
+  /** public: the header shows how full the queue is when it falls behind */
+  readonly buffer = inject(ReviewBufferService);
 
   // The review queue, starting on mock data until real photos load. The cursor, whether photos have
   // loaded, and whether more can be sampled.

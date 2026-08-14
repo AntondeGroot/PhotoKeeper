@@ -5,8 +5,10 @@ import angular from 'angular-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
 import boundaries from 'eslint-plugin-boundaries';
 
-// boundaries v6 object-selector helper: `allow`/`disallow` entries are `{ to: { type } }`.
-const to = (...types) => types.map((type) => ({ to: { type } }));
+// boundaries v7 selectors: an element selector has to be wrapped in an entity selector, so a bare
+// `{ type }` is the deprecated shorthand for `{ element: { type } }`.
+const to = (...types) => types.map((type) => ({ to: { element: { type } } }));
+const from = (type) => ({ element: { type } });
 
 export default tseslint.config(
   // Build/report output — ESLint flat config doesn't read .gitignore, so ignore these explicitly.
@@ -73,6 +75,13 @@ export default tseslint.config(
       'boundaries/ignore': ['**/*.spec.ts', '**/*.fixture.ts', '**/detection/lab/**'],
       // Order matters: a file takes the first type it matches, so specific patterns precede the
       // broad `component` catch-all.
+      //
+      // `mode: 'full'` is deprecated, and its suggested replacement `partialMatch: false` is NOT
+      // equivalent — that one matches *folders*, so every `*.service.ts` falls through to the
+      // `component` catch-all and the whole guard inverts (61 errors, services suddenly forbidden
+      // from reaching stores). v7's file-level axis, `boundaries/files`, classifies by `category`
+      // alongside element types rather than replacing them, so it does not express this either.
+      // Left on `mode` deliberately until the plugin offers a real equivalent.
       'boundaries/elements': [
         { type: 'store', mode: 'full', pattern: 'src/app/storage/**/*' },
         {
@@ -96,6 +105,7 @@ export default tseslint.config(
             'src/app/tagging/tags.ts',
             'src/app/detection/detectors/**/*.ts', // pure detectors + their contract types
             'src/app/review/selection/unit-selection.ts',
+            'src/app/review/review-buffer-target.ts',
             'src/app/review/fullscreen-viewer/viewer-image.ts',
             'src/app/prints/prints.types.ts',
             'src/app/notifications/heads-up/heads-up.types.ts',
@@ -121,18 +131,18 @@ export default tseslint.config(
         'error',
         {
           default: 'disallow',
-          rules: [
+          policies: [
             // The load-bearing rules: a component reaches data through a service (never a store), and a
             // service never depends back up on a component.
-            { from: { type: 'component' }, allow: to('component', 'service', 'domain') },
-            { from: { type: 'service' }, allow: to('service', 'store', 'domain') },
-            { from: { type: 'store' }, allow: to('store', 'domain') },
+            { from: from('component'), allow: to('component', 'service', 'domain') },
+            { from: from('service'), allow: to('service', 'store', 'domain') },
+            { from: from('store'), allow: to('store', 'domain') },
             // Domain is pure logic + types: it may only depend on other domain. The persisted/API
             // contract types it needs (FrameSignature, PanoOrientation, DetectedGroup → detection-types;
             // PhotoAsset → lightroom-types) now live in domain modules, so this stays fully closed.
-            { from: { type: 'domain' }, allow: to('domain') },
+            { from: from('domain'), allow: to('domain') },
             {
-              from: { type: 'config' },
+              from: from('config'),
               allow: to('config', 'component', 'service', 'store', 'domain'),
             },
           ],

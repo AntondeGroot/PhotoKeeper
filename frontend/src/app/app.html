@@ -36,27 +36,37 @@
           <div class="brand">keeper</div>
           <div class="date-line">{{ feed.todayLabel }}</div>
         </div>
-        @if (decisions.streakDays() > 0) {
-          <!-- Lit only once today's goal is met: before that the run is standing, not kept up. -->
-          <span
-            class="chip"
-            [class.chip-amber]="decisions.streakMetToday()"
-            [class.chip-dim]="!decisions.streakMetToday()"
-            >{{ decisions.streakDays() }}-day streak</span
-          >
-        }
-        @if (decisions.streakFreezes() > 0) {
-          <span
-            class="chip chip-frost"
-            title="Streak freezes: each covers one day you miss, automatically"
-            [attr.aria-label]="
-              decisions.streakFreezes() === 1
-                ? '1 streak freeze banked'
-                : decisions.streakFreezes() + ' streak freezes banked'
-            "
-            >❄ {{ decisions.streakFreezes() }}</span
-          >
-        }
+        <div class="header-status">
+          <div class="status-chips">
+            @if (decisions.streakDays() > 0) {
+              <!-- Lit only once today's goal is met: before that the run is standing, not kept up. -->
+              <span
+                class="chip"
+                [class.chip-amber]="decisions.streakMetToday()"
+                [class.chip-dim]="!decisions.streakMetToday()"
+                >{{ decisions.streakDays() }}-day streak</span
+              >
+            }
+            @if (decisions.streakFreezes() > 0) {
+              <span
+                class="chip chip-frost"
+                title="Streak freezes: each covers one day you miss, automatically"
+                [attr.aria-label]="
+                  decisions.streakFreezes() === 1
+                    ? '1 streak freeze banked'
+                    : decisions.streakFreezes() + ' streak freezes banked'
+                "
+                >❄ {{ decisions.streakFreezes() }}</span
+              >
+            }
+          </div>
+          @if (feed.buffer.low()) {
+            <!-- Only while the queue is behind: it refills itself, so this reports rather than asks
+                 for anything. Sits under the chips in the same caption register as the date, being
+                 the same kind of line: a quiet qualifier on the state above it. -->
+            <div class="buffer-note">buffer {{ feed.buffer.fillPercent() }}%</div>
+          }
+        </div>
       </header>
       <nav class="tab-bar">
         <button
