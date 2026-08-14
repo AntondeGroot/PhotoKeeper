@@ -20,7 +20,16 @@ export const DAYS_PER_FREEZE = 60;
  */
 export interface StreakState {
   days: number;
+  /** The day the run has been carried to — advanced by a met goal, a freeze, or a paused day. */
   lastDay: string; // YYYY-MM-DD, local
+  /**
+   * The day the goal was actually *met*, which is not the same thing.
+   *
+   * A freeze or a dormant day carries `lastDay` forward to keep the run alive without any work
+   * being done. Reading "did you keep it up today?" off `lastDay` therefore lights the streak for
+   * days you never opened the app.
+   */
+  lastMet: string;
   freezes: number;
 }
 
@@ -51,16 +60,16 @@ export function previousDay(key: string): string {
  * a full day starts again from one.
  */
 export function extendStreak(state: StreakState | null, today: string): StreakState {
-  if (!state) return grantEarnedFreeze({ days: 1, lastDay: today, freezes: 0 });
+  if (!state) return grantEarnedFreeze({ days: 1, lastDay: today, lastMet: today, freezes: 0 });
   if (state.lastDay === today) return state;
 
   const freezes = state.freezes;
   if (state.lastDay === previousDay(today)) {
-    return grantEarnedFreeze({ days: state.days + 1, lastDay: today, freezes });
+    return grantEarnedFreeze({ days: state.days + 1, lastDay: today, lastMet: today, freezes });
   }
   // Starting over keeps the freezes already banked: they were earned, and losing them on the day
   // the run breaks would punish the same miss twice.
-  return grantEarnedFreeze({ days: 1, lastDay: today, freezes });
+  return grantEarnedFreeze({ days: 1, lastDay: today, lastMet: today, freezes });
 }
 
 /** A run reaching a multiple of {@link DAYS_PER_FREEZE} banks a freeze, up to the cap. */
@@ -85,7 +94,11 @@ export function settleStreak(
   workAvailable: boolean,
 ): Settlement {
   if (!state)
-    return { state: { days: 0, lastDay: today, freezes: 0 }, freezesUsed: 0, paused: false };
+    return {
+      state: { days: 0, lastDay: today, lastMet: '', freezes: 0 },
+      freezesUsed: 0,
+      paused: false,
+    };
 
   const missed = daysBetween(state.lastDay, today) - 1;
   if (missed <= 0) return { state, freezesUsed: 0, paused: false }; // today or yesterday: still alive
@@ -101,7 +114,7 @@ export function settleStreak(
   }
   // Not enough banked: the run ends, but the freezes it did have are spent covering what they can.
   return {
-    state: { days: 0, lastDay: today, freezes: 0 },
+    state: { days: 0, lastDay: today, lastMet: '', freezes: 0 },
     freezesUsed: state.freezes,
     paused: false,
   };
@@ -127,7 +140,10 @@ function readState(): StreakState | null {
     const parsed: unknown = JSON.parse(raw);
     if (!isStreakState(parsed)) return null;
     // Runs recorded before freezes existed have no count; they start with none rather than NaN.
-    return { ...parsed, freezes: parsed.freezes ?? 0 };
+    // Runs recorded before either field existed: freezes start at none, and the last met day is
+    // taken to be the day the run reached — the best available guess, and never wrong by more than
+    // the one paused day it cannot know about.
+    return { ...parsed, freezes: parsed.freezes ?? 0, lastMet: parsed.lastMet ?? parsed.lastDay };
   } catch {
     return null;
   }
@@ -168,7 +184,7 @@ export class StreakService {
    * A run stays alive through the day after it last reached, so the count on screen is the same
    * before and after today's session — this is what separates "still standing" from "kept up".
    */
-  readonly metToday = computed(() => this.state()?.lastDay === todayKey());
+  readonly metToday = computed(() => this.state()?.lastMet === todayKey());
 
   /** Freezes banked and available to cover a missed day. */
   readonly freezes = computed(() => this.state()?.freezes ?? 0);

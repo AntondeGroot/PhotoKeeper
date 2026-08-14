@@ -212,6 +212,27 @@
   <div class="settings-card">
     <h3 class="card-title">Daily reminder</h3>
 
+    @if (battery.available) {
+      <!-- Shown whichever way it reads: a reminder that never arrives has more than one cause, and
+           this is the one the app can see. -->
+      <div class="reminder-row">
+        <div class="reminder-text">
+          <div class="reminder-label">Run in the background</div>
+          <div class="reminder-description">
+            @if (battery.exempt() === true) {
+              Allowed — reminders can wake the app. On OnePlus, also set battery usage to
+              Unrestricted.
+            } @else {
+              Android may delay or drop reminders while the app is closed.
+            }
+          </div>
+        </div>
+        @if (battery.exempt() !== true) {
+          <button class="toggle-group" (click)="battery.request()">Allow</button>
+        }
+      </div>
+    }
+
     <!-- morning toggle row -->
     <div class="reminder-row">
       <div class="reminder-text">

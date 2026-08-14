@@ -37,8 +37,15 @@ export interface ReminderSettings {
   eveningTime: string;
   /** Whether today's sorting goal has already been met — the evening nudge has nothing to say if so. */
   dayComplete: boolean;
-  /** Unreviewed photos still waiting. Nothing waiting, nothing to nudge about. */
+  /** Unreviewed photos still waiting in today's deck. Nothing waiting, nothing to nudge about. */
   pileCount: number;
+  /**
+   * Whether the *library* still has anything to do — anywhere, not just in today's deck.
+   *
+   * Separate from {@link pileCount} because they empty at different times: the deck empties every
+   * time a day is finished, while this only empties when the whole backlog is genuinely done.
+   */
+  workWaiting: boolean;
 }
 
 /** The message each slot should carry, picked from the catalog at scheduling time. */
@@ -58,14 +65,41 @@ export function parseTimeOfDay(value: string): TimeOfDay | null {
 }
 
 /** The morning nudge: unconditional while its toggle is on — it's the "start your review" prompt. */
+/**
+ * Fallbacks for when the catalog has nothing eligible — every message on cooldown, say.
+ *
+ * A reminder must never be dropped for want of words. {@link OsReminders.apply} cancels each slot
+ * before scheduling, so returning null here does not leave yesterday's alarm in place: it withdraws
+ * it. Silence caused by an empty catalog is indistinguishable, to the user, from the feature being
+ * broken.
+ */
+const DEFAULT_MORNING: RenderedNotification = {
+  id: 'default-morning',
+  icon: '📷',
+  title: 'Your photos are waiting',
+  text: 'A few minutes now keeps the pile from growing.',
+};
+
+const DEFAULT_EVENING: RenderedNotification = {
+  id: 'default-evening',
+  icon: '🌙',
+  title: 'Still time today',
+  text: 'A quick sort before bed keeps the streak going.',
+};
+
 function planMorning(
   settings: ReminderSettings,
   message: RenderedNotification | null,
 ): PlannedReminder | null {
-  if (!settings.morningEnabled || !message) return null;
+  if (!settings.morningEnabled) return null;
+  // Nothing in the library to sort: a nudge saying photos are waiting would simply be untrue.
+  // Deliberately not `pileCount`, which is today's deck — that empties every time a day is
+  // finished, and cancelling tomorrow's reminder for it would be the opposite of the point.
+  if (!settings.workWaiting) return null;
   const at = parseTimeOfDay(settings.morningTime);
   if (!at) return null;
-  return { id: MORNING_REMINDER_ID, title: message.title, text: message.text, at, silent: false };
+  const { title, text } = message ?? DEFAULT_MORNING;
+  return { id: MORNING_REMINDER_ID, title, text, at, silent: false };
 }
 
 /**
@@ -78,11 +112,12 @@ function planEvening(
   settings: ReminderSettings,
   message: RenderedNotification | null,
 ): PlannedReminder | null {
-  if (!settings.eveningEnabled || !message) return null;
+  if (!settings.eveningEnabled) return null;
   if (settings.dayComplete || settings.pileCount <= 0) return null;
   const at = parseTimeOfDay(settings.eveningTime);
   if (!at) return null;
-  return { id: EVENING_REMINDER_ID, title: message.title, text: message.text, at, silent: true };
+  const { title, text } = message ?? DEFAULT_EVENING;
+  return { id: EVENING_REMINDER_ID, title, text, at, silent: true };
 }
 
 /**
@@ -109,6 +144,11 @@ export function sameSettings(a: ReminderSettings, b: ReminderSettings): boolean 
     a.eveningEnabled === b.eveningEnabled &&
     a.eveningTime === b.eveningTime &&
     a.dayComplete === b.dayComplete &&
-    a.pileCount === b.pileCount
+    a.workWaiting === b.workWaiting &&
+    // Whether the pile is empty, not how big it is. The plan only asks `pileCount <= 0`, but
+    // comparing the number meant every swipe looked like a change and rewrote the OS alarms — the
+    // opposite of what the comment on `settings` claimed, and the reason picking messages at
+    // schedule time drained the catalog within a couple of decisions.
+    a.pileCount > 0 === b.pileCount > 0
   );
 }

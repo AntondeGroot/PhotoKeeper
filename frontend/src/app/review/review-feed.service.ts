@@ -80,6 +80,16 @@ export class ReviewFeedService {
   readonly loaded = signal(false);
   readonly canLoadMore = signal(true);
 
+  /**
+   * True when there is nothing left to review anywhere — not "today's batch is done", but "the
+   * library is done".
+   *
+   * The two look identical from the deck: an empty deck makes `sessionDone` trivially true (0 of 0
+   * decided), so a finished library showed the "all caught up" screen reporting a session that
+   * never happened, complete with a celebration for work not done.
+   */
+  readonly nothingToReview = signal(false);
+
   /** The unit at the cursor. */
   current(): ReviewItem | undefined {
     return this.photos()[this.index()];
@@ -128,7 +138,13 @@ export class ReviewFeedService {
       if (photos.length === 0) photos = await this.selectUnits(); // buffer empty or unavailable
       if (photos.length > 0) await this.reviewStore.setDailyFeed(today, photos);
     }
-    if (photos.length === 0) return;
+    if (photos.length === 0) {
+      this.nothingToReview.set(true);
+      this.canLoadMore.set(false);
+      this.loaded.set(true);
+      return;
+    }
+    this.nothingToReview.set(false);
 
     // Device photos aren't persisted in the feed — they're rebuilt from settings each load.
     const verdicts = await this.reviewStore.getVerdicts();

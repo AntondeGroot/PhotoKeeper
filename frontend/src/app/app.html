@@ -135,7 +135,14 @@
             }
           </div>
           @if (reviewMode() === 'sort') {
-            @if (!stats.sessionDone()) {
+            @if (feed.nothingToReview()) {
+              <div class="session-done">
+                <h2>Nothing left to sort.</h2>
+                <p>Your whole library is reviewed, edited and filed.</p>
+                <p>New photos will show up here when they arrive.</p>
+                <button class="secondary" (click)="setActiveTab('prints')">Go to Prints →</button>
+              </div>
+            } @else if (!stats.sessionDone()) {
               <app-review-album-tags [album]="currentReviewPhoto().album" />
               @switch (currentReviewPhoto().kind) {
                 @case ('photo') {

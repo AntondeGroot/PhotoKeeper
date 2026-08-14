@@ -36,6 +36,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Registered before super so the bridge is built with it available.
+        registerPlugin(BatteryOptimizationPlugin.class);
         super.onCreate(savedInstanceState);
         // Cold start: the app was not running when the browser handed the tokens back.
         completeSignIn(getIntent());
