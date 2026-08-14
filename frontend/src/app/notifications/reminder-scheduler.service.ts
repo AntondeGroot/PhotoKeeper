@@ -3,6 +3,8 @@ import { PreferencesService } from '../preferences.service';
 import { ReviewStatsService } from '../review/review-stats.service';
 import { ReviewDecisionsService } from '../review/review-decisions.service';
 import { AlbumPrintStore } from '../storage/review/album-print-store';
+import { BacklogStatusService } from '../review/backlog-status.service';
+import { ReviewBufferService } from '../review/review-buffer.service';
 import { NotificationService } from './notification.service';
 import { OS_REMINDERS } from './os-reminders';
 import { ReviewStats } from './notification-message';
@@ -27,6 +29,8 @@ export class ReminderSchedulerService {
   private readonly decisions = inject(ReviewDecisionsService);
   private readonly notifications = inject(NotificationService);
   private readonly printStore = inject(AlbumPrintStore);
+  private readonly backlog = inject(BacklogStatusService);
+  private readonly buffer = inject(ReviewBufferService);
   private readonly os = inject(OS_REMINDERS);
 
   /** Clock seam, so a test can plan against a fixed day rather than whenever it happens to run. */
@@ -34,6 +38,12 @@ export class ReminderSchedulerService {
 
   /** Albums ordered and awaiting placement. Read once — it only moves when you act on the Prints tab. */
   private readonly printsAwaiting = signal(0);
+
+  /**
+   * Whether the library still has anything to do. Starts true: until the scan has been read, a
+   * reminder that fires needlessly is a far smaller fault than one that never fires at all.
+   */
+  private readonly workWaiting = signal(true);
 
   /** The permission ask, cached as the in-flight promise so a burst of changes can't double-prompt. */
   private permissionCheck: Promise<boolean> | null = null;
@@ -51,6 +61,7 @@ export class ReminderSchedulerService {
       eveningTime: this.prefs.silentTime(),
       dayComplete: this.stats.doneToday() >= this.prefs.dailyGoal(),
       pileCount: this.stats.backlogCount(),
+      workWaiting: this.workWaiting(),
     }),
     { equal: sameSettings },
   );
@@ -58,17 +69,46 @@ export class ReminderSchedulerService {
   constructor() {
     this.hydrate();
     effect(() => void this.reschedule(this.settings()));
+
+    // Whatever is scheduled when the app goes away is what fires tomorrow, so re-check the library
+    // on the way out. Finishing the last photo and closing mid-session would otherwise leave a
+    // "your photos are waiting" alarm set for a library with nothing in it.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) void this.refreshWorkWaiting();
+    });
   }
 
   // Sync wrapper keeps the async call out of the constructor body (which sonarjs flags).
   private hydrate(): void {
     void this.countAwaitingPrints();
+    void this.refreshWorkWaiting();
+  }
+
+  /**
+   * Whether anything is left to do, answered as cheaply as the situation allows.
+   *
+   * Anything sitting in the review buffer is, by definition, an unseen photo — so a non-empty
+   * buffer settles the question outright, which is the common case and costs nothing. Only once it
+   * has run dry is the full scan worth doing, and only then does it tell us something new: the
+   * buffer knows about photos to sort, but not about edits outstanding or keepers left untagged.
+   */
+  private async refreshWorkWaiting(): Promise<void> {
+    if (this.buffer.available() > 0) {
+      this.workWaiting.set(true);
+      return;
+    }
+    this.workWaiting.set(await this.backlog.hasWorkWaiting().catch(() => true));
   }
 
   private async reschedule(settings: ReminderSettings): Promise<void> {
     if (!(await this.permission())) return;
     const messages = untracked(() => this.pickMessages(settings));
     await this.os.apply(planReminders(settings, messages));
+
+    // Re-read the library after acting on the plan. Deciding the last photo empties the deck, which
+    // is what brought us here — and may have emptied the library with it. Setting the signal to an
+    // unchanged value is inert, so this settles after one extra pass rather than looping.
+    await this.refreshWorkWaiting();
   }
 
   private permission(): Promise<boolean> {
@@ -80,8 +120,9 @@ export class ReminderSchedulerService {
   private pickMessages(settings: ReminderSettings): ReminderMessages {
     const stats = this.reviewStats(settings);
     return {
-      morning: settings.morningEnabled ? this.notifications.pickAndRecord(stats) : null,
-      evening: settings.eveningEnabled ? this.notifications.pickAndRecord(stats) : null,
+      // pick, not pickAndRecord: this is choosing text for an alarm, not showing anything.
+      morning: settings.morningEnabled ? this.notifications.pick(stats) : null,
+      evening: settings.eveningEnabled ? this.notifications.pick(stats) : null,
     };
   }
 

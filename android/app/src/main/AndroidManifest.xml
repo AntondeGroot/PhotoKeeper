@@ -52,4 +52,8 @@
          Note this is a Play-restricted permission; fine for a sideloaded build (scripts/install-android.sh),
          and it would need justifying if the app were ever published. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Lets the app raise the system "run in the background?" dialog, so daily reminders are not
+         deferred by Doze. Play restricts this to apps whose core function is alarms; this one is
+         side-loaded, and the Settings screen shows the state rather than assuming it. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>

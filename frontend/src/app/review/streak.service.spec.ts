@@ -8,7 +8,10 @@ import { previousDay } from './streak.service';
 
 /** The stored run, as it would be found on disk when the app opens. */
 function storeRun(days: number, lastDay: string, freezes: number): void {
-  localStorage.setItem('review-streak', JSON.stringify({ days, lastDay, freezes }));
+  localStorage.setItem(
+    'review-streak',
+    JSON.stringify({ days, lastDay, lastMet: lastDay, freezes }),
+  );
 }
 
 function readRun(): StreakState {
@@ -47,7 +50,12 @@ describe('StreakService', () => {
     expect(service.freezes()).toBe(1); // one freeze paid for it
     expect(service.freezesJustUsed()).toBe(1); // and the notice is owed, for one day
     // Written through, so closing the app does not undo the payment or charge for it twice.
-    expect(readRun()).toEqual({ days: 12, lastDay: todayKey(), freezes: 1 });
+    expect(readRun()).toEqual({
+      days: 12,
+      lastDay: todayKey(),
+      lastMet: previousDay(previousDay(todayKey())), // untouched: a freeze is not a session
+      freezes: 1,
+    });
   });
 
   it("lights the streak only once today's goal is met", async () => {
@@ -77,6 +85,16 @@ describe('StreakService', () => {
     expect(service.freezes()).toBe(1);
   });
 
+  it('leaves the streak unlit on a paused day, since no work was done', async () => {
+    storeRun(12, previousDay(previousDay(todayKey())), 2);
+    const service = await open(false); // nothing to do
+
+    // The run is carried to today so it survives, but carrying is not keeping it up: the chip
+    // reads "still standing", not "done today".
+    expect(service.days()).toBe(12);
+    expect(service.metToday()).toBe(false);
+  });
+
   it('pauses instead of paying when the backlog is clear', async () => {
     // The same missed day as above — the only difference is that there was nothing to do.
     storeRun(12, previousDay(previousDay(todayKey())), 2);
@@ -86,6 +104,11 @@ describe('StreakService', () => {
     expect(service.days()).toBe(12);
     expect(service.freezes()).toBe(2); // untouched: you did not forget, you had finished
     expect(service.freezesJustUsed()).toBe(0); // so there is nothing to announce either
-    expect(readRun()).toEqual({ days: 12, lastDay: todayKey(), freezes: 2 });
+    expect(readRun()).toEqual({
+      days: 12,
+      lastDay: todayKey(),
+      lastMet: previousDay(previousDay(todayKey())),
+      freezes: 2,
+    });
   });
 });

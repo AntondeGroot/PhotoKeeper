@@ -1,9 +1,10 @@
 import { extendStreak, previousDay, settleStreak, streakOn, StreakState } from './streak.service';
 
 /** A run, with no banked freezes unless a test is about them. */
-const run = (days: number, lastDay: string, freezes = 0): StreakState => ({
+const run = (days: number, lastDay: string, freezes = 0, lastMet = lastDay): StreakState => ({
   days,
   lastDay,
+  lastMet,
   freezes,
 });
 describe('previousDay', () => {
@@ -59,7 +60,8 @@ describe('settleStreak', () => {
     const settled = settleStreak(run(12, '2026-08-03', 2), '2026-08-05', true);
 
     expect(settled.freezesUsed).toBe(1);
-    expect(settled.state).toEqual(run(12, '2026-08-05', 1));
+    // lastMet stays on the 3rd: a freeze keeps the run alive, it does not do the work for you.
+    expect(settled.state).toEqual(run(12, '2026-08-05', 1, '2026-08-03'));
     // The run is carried to today, so it reads as intact rather than as a dead 12.
     expect(streakOn(settled.state, '2026-08-05')).toBe(12);
   });
@@ -72,7 +74,8 @@ describe('settleStreak', () => {
     expect(settled.freezesUsed).toBe(0);
     // Seventeen days on, the run is untouched and still worth 12 — freezes are for forgetting,
     // not for having finished everything.
-    expect(settled.state).toEqual(run(12, '2026-08-20', 2));
+    // Carried to the 20th to stay alive, but the goal was last met on the 3rd.
+    expect(settled.state).toEqual(run(12, '2026-08-20', 2, '2026-08-03'));
     expect(streakOn(settled.state, '2026-08-20')).toBe(12);
   });
 
@@ -81,7 +84,7 @@ describe('settleStreak', () => {
     const settled = settleStreak(run(40, '2026-08-03', 2), '2026-08-07', true);
 
     expect(settled.freezesUsed).toBe(2); // spent, not refunded — they did cover two of the days
-    expect(settled.state).toEqual(run(0, '2026-08-07', 0));
+    expect(settled.state).toEqual(run(0, '2026-08-07', 0, ''));
     expect(streakOn(settled.state, '2026-08-07')).toBe(0);
   });
 

@@ -2,6 +2,7 @@ import {
   Component,
   EventEmitter,
   Input,
+  OnInit,
   Output,
   ChangeDetectionStrategy,
   inject,
@@ -9,6 +10,7 @@ import {
 } from '@angular/core';
 import { DeviceSourceComponent } from '../device-source/device-source';
 import { PreferencesService } from '../preferences.service';
+import { BatteryOptimizationService } from '../notifications/battery-optimization.service';
 
 @Component({
   selector: 'app-settings',
@@ -17,7 +19,15 @@ import { PreferencesService } from '../preferences.service';
   styleUrl: './settings.scss',
   imports: [DeviceSourceComponent],
 })
-export class SettingsComponent {
+export class SettingsComponent implements OnInit {
+  /** Android's background restriction — shown here because it decides whether reminders arrive. */
+  readonly battery = inject(BatteryOptimizationService);
+
+  ngOnInit(): void {
+    // Re-read on open: the exemption is granted in a system dialog, so the app never sees it change.
+    void this.battery.refresh();
+  }
+
   // Persisted preferences are read and written straight on PreferencesService — the host no longer
   // prop-drills them in. The template binds `prefs.<name>()` and writes `prefs.<name>.set(...)`.
   readonly prefs = inject(PreferencesService);

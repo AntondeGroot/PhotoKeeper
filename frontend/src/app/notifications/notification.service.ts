@@ -39,13 +39,31 @@ export class NotificationService {
    * shown, and two picks in a row (morning + evening) then get different messages.
    */
   pickAndRecord(stats: ReviewStats): RenderedNotification | null {
-    const history = this.loadHistory();
-    const picked = pickNotification(CATALOG, stats, history, this.rng);
-    if (!picked) return null;
-
-    history[picked.id] = stats.date.getTime();
-    this.saveHistory(history);
+    const picked = this.pick(stats);
+    if (picked) this.recordShown(picked.id, stats.date);
     return picked;
+  }
+
+  /**
+   * Picks without consuming. For a caller that is only choosing the *text* of something scheduled
+   * for later — the OS reminders — recording here would be a lie: the message has not been shown,
+   * it has been written onto an alarm that may never fire.
+   *
+   * Recording at pick time drained the catalog. The reminder plan is recomputed on every swipe and
+   * asks for two messages each time, so the three unconditional messages were spent within a couple
+   * of decisions; after that picking returned null, and a reminder with no text is not scheduled at
+   * all — {@link OsReminders.apply} cancels the slots first, so rescheduling actively withdrew the
+   * reminders instead of setting them.
+   */
+  pick(stats: ReviewStats): RenderedNotification | null {
+    return pickNotification(CATALOG, stats, this.loadHistory(), this.rng);
+  }
+
+  /** Marks a message as shown, starting its cooldown. Called when it is actually delivered. */
+  recordShown(id: string, when: Date): void {
+    const history = this.loadHistory();
+    history[id] = when.getTime();
+    this.saveHistory(history);
   }
 
   private loadHistory(): Record<string, number> {
