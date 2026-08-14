@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { BackgroundScanService } from './background-scan.service';
+import { BackgroundScanService, SCAN_BUFFER_TARGET } from './background-scan.service';
 import { CatalogScanService } from './catalog-scan.service';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { ReviewStore } from '../../storage/review/review-store';
@@ -46,11 +46,12 @@ describe('BackgroundScanService', () => {
     for (let i = 0; i < 30; i++) meta.set(`a${i}`, {} as AssetMeta); // 30 scanned
     verdicts.set('a0', {} as StoredVerdict); // 1 reviewed → 29 un-reviewed
     await service.run(authed);
-    expect(scanBudgets).toEqual([100 - 29]); // SCAN_BUFFER_TARGET − unreviewed
+    expect(scanBudgets).toEqual([SCAN_BUFFER_TARGET - 29]);
   });
 
   it('skips the scan when the buffer is already full (deficit ≤ 0)', async () => {
-    for (let i = 0; i < 120; i++) meta.set(`a${i}`, {} as AssetMeta); // 120 un-reviewed > target
+    const over = SCAN_BUFFER_TARGET + 20;
+    for (let i = 0; i < over; i++) meta.set(`a${i}`, {} as AssetMeta); // un-reviewed > target
     await service.run(authed);
     expect(scanBudgets).toEqual([]); // budget 0 → no scan
   });

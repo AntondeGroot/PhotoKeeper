@@ -5,9 +5,17 @@ import { ReviewBufferStore } from '../storage/review/review-buffer-store';
 import { ReviewStore } from '../storage/review/review-store';
 import { DailyUnitsService } from './selection/daily-units.service';
 import { PreviewCacheService } from './preview-cache.service';
+import { REVIEW_BUFFER_TARGET as TARGET } from './review-buffer-target';
 
-/** How many units to keep queued up. Metadata only, so the cost of holding them is trivial. */
-const TARGET = 200;
+/**
+ * How far the queue may fall before it is worth saying so — two batches' worth.
+ *
+ * Not one batch: taking a batch drops the queue by fifteen every time, and the refill that follows
+ * puts them straight back, so a tighter threshold would blink on and off through an ordinary
+ * session and mean nothing. Falling two batches behind means the refills are not keeping up, which
+ * is the thing worth seeing.
+ */
+const LOW_WATER = TARGET - 30;
 
 /**
  * A standing queue of review units that have not been seen, kept full in the background.
@@ -44,6 +52,19 @@ export class ReviewBufferService {
   /** Units waiting. Zero *after* a refill means the library is genuinely exhausted. */
   readonly available = computed(() => this.queue().length);
 
+  /** How full the queue is, as a percentage of {@link TARGET}. */
+  readonly fillPercent = computed(() => Math.round((this.queue().length / TARGET) * 100));
+
+  /**
+   * Whether to show the queue's state at all.
+   *
+   * Deliberately sticky: it turns on when the queue falls below {@link LOW_WATER} and turns off
+   * only once it is full again, rather than tracking the threshold in both directions. A flag that
+   * flipped at one level would sit there flickering while the queue hovered around it, and the
+   * useful question is not "is it low right now" but "has it recovered yet".
+   */
+  readonly low = signal(false);
+
   /** Assets whose previews have been fetched ahead — the warm front, which eviction must spare. */
   warmedIds(): string[] {
     return this.queue().slice(0, this.prefs.dailyGoal()).flatMap(unitAssetIds);
@@ -53,7 +74,9 @@ export class ReviewBufferService {
   private async hydrate(): Promise<void> {
     if (this.loaded) return;
     this.loaded = true;
-    this.queue.set(await this.store.get().catch(() => []));
+    const stored = await this.store.get().catch(() => []);
+    this.queue.set(stored);
+    this.updateLow(stored.length);
   }
 
   /**
@@ -103,6 +126,10 @@ export class ReviewBufferService {
       const held = new Set(this.queue().flatMap(unitAssetIds));
       const fresh = await this.sample(missing, new Set([...held, ...exclude]));
       if (fresh.length > 0) await this.persist([...this.queue(), ...fresh]);
+      // Coming back short means the library is out of unseen photos, not that the queue has fallen
+      // behind. There is nothing left to queue and nothing the user could do about it, so the
+      // indicator stands down rather than reporting a shortfall that will never close.
+      if (fresh.length < missing) this.low.set(false);
     }
     await this.warmFront();
   }
@@ -130,6 +157,12 @@ export class ReviewBufferService {
 
   private async persist(units: ReviewItem[]): Promise<void> {
     this.queue.set(units);
+    this.updateLow(units.length);
     await this.store.set(units);
+  }
+
+  private updateLow(size: number): void {
+    if (size >= TARGET) this.low.set(false);
+    else if (size <= LOW_WATER) this.low.set(true); // inclusive: exactly two batches behind counts
   }
 }
