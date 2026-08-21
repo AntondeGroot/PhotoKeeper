@@ -97,7 +97,7 @@ describe('App', () => {
       expect(requests.length).toBe(6); // current + PREFETCH_AHEAD (5)
       requests.forEach((r) => {
         expect(r.request.params.get('size')).toBe('2048');
-        r.flush(new Blob());
+        r.flush(new Blob(['img']));
       });
       await tick();
 
@@ -115,14 +115,14 @@ describe('App', () => {
       app.photosLoaded.set(true);
       fixture.detectChanges();
       await tick();
-      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob())); // p0..p5
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob(['img']))); // p0..p5
       await tick();
 
       // Advance one: p6 enters the window, p0 falls behind and is evicted.
       app.reviewIndex.set(1);
       fixture.detectChanges();
       await tick();
-      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob())); // just p6
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob(['img']))); // just p6
       await tick();
 
       // Returning to p0 refetches it (only it — p1..p5 are still cached).
@@ -132,7 +132,7 @@ describe('App', () => {
       const refetch = httpMock.match((r) => isRendition(r.url));
       expect(refetch.length).toBe(1);
       expect(refetch[0].request.url).toContain('p0');
-      refetch.forEach((r) => r.flush(new Blob()));
+      refetch.forEach((r) => r.flush(new Blob(['img'])));
       httpMock.verify();
     });
 
@@ -149,7 +149,7 @@ describe('App', () => {
       // current + 1 ahead = both photos.
       const initial = httpMock.match((r) => isRendition(r.url));
       expect(initial.length).toBe(2);
-      initial.forEach((r) => r.flush(new Blob()));
+      initial.forEach((r) => r.flush(new Blob(['img'])));
       await tick();
 
       // Advancing onto the already-cached p1 issues no new request.
@@ -184,7 +184,7 @@ describe('App', () => {
       // p0 is on disk → no fetch; p1 is not → fetched.
       const requests = httpMock.match((r) => isRendition(r.url));
       expect(requests.map((r) => r.request.url)).toEqual(['api/photos/p1/rendition']);
-      requests.forEach((r) => r.flush(new Blob()));
+      requests.forEach((r) => r.flush(new Blob(['img'])));
       await tick();
 
       // p0's cached blob is exposed as the current image with no network.
@@ -255,7 +255,7 @@ describe('App', () => {
       expect(app.reviewPhotos().find((p) => p.id === 'p2')?.status).toBe('backlog');
 
       // Drain any preview prefetch the load kicked off.
-      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob(['img'])));
       httpMock.verify();
     });
   });
@@ -304,7 +304,7 @@ describe('App', () => {
       await tick(); // let precomputeTomorrow run
 
       expect(httpMock.match((r) => r.url === 'api/feed')).toHaveLength(0);
-      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob(['img'])));
       httpMock.verify();
     });
 
@@ -335,7 +335,7 @@ describe('App', () => {
       httpMock.expectOne('api/albums').flush([]);
       await tick();
       httpMock.match((r) => r.url === 'api/feed').forEach((r) => r.flush({ resources: [] }));
-      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob(['img'])));
       httpMock.verify();
     });
   });
@@ -537,7 +537,7 @@ describe('App', () => {
 
       expect(app.reviewPhotos().map((p) => p.id)).toEqual(['p1', 'p2']);
 
-      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob(['img'])));
       httpMock.verify();
     });
 
@@ -571,7 +571,7 @@ describe('App', () => {
       expect(app.currentReviewPhoto().id).toBe('p3');
       expect(app.stats.doneToday()).toBe(2);
 
-      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob()));
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob(['img'])));
       httpMock.verify();
     });
   });
@@ -590,7 +590,7 @@ describe('App', () => {
       });
       TestBed.overrideProvider(PreviewStore, {
         useValue: {
-          get: (id: string) => Promise.resolve(id === 't1' ? new Blob() : undefined), // t1 warmed
+          get: (id: string) => Promise.resolve(id === 't1' ? new Blob(['img']) : undefined), // t1 warmed
           put: (id: string) => {
             puts.push(id);
             return Promise.resolve();
@@ -610,7 +610,7 @@ describe('App', () => {
 
       // Tomorrow already chosen → no feed sample; already warmed → no t1 refetch.
       httpMock.expectNone((r) => r.url === 'api/feed');
-      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob())); // only today's p1
+      httpMock.match((r) => isRendition(r.url)).forEach((r) => r.flush(new Blob(['img']))); // only today's p1
       await tick();
 
       expect(puts).not.toContain('t1');

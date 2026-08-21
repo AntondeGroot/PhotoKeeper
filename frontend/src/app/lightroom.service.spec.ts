@@ -187,7 +187,7 @@ describe('LightroomService', () => {
       expect(req.request.params.get('size')).toBe('2048');
       expect(req.request.responseType).toBe('blob');
       expect(req.request.headers.get('X-Auth-Token')).toBe('acc');
-      req.flush(new Blob());
+      req.flush(new Blob(['img']));
     });
   });
 

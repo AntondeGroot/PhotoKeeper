@@ -6,8 +6,10 @@
 <app-photo-card
   [photo]="photo"
   [imageUrl]="imageUrl"
+  [imageUrls]="imageUrls"
   (swiped)="swiped.emit($event)"
   (tapped)="tapped.emit()"
+  (compare)="compare.emit($event)"
 />
 <div class="action-buttons">
   <button (click)="swiped.emit('rejected')">✕</button>

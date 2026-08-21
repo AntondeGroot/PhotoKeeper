@@ -35,6 +35,37 @@ export interface AlbumUnits {
   stereoLeftSerial?: string;
 }
 
+/**
+ * Suffixes Lightroom appends when it writes an edit beside the original: `DSC_1878.NEF` gains a
+ * `DSC_1878-Enhanced-NR.dng`. Deliberately not `-Pano` or `-HDR` — those are merges of *several*
+ * originals, so neither one of them is "the same shot" the way a denoise or an edit is.
+ */
+const EDIT_SUFFIX = /-(Enhanced-NR|Enhanced|Edit)$/i;
+
+/**
+ * Maps each edit's asset id to the original it was derived from, matching on the filename stem.
+ *
+ * These pairs are why a photo could turn up duelling itself. An edit shares its original's capture
+ * time exactly, comes from the same camera, and is near-identical pixel-wise, so it satisfies every
+ * burst criterion and arrived as "which is better — A or B?" between a shot and its own denoise.
+ */
+function editPairs(assets: readonly PhotoAsset[]): Map<string, PhotoAsset> {
+  const byStem = new Map<string, PhotoAsset>();
+  for (const asset of assets) {
+    const { name } = splitAsset(asset);
+    if (!EDIT_SUFFIX.test(name)) byStem.set(name.toLowerCase(), asset);
+  }
+  const pairs = new Map<string, PhotoAsset>();
+  for (const asset of assets) {
+    const { name } = splitAsset(asset);
+    const stem = name.replace(EDIT_SUFFIX, '');
+    if (stem === name) continue; // not an edit
+    const original = byStem.get(stem.toLowerCase());
+    if (original) pairs.set(asset.id, original);
+  }
+  return pairs;
+}
+
 /** A vacation album is this many times more likely to be drawn than a normal album. */
 const VACATION_WEIGHT = 3;
 /** Soft cap per album in the spread pass, so the queue fans across albums before topping up. */
@@ -90,6 +121,7 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
   const byId = new Map(album.assets.map((a) => [a.id, a]));
   const grouped = new Set<string>();
   const units: ReviewItem[] = [];
+  const edits = editPairs(album.assets);
 
   for (const group of album.groups) {
     // Dedupe member ids: a stored group should never list an asset twice, but if one slips through
@@ -97,7 +129,11 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
     // keeps first-seen order. Also fixes already-stored groups with no re-scan.
     const members = [...new Set(group.memberIds)]
       .map((id) => byId.get(id))
-      .filter((a): a is PhotoAsset => a !== undefined);
+      .filter((a): a is PhotoAsset => a !== undefined)
+      // An edit never counts as a frame of a burst. A stored pair of exactly [original, edit] falls
+      // to one member and is dropped by the guard below, so it reaches the singles pass and becomes
+      // the edited unit instead — no re-scan needed to undo groups already detected.
+      .filter((a) => !edits.has(a.id));
     // A group whose members no longer all exist (≥2 needed) is no longer a group; its surviving
     // members fall through to singles below.
     if (members.length < 2) continue;
@@ -108,7 +144,15 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
   }
 
   for (const asset of album.assets) {
-    if (asset.subtype === 'image' && !grouped.has(asset.id)) {
+    if (asset.subtype !== 'image' || grouped.has(asset.id)) continue;
+    const original = edits.get(asset.id);
+    if (original && !grouped.has(original.id)) {
+      // An edit whose original is free: one unit covering the pair, shown as the edit.
+      units.push(toEditedPhoto(asset, original, album.albumName));
+    } else if (!hasLiveEdit(asset, album.assets, edits, grouped)) {
+      // Anything still standing on its own — a plain photo, an edit whose original was taken into a
+      // real burst, or an original whose edit was. Originals already covered by an edited unit are
+      // the only ones skipped.
       units.push(toPhoto(asset, album.albumName));
     }
   }
@@ -158,6 +202,25 @@ function toPhoto(asset: PhotoAsset, albumName: string | null): Photo {
     kind: 'photo',
     starred: false,
     keepsake: false,
+  };
+}
+
+/** True when this original has an edit that is still standing as its own edited unit. */
+function hasLiveEdit(
+  original: PhotoAsset,
+  assets: readonly PhotoAsset[],
+  edits: ReadonlyMap<string, PhotoAsset>,
+  grouped: ReadonlySet<string>,
+): boolean {
+  return assets.some((a) => edits.get(a.id)?.id === original.id && !grouped.has(a.id));
+}
+
+/** The edit as the unit to review, carrying the original along for comparison. */
+function toEditedPhoto(edit: PhotoAsset, original: PhotoAsset, albumName: string | null): Photo {
+  const from = splitAsset(original);
+  return {
+    ...toPhoto(edit, albumName),
+    edit: { originalId: original.id, originalName: from.name, originalExt: from.ext },
   };
 }
 

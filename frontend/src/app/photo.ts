@@ -16,7 +16,9 @@ export function isDevicePhoto(item: ReviewItem): boolean {
 export function unitAssetIds(item: ReviewItem): string[] {
   switch (item.kind) {
     case 'photo':
-      return [item.id];
+      // An edit and its original are one unit: both are warmed, both are excluded from later draws,
+      // and a verdict on the unit covers the pair — you sort the shot, not each file Lightroom wrote.
+      return item.edit ? [item.id, item.edit.originalId] : [item.id];
     case 'burst':
       return item.photos.map((p) => p.id);
     case 'pano':
@@ -106,6 +108,17 @@ export interface Photo {
   source?: 'lightroom' | 'device';
   // A generated SVG scene to draw when there's no real preview (mock device photos).
   scene?: PhotoScene;
+  // Set when this photo is a Lightroom edit written beside its original (e.g. an -Enhanced-NR DNG
+  // next to the NEF it came from). The unit shows the edit — that is the version worth keeping —
+  // and holds on to the original so the two can be compared before deciding.
+  edit?: EditedFrom;
+}
+
+/** The untouched file a Lightroom edit was derived from. */
+export interface EditedFrom {
+  originalId: string;
+  originalName: string; // without extension
+  originalExt?: string;
 }
 
 /** A local device folder the user can opt into reviewing, with a (mock) photo count. */

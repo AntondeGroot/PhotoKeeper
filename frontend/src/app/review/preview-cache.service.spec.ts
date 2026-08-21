@@ -87,4 +87,44 @@ describe('PreviewCacheService', () => {
     service.revokeAll();
     expect(service.url('a')).toBeNull();
   });
+
+  it('refuses to cache an empty body, so one bad fetch cannot blank a photo for good', async () => {
+    // Lightroom does not always have a rendition ready — RAW originals especially — and the proxy
+    // used to hand that back as a perfectly ordinary 200 carrying nothing.
+    TestBed.resetTestingModule();
+    let calls = 0;
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: PreviewStore,
+          useValue: {
+            get: (id: string) => Promise.resolve(durable.get(id)),
+            put: (id: string, _size: string, blob: Blob) => {
+              durable.set(id, blob);
+              return Promise.resolve();
+            },
+            evictExcept: () => Promise.resolve(),
+          },
+        },
+        {
+          provide: LightroomService,
+          useValue: {
+            getPhotoBlob: () => of(calls++ === 0 ? new Blob() : new Blob(['img'])),
+          },
+        },
+      ],
+    });
+    const svc = TestBed.inject(PreviewCacheService);
+
+    await svc.ensure('raw-1');
+    // Nothing kept, and the card is told the picture is missing rather than left silently blank.
+    expect(durable.has('raw-1')).toBe(false);
+    expect(svc.url('raw-1')).toBeNull();
+    expect(svc.unavailable('raw-1')).toBe(true);
+
+    // The decisive part: because nothing was stored, a later attempt still goes to the network and
+    // recovers. Caching the empty body made the failure permanent for that asset.
+    await svc.ensure('raw-1');
+    expect(svc.url('raw-1')).not.toBeNull();
+  });
 });

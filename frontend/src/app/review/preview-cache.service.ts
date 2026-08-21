@@ -35,6 +35,14 @@ export class PreviewCacheService {
   // Ids whose preview is mid-flight, so we never fire a duplicate request.
   private readonly inFlight = new Set<string>();
 
+  // Ids whose preview could not be fetched, so the card can say so instead of rendering blank.
+  private readonly failed = signal<ReadonlySet<string>>(new Set());
+
+  /** Whether this asset's preview was tried and failed, as opposed to simply not loaded yet. */
+  unavailable(assetId: string): boolean {
+    return this.failed().has(assetId);
+  }
+
   /** The cached preview URL for an asset, or null if it isn't loaded yet. Reactive (tracks the cache). */
   url(assetId: string): SafeUrl | null {
     return this.cache().get(assetId)?.safeUrl ?? null;
@@ -54,6 +62,9 @@ export class PreviewCacheService {
       let blob = await this.previewStore.get(assetId, PREVIEW_SIZE);
       if (!blob) {
         blob = await firstValueFrom(this.svc.getPhotoBlob(assetId, PREVIEW_SIZE));
+        // An empty body is not a picture. Storing one poisoned the cache permanently: every later
+        // read found "a preview", skipped the network, and handed the card zero bytes to draw.
+        if (blob.size === 0) throw new Error(`empty preview for ${assetId}`);
         await this.previewStore.put(assetId, PREVIEW_SIZE, blob);
       }
       const objectUrl = URL.createObjectURL(blob);
@@ -62,7 +73,10 @@ export class PreviewCacheService {
       const safeUrl = this.sanitizer.bypassSecurityTrustUrl(objectUrl);
       this.cache.update((cache) => new Map(cache).set(assetId, { objectUrl, safeUrl }));
     } catch {
-      // Leave the gradient placeholder if the preview can't be fetched.
+      // Leave the gradient placeholder if the preview can't be fetched, but remember that it failed
+      // — a card showing nothing at all, with nothing logged, is why a broken RAW rendition could sit
+      // there invisibly instead of reading as a missing picture.
+      this.failed.update((ids) => new Set(ids).add(assetId));
     } finally {
       this.inFlight.delete(assetId);
     }
@@ -73,6 +87,7 @@ export class PreviewCacheService {
     if (await this.previewStore.get(assetId, PREVIEW_SIZE)) return;
     try {
       const blob = await firstValueFrom(this.svc.getPhotoBlob(assetId, PREVIEW_SIZE));
+      if (blob.size === 0) return; // see ensure(): an empty body must never reach the store
       await this.previewStore.put(assetId, PREVIEW_SIZE, blob);
     } catch {
       // Best-effort; the live session will fetch it on demand.

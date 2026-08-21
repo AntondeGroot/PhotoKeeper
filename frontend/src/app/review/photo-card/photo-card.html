@@ -8,7 +8,25 @@
   [class.dragging]="dragging()"
 >
   <div class="photo-area">
-    @if (imageUrl) {
+    @if (photo.edit; as edit) {
+      <!-- One photo, shown as what Lightroom started with and what it produced. There is no "keep
+           A or B" here: both files are the same shot, so the swipe decides the pair. Tapping a half
+           enlarges it. -->
+      <div class="before-after">
+        <button class="ba-frame" (pointerdown)="$event.stopPropagation()" (click)="openFrame(0)">
+          @if (imageUrls.get(edit.originalId); as url) {
+            <img class="photo-img" [src]="url" alt="" draggable="false" />
+          }
+          <span class="ba-label">Before</span>
+        </button>
+        <button class="ba-frame" (pointerdown)="$event.stopPropagation()" (click)="openFrame(1)">
+          @if (imageUrl) {
+            <img class="photo-img" [src]="imageUrl" alt="" draggable="false" />
+          }
+          <span class="ba-label">After</span>
+        </button>
+      </div>
+    } @else if (imageUrl) {
       <img class="photo-img" [src]="imageUrl" alt="" draggable="false" />
     } @else if (photo.scene; as scene) {
       <app-scene [scene]="scene" />

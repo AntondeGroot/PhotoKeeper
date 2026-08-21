@@ -87,6 +87,11 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 1;
+  /* Flex since the edited badge can sit beside the album chip; harmless with just the one. */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 
   .chip {
     background: rgba(19, 17, 16, 0.6);
@@ -134,4 +139,43 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* A photo and Lightroom's edit of it, split down the middle. Both halves are the same shot, so this
+   is not a choice between them — the card still swipes as one. A hairline is all that separates the
+   two: a heavier divider would read as two photos rather than one before and after. */
+.before-after {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.ba-frame {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+
+  & + & {
+    border-left: 1px solid rgba(236, 229, 218, 0.18);
+  }
+}
+
+.ba-label {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--c-text);
+  background: rgba(19, 17, 16, 0.6);
+  backdrop-filter: blur(4px);
+  border-radius: 999px;
+  padding: 2px 8px;
+  pointer-events: none;
 }
