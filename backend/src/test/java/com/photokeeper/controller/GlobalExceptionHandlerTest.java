@@ -2,6 +2,7 @@ package com.photokeeper.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.photokeeper.service.RefreshTokenRejectedException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,17 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isEqualTo(Map.of("error", "ResponseStatusException"));
+    }
+
+    @Test
+    void rejectedRefreshTokenMapsToUnauthorisedRatherThanBadGateway() {
+        // The device only lets go of a session on a 401. Reaching it as the 502 that every other
+        // upstream problem gets would leave a dead session retrying forever, never prompting.
+        ResponseEntity<?> response =
+                handler.handleRefreshRejected(new RefreshTokenRejectedException("spent"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).isEqualTo(Map.of("error", "Refresh token rejected"));
     }
 
     @Test

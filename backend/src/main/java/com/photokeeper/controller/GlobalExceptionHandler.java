@@ -1,5 +1,6 @@
 package com.photokeeper.controller;
 
+import com.photokeeper.service.RefreshTokenRejectedException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleResponseStatus(ResponseStatusException e) {
         String reason = e.getReason() != null ? e.getReason() : e.getClass().getSimpleName();
         return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", reason));
+    }
+
+    @ExceptionHandler(RefreshTokenRejectedException.class)
+    public ResponseEntity<Map<String, String>> handleRefreshRejected(RefreshTokenRejectedException e) {
+        log.info("Refresh token rejected by Adobe: {}", e.getMessage());
+        // 401 and nothing else. The device treats a refresh failure as final only when it arrives
+        // as an auth failure, so mapping this to the 502 that every other upstream problem gets
+        // would leave a genuinely dead session retrying forever with no prompt to sign in again.
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "Refresh token rejected"));
     }
 
     @ExceptionHandler(RestClientResponseException.class)

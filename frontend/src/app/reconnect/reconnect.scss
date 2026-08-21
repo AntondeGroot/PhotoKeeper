@@ -1,0 +1,88 @@
+.reconnect-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 24px;
+}
+
+.reconnect-card {
+  text-align: center;
+  width: 100%;
+  max-width: 410px;
+}
+
+.logo-mark {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--c-amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 32px;
+  color: #131110;
+  margin: 0 auto 20px;
+}
+
+h1 {
+  font-family: var(--font-head);
+  font-style: italic;
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--c-text);
+  margin-bottom: 18px;
+}
+
+.lead {
+  color: var(--c-text);
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.detail {
+  color: var(--c-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 26px;
+}
+
+.btn-connect {
+  display: block;
+  width: 100%;
+  padding: 14px 28px;
+  border-radius: 10px;
+  background: var(--c-amber);
+  color: #131110;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.9;
+  }
+}
+
+.btn-later {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-dim);
+  font-family: var(--font-body);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+
+  &:hover {
+    color: var(--c-text);
+    border-color: var(--c-dim);
+  }
+}

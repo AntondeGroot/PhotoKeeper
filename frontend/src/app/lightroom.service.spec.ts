@@ -6,6 +6,7 @@ import { isAuthFailure, LightroomService, loginHrefUnder } from './lightroom.ser
 const ACCESS_KEY = 'lr-access-token';
 const REFRESH_KEY = 'lr-refresh-token';
 const CATALOG_KEY = 'lr-catalog-id';
+const HAD_SESSION_KEY = 'lr-had-session';
 
 describe('LightroomService', () => {
   let service: LightroomService;
@@ -48,6 +49,53 @@ describe('LightroomService', () => {
       expect(localStorage.getItem(ACCESS_KEY)).toBeNull();
       expect(localStorage.getItem(REFRESH_KEY)).toBeNull();
       expect(localStorage.getItem(CATALOG_KEY)).toBeNull();
+    });
+  });
+
+  describe('losing and forgetting a session', () => {
+    it('remembers that this device has connected, so a returning user is told apart from a new one', () => {
+      expect(service.hadSession()).toBe(false);
+
+      service.setTokens('acc', 'ref');
+
+      expect(service.hadSession()).toBe(true);
+    });
+
+    it('raises sessionLost when a session that existed is dropped', () => {
+      service.setTokens('acc', 'ref');
+
+      service.loseSession();
+
+      expect(service.sessionLost()).toBe(true);
+      expect(service.getAccessToken()).toBeNull();
+      // Kept: it is what tells the app to offer "connect again" rather than first-run onboarding.
+      expect(localStorage.getItem(HAD_SESSION_KEY)).not.toBeNull();
+    });
+
+    it('stays quiet for a device that never connected Lightroom', () => {
+      service.loseSession();
+
+      // Nothing expired, so nothing to announce — a device-only user is not shown a sign-in prompt.
+      expect(service.sessionLost()).toBe(false);
+    });
+
+    it('forgetting the session leaves nothing to prompt about', () => {
+      service.setTokens('acc', 'ref');
+      service.loseSession();
+
+      service.forgetSession(); // Settings → Disconnect
+
+      expect(service.sessionLost()).toBe(false);
+      expect(service.hadSession()).toBe(false);
+    });
+
+    it('signing back in stands the prompt down', () => {
+      service.setTokens('acc', 'ref');
+      service.loseSession();
+
+      service.setTokens('acc-2', 'ref-2');
+
+      expect(service.sessionLost()).toBe(false);
     });
   });
 

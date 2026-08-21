@@ -29,6 +29,12 @@
       (folderToggled)="toggleDeviceFolder($event)"
       (continued)="completeOnboarding()"
     />
+  } @else if (reconnect.showing()) {
+    <app-reconnect
+      [loginHref]="loginHref"
+      [hasDeviceSource]="deviceReady()"
+      (dismissed)="reconnect.dismiss()"
+    />
   } @else {
     <div class="keeper-shell">
       <header class="keeper-header">

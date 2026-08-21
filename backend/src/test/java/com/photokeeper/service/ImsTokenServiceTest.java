@@ -104,6 +104,40 @@ class ImsTokenServiceTest {
     }
 
     @Test
+    void refreshAccessTokenReportsRejectionWhenAdobeAnswers4xx() {
+        // The device gives up a session on this and nothing else, so it must be its own signal
+        // rather than the generic upstream failure that a momentary IMS outage produces.
+        server.expect(requestTo(IMS_TOKEN_URL))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"error\":\"invalid_grant\"}"));
+
+        assertThatThrownBy(() -> service.refreshAccessToken("spent-ref"))
+                .isInstanceOf(RefreshTokenRejectedException.class);
+    }
+
+    @Test
+    void refreshAccessTokenReportsRejectionWhenAdobeAnswers200WithoutAToken() {
+        // IMS also declines by returning an error body under a 200. Same verdict, different clothes.
+        server.expect(requestTo(IMS_TOKEN_URL))
+                .andRespond(withSuccess("{\"error\":\"invalid_grant\"}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.refreshAccessToken("spent-ref"))
+                .isInstanceOf(RefreshTokenRejectedException.class);
+    }
+
+    @Test
+    void refreshAccessTokenLeavesAnImsOutageAsATransientFailure() {
+        // IMS being down says nothing about the token. Reported as a rejection it would cost the
+        // user a session that signing in again was never needed to restore.
+        server.expect(requestTo(IMS_TOKEN_URL))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThatThrownBy(() -> service.refreshAccessToken("good-ref"))
+                .isNotInstanceOf(RefreshTokenRejectedException.class);
+    }
+
+    @Test
     void refreshAccessTokenCarriesOverRefreshTokenWhenNotRotated() {
         server.expect(requestTo(IMS_TOKEN_URL))
                 .andRespond(withSuccess("{\"access_token\":\"new-acc\"}", MediaType.APPLICATION_JSON));

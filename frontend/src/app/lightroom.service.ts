@@ -1,4 +1,4 @@
-import { Injectable, inject, isDevMode } from '@angular/core';
+import { Injectable, inject, isDevMode, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, map, tap } from 'rxjs';
 import { PhotoAsset } from './lightroom-types';
@@ -6,6 +6,10 @@ import { PhotoAsset } from './lightroom-types';
 const ACCESS_KEY = 'lr-access-token';
 const REFRESH_KEY = 'lr-refresh-token';
 const CATALOG_KEY = 'lr-catalog-id';
+// Survives the tokens on purpose: it is how a returning user is told apart from a first-run one, so
+// the app knows to offer "connect again" rather than silently behaving as if Lightroom was never set
+// up. Only an explicit Disconnect removes it.
+const HAD_SESSION_KEY = 'lr-had-session';
 
 // Under `ng serve` the page is on the dev-server port while the backend is on 8080. The proxy cannot
 // help here: OAuth login is a full-page navigation, and Adobe sends the browser back to the origin
@@ -63,6 +67,23 @@ export function isAuthFailure(err: unknown): boolean {
 export class LightroomService {
   private readonly http = inject(HttpClient);
 
+  /**
+   * A Lightroom session the user had is gone, and only signing in to Adobe again brings it back.
+   *
+   * Raised rather than acted on here, because losing a session is a thing the whole app has to
+   * notice: it used to be a quiet `localStorage` delete inside an HTTP interceptor, which left the
+   * UI showing a connected Lightroom that answered nothing.
+   */
+  readonly sessionLost = signal(false);
+
+  /**
+   * A verified, working Lightroom session — the token has been proved against the catalog, not just
+   * found in storage. The one answer to "does Lightroom answer right now", so that a session ending
+   * anywhere (boot, an interceptor mid-swipe, Settings → Disconnect) stops the whole app talking to
+   * it. It used to be the host component's own flag, which an interceptor had no way to lower.
+   */
+  readonly connected = signal(false);
+
   loginHref(): string {
     return loginHrefUnder(backendBaseUri(), navigator.userAgent);
   }
@@ -71,6 +92,51 @@ export class LightroomService {
   setTokens(accessToken: string, refreshToken: string): void {
     localStorage.setItem(ACCESS_KEY, accessToken);
     localStorage.setItem(REFRESH_KEY, refreshToken);
+    localStorage.setItem(HAD_SESSION_KEY, 'true');
+    this.sessionLost.set(false);
+  }
+
+  /** Whether this device has ever held a Lightroom session, tokens or no tokens. */
+  hadSession(): boolean {
+    return localStorage.getItem(HAD_SESSION_KEY) !== null;
+  }
+
+  /**
+   * At startup: whether there is a session to work with, noticing a lost one on the way.
+   *
+   * `sessionLost` lives in memory and cannot survive a restart, so a session dropped in an earlier
+   * run leaves nothing behind but the absence of tokens next to a device that has connected before.
+   * Boot is the only place that reads as "lost", and without this the prompt would be shown only to
+   * whoever happened to still have the app open when it happened.
+   */
+  resumeSession(): boolean {
+    if (this.getAccessToken()) return true;
+    if (this.hadSession()) this.loseSession();
+    return false;
+  }
+
+  /**
+   * Drops a session that cannot be recovered and asks the app to prompt for sign-in.
+   *
+   * The prompt is owed only to someone who had a session to lose; a user who never connected
+   * Lightroom is not told that something has expired.
+   */
+  loseSession(): void {
+    const hadSession = this.hadSession();
+    this.clearTokens();
+    this.connected.set(false);
+    this.sessionLost.set(hadSession);
+  }
+
+  /**
+   * Forgets Lightroom entirely — Settings → Disconnect. Deliberately not {@link loseSession}: the
+   * user chose this, so there is nothing to warn them about and nothing to prompt them to restore.
+   */
+  forgetSession(): void {
+    this.clearTokens();
+    localStorage.removeItem(HAD_SESSION_KEY);
+    this.connected.set(false);
+    this.sessionLost.set(false);
   }
 
   getAccessToken(): string | null {
