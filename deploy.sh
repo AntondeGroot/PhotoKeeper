@@ -130,6 +130,10 @@ ExecStart=/usr/bin/java -jar /opt/photokeeper/%i/photokeeper.jar \\
   --server.port=\${PORT}
 Restart=on-failure
 RestartSec=5
+# A drained instance is stopped with SIGTERM, and Spring exits 143 after shutting down cleanly.
+# Without this systemd files that under 'failed', so a textbook blue/green handover leaves the
+# retired colour looking like it crashed.
+SuccessExitStatus=143
 
 [Install]
 WantedBy=multi-user.target

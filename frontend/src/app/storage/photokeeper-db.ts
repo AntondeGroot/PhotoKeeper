@@ -122,6 +122,28 @@ export interface PhotoKeeperSchema extends DBSchema {
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
+/**
+ * Derived data that a code change invalidated, and the version that did it. On upgrade every entry
+ * newer than the DB gets cleared, so each one only has to answer "what did this change make wrong?"
+ *
+ * Only ever caches and derived state — never anything the user produced. Verdicts, tags and print
+ * state are absent by design: those are the record of somebody's work and are not rebuildable.
+ */
+const STALE_AT: readonly (readonly [number, readonly StaleStore[]])[] = [
+  // v10: the aspect gate joined detection, so every album has to be looked at again.
+  [10, ['albumManifest']],
+  // v15–v17 reworked the perceptual hash (colour, then dead-banded colour, then luma), so stored
+  // hashes no longer mean what the detectors think they mean.
+  [17, ['assetHash', 'albumManifest']],
+  // v21: review units are built once and then kept — a couple of hundred queued, plus the day's
+  // deck. Both were assembled before edits were folded into the originals they came from, so
+  // without this the change stays invisible until every unit built under the old rules is worked
+  // through. The queue simply rebuilds itself.
+  [21, ['reviewBuffer', 'dailyFeed']],
+];
+
+type StaleStore = 'albumManifest' | 'assetHash' | 'reviewBuffer' | 'dailyFeed';
+
 @Injectable({ providedIn: 'root' })
 export class PhotoKeeperDb {
   private dbPromise: Promise<IDBPDatabase<PhotoKeeperSchema>> | null = null;
@@ -134,9 +156,11 @@ export class PhotoKeeperDb {
     // per-photo assignments); v14 added 'albumPrint' (the Prints tab's per-album fulfilment state).
     // v18 added 'celebrationLog' (which celebration images have been shown, and when); v19
     // added 'celebrationCurrent' (the pick standing for the current session, so a restart shows
-    // the same picture). v20 added 'reviewBuffer' (units selected ahead of being needed).
+    // the same picture). v20 added 'reviewBuffer' (units selected ahead of being needed). v21 clears
+    // the queued units + stored decks, which were assembled before edits were folded into their
+    // originals.
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 20, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 21, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -169,15 +193,11 @@ export class PhotoKeeperDb {
             db.createObjectStore(store);
           }
         }
-        if (oldVersion < 10 && db.objectStoreNames.contains('albumManifest')) {
-          void tx.objectStore('albumManifest').clear();
-        }
-        // The perceptual hash changed across v15–v17 (added colour, then dead-banded colour, then luma),
-        // so any stored hash is stale — drop it and reset the change-gate to force a clean re-hash.
-        if (oldVersion < 17) {
-          if (db.objectStoreNames.contains('assetHash')) void tx.objectStore('assetHash').clear();
-          if (db.objectStoreNames.contains('albumManifest')) {
-            void tx.objectStore('albumManifest').clear();
+
+        for (const [version, stores] of STALE_AT) {
+          if (oldVersion >= version) continue;
+          for (const store of stores) {
+            if (db.objectStoreNames.contains(store)) void tx.objectStore(store).clear();
           }
         }
       },

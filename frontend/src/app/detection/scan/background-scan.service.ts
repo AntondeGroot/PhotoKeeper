@@ -2,21 +2,17 @@ import { Injectable, inject } from '@angular/core';
 import { CatalogScanService } from './catalog-scan.service';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { ReviewStore } from '../../storage/review/review-store';
+import { ReviewBufferService } from '../../review/review-buffer.service';
 import { REVIEW_BUFFER_TARGET } from '../../review/review-buffer-target';
 
 /**
- * Target size of the "scanned but not yet reviewed" buffer the background detection pass maintains.
+ * Ceiling on how far ahead the scan will work, however badly the catalog groups.
  *
- * Derived from the review queue's target rather than chosen separately: this scan is the *only*
- * source the review buffer draws from, so anything smaller is a ceiling the queue can never get
- * past. The two were once independent numbers — 100 here against 200 there — which left the queue
- * permanently half-full at best and its indicator permanently lit.
- *
- * The half again on top covers the difference in what the two count. This target counts *images*;
- * the review queue counts *units*, and a burst or a panorama is many images arriving as one unit.
- * A catalog with plenty of groups in it therefore yields well under one unit per image scanned.
+ * The target below is measured from the catalog rather than assumed, and a measurement can be wrong
+ * — early on, or in an album that is one long burst. This is what stops a bad estimate turning into
+ * unbounded hashing on a phone.
  */
-export const SCAN_BUFFER_TARGET = Math.round(REVIEW_BUFFER_TARGET * 1.5);
+const MAX_SCAN_TARGET = REVIEW_BUFFER_TARGET * 4;
 
 /** Debounce before a review-triggered refill, so a flurry of swipes coalesces into one pass. */
 const SCAN_REFILL_DEBOUNCE_MS = 4000;
@@ -32,6 +28,7 @@ export class BackgroundScanService {
   private readonly catalogScan = inject(CatalogScanService);
   private readonly meta = inject(AssetMetaStore);
   private readonly reviewStore = inject(ReviewStore);
+  private readonly buffer = inject(ReviewBufferService);
 
   private timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -70,6 +67,28 @@ export class BackgroundScanService {
     for (const id of metaById.keys()) {
       if (!verdicts.has(id)) unreviewed++;
     }
-    return Math.max(0, SCAN_BUFFER_TARGET - unreviewed);
+    return Math.max(0, this.scanTarget(unreviewed) - unreviewed);
+  }
+
+  /**
+   * How many unreviewed images to keep on the device, measured from what this catalog actually
+   * yields rather than assumed.
+   *
+   * This scan counts *images* while the review queue counts *units*, and a burst, a panorama, or a
+   * Lightroom edit sitting beside its original all arrive as one unit made of several images. The
+   * ratio between the two is a property of somebody's photos, not a constant: a guessed multiplier
+   * left a catalog that groups heavily stuck at 45% of a queue it could never fill.
+   *
+   * So it is divided out of the two numbers already known — unreviewed images against units the
+   * queue managed to build from them — and converges in a pass or two: scanning more raises both
+   * counts, the ratio holds, and the target settles where the queue comes out full.
+   */
+  private scanTarget(unreviewed: number): number {
+    const units = this.buffer.available();
+    // Before the queue has built anything there is nothing to measure, so assume the plain case of
+    // one image per unit; the next pass measures for real.
+    const imagesPerUnit = units > 0 ? unreviewed / units : 1;
+    const wanted = Math.round(REVIEW_BUFFER_TARGET * imagesPerUnit);
+    return Math.min(MAX_SCAN_TARGET, Math.max(REVIEW_BUFFER_TARGET, wanted));
   }
 }

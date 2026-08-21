@@ -96,6 +96,14 @@ public class PhotoController {
         MediaType contentType = upstream.getHeaders().getContentType();
         headers.setContentType(contentType != null ? contentType : MediaType.IMAGE_JPEG);
 
-        return new ResponseEntity<>(upstream.getBody(), headers, HttpStatus.OK);
+        // Pass the upstream status through rather than stamping 200 on everything. Lightroom does
+        // not always have a rendition ready for an asset — RAW originals especially — and answering
+        // "200, zero bytes" told the client it had a picture when it had nothing, which it then
+        // cached. A non-2xx, or a 2xx with an empty body, has to reach the caller as a failure.
+        byte[] body = upstream.getBody();
+        if (!upstream.getStatusCode().is2xxSuccessful() || body == null || body.length == 0) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return new ResponseEntity<>(body, headers, upstream.getStatusCode());
     }
 }

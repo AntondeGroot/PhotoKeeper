@@ -403,4 +403,43 @@ describe('selectUnits', () => {
     expect(units).toHaveLength(3);
     expect(new Set(units.flatMap(idsOf)).size).toBe(3);
   });
+
+  it('collapses a Lightroom edit and its original into one unit, shown as the edit', () => {
+    // The exact pair that arrived as "which is better — A or B?": a RAW original and the denoised
+    // DNG Lightroom wrote beside it. Same capture instant, same camera, near-identical pixels — so
+    // burst detection had grouped them and asked which of a photo and its own denoise was better.
+    const named = (id: string, fileName: string): PhotoAsset => ({
+      id,
+      subtype: 'image',
+      payload: { captureDate: '2026-05-01T10:00:00Z', importSource: { fileName } },
+    });
+    const albums: AlbumUnits[] = [
+      {
+        albumId: 'al-1',
+        albumName: 'Trip',
+        isVacation: false,
+        assets: [named('raw', 'DSC_1878.NEF'), named('nr', 'DSC_1878-Enhanced-NR.dng')],
+        // Already stored as a burst, as it would be on a device that has scanned before: the
+        // collapse has to undo that without waiting for a re-scan.
+        groups: [{ type: 'burst', sourceAlbumId: 'al-1', memberIds: ['raw', 'nr'] }],
+      },
+    ];
+
+    const units = selectUnits(albums, 10, () => 0);
+
+    // One unit, not a duel and not two singles.
+    expect(units.length).toBe(1);
+    const [unit] = units;
+    expect(unit.kind).toBe('photo');
+
+    // It is the *edit* that is shown — that is the version worth keeping — and it knows where it
+    // came from, so the two can be compared before deciding.
+    expect(unit.id).toBe('nr');
+    expect(unit.kind === 'photo' && unit.edit?.originalId).toBe('raw');
+    expect(unit.kind === 'photo' && unit.edit?.originalName).toBe('DSC_1878');
+
+    // Both files belong to the unit, so one verdict covers the pair and the original can never come
+    // back around on its own.
+    expect(unitAssetIds(unit).sort((a, b) => a.localeCompare(b))).toEqual(['nr', 'raw']);
+  });
 });

@@ -21,8 +21,22 @@ import { SceneComponent } from '../scene/scene';
 export class PhotoCardComponent {
   @Input() photo!: Photo;
   @Input() imageUrl: SafeUrl | null = null;
+  /** Frame-id → preview, so an edited photo can show the original beside it (same map the group cards get). */
+  @Input() imageUrls = new Map<string, SafeUrl>();
   @Output() swiped = new EventEmitter<'kept' | 'rejected' | 'toEdit' | 'maybe'>();
   @Output() tapped = new EventEmitter<void>();
+  /**
+   * Open the original and the edit side by side. Same payload shape the burst card emits, so it
+   * binds to the same handler and reuses the comparer you already know from bursts.
+   */
+  @Output() compare = new EventEmitter<{ ids: string[]; start: number }>();
+
+  /** Enlarges one half of a before/after pair, opening on the frame that was tapped. */
+  openFrame(index: number): void {
+    if (this.photo.edit) {
+      this.compare.emit({ ids: [this.photo.edit.originalId, this.photo.id], start: index });
+    }
+  }
   private startX = 0;
   private startY = 0;
 

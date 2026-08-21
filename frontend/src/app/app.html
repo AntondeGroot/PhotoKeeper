@@ -159,10 +159,12 @@
                   <app-review-sort
                     [photo]="$any(currentReviewPhoto())"
                     [imageUrl]="currentReviewPhotoUrl()"
+                    [imageUrls]="currentUnitImageUrls()"
                     (swiped)="decide($event)"
                     (starToggle)="toggleStar()"
                     (keepsakeToggle)="toggleKeepsake()"
                     (tapped)="openPhotoFullscreen()"
+                    (compare)="openBurstCompare($event)"
                   />
                 }
                 @case ('burst') {
