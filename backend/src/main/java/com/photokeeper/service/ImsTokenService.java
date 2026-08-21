@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -51,6 +52,10 @@ public class ImsTokenService {
     /**
      * Exchanges a refresh token for a fresh access token. Adobe may rotate the refresh token; if it
      * doesn't return a new one, the caller's existing refresh token is carried over.
+     *
+     * A 4xx from IMS is Adobe judging the token and finding it wanting, and is reported as such —
+     * everything else (IMS down, a timeout, a connection reset) is left to surface as the transient
+     * failure it is, because the device decides whether to keep its credentials on that distinction.
      */
     public TokenResponse refreshAccessToken(String refreshToken) {
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
@@ -59,10 +64,21 @@ public class ImsTokenService {
         body.add("client_secret", config.getClientSecret());
         body.add("refresh_token", refreshToken);
 
-        Map<String, Object> response = postToken(body);
+        Map<String, Object> response;
+        try {
+            response = postToken(body);
+        } catch (HttpClientErrorException e) {
+            throw new RefreshTokenRejectedException(
+                    "Adobe rejected the refresh token: " + e.getResponseBodyAsString(), e);
+        }
+        if (!(response.get("access_token") instanceof String accessToken)) {
+            // A 200 carrying `{"error":"invalid_grant"}` is the same verdict as a 4xx, differently
+            // dressed. IMS answers both ways, and either means this token is spent for good.
+            throw new RefreshTokenRejectedException("Adobe returned no access token for the refresh");
+        }
         String newRefresh =
                 response.get("refresh_token") instanceof String s ? s : refreshToken;
-        return new TokenResponse(accessTokenOf(response), newRefresh, expiresInOf(response));
+        return new TokenResponse(accessToken, newRefresh, expiresInOf(response));
     }
 
     private Map<String, Object> postToken(MultiValueMap<String, String> body) {

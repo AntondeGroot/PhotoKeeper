@@ -35,6 +35,8 @@ import { DetectionLabComponent } from './detection/lab/detection-lab/detection-l
 import { FullscreenViewerComponent } from './review/fullscreen-viewer/fullscreen-viewer';
 import { SplashComponent, SplashState } from './splash/splash';
 import { OnboardingComponent } from './onboarding/onboarding';
+import { ReconnectComponent } from './reconnect/reconnect';
+import { ReconnectPromptService } from './reconnect/reconnect-prompt.service';
 import { HeadsUpComponent } from './notifications/heads-up/heads-up';
 import { AlbumSetupNoticeComponent } from './notifications/album-setup-notice/album-setup-notice';
 import { TagManagerComponent } from './tagging/tag-manager/tag-manager';
@@ -70,6 +72,7 @@ const SPLASH_MIN_MS = 1800;
     FullscreenViewerComponent,
     SplashComponent,
     OnboardingComponent,
+    ReconnectComponent,
     HeadsUpComponent,
     AlbumSetupNoticeComponent,
     TagManagerComponent,
@@ -119,7 +122,11 @@ export class AppComponent implements OnInit, OnDestroy {
   // for now; 'offline'/'update'/'forced' are built out but await their triggers (no version endpoint
   // yet, and an offline mode that keeps a valid session needs its own auth-flow change).
   splashState = signal<SplashState>('normal');
-  authenticated = signal(false);
+  // Owned by LightroomService so that whatever ends a session — boot, an interceptor mid-swipe, a
+  // disconnect from Settings — lowers this by the same act, and the app stops calling Lightroom.
+  readonly authenticated = this.svc.connected;
+  // public: the template swaps the whole shell for the reconnect screen while this is showing.
+  readonly reconnect = inject(ReconnectPromptService);
   // True while a Lightroom token is being verified (after the OAuth redirect) — drives the golden
   // spinner on the onboarding connect button.
   connecting = signal(false);
@@ -280,9 +287,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Validates the stored Lightroom token (showing the connect spinner meanwhile) and, on success,
   // loads the review session. Returns true only when it has fully taken over the screen (lab mode),
-  // signalling init to stop. A missing token or a failure leaves the user on onboarding.
+  // signalling init to stop. A failure leaves the user on onboarding, or — if this device had a
+  // session that is now gone — on the reconnect screen asking them to sign in to Adobe again.
   private async verifyAndLoadSession(returningFromLogin: boolean): Promise<boolean> {
-    if (!this.svc.getAccessToken()) return false;
+    if (!this.svc.resumeSession()) return false;
     this.connecting.set(true); // golden spinner on the onboarding connect button until this resolves
     try {
       // Fetching the catalog id both caches it and validates the token (refreshing if expired).
@@ -318,8 +326,7 @@ export class AppComponent implements OnInit, OnDestroy {
       this.error.set('Could not reach Lightroom — check your connection and try again.');
       return;
     }
-    this.svc.clearTokens();
-    this.authenticated.set(false);
+    this.svc.loseSession();
     if (returningFromLogin) this.error.set('Could not connect to Lightroom — please try again.');
   }
 
@@ -557,8 +564,7 @@ export class AppComponent implements OnInit, OnDestroy {
     } catch {
       /* ignore — disconnect locally regardless of the backend call */
     }
-    this.svc.clearTokens();
-    this.authenticated.set(false);
+    this.svc.forgetSession();
     this.connecting.set(false);
     this.photosLoaded.set(false);
     this.previews.revokeAll();

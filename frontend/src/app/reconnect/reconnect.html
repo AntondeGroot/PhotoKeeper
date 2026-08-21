@@ -1,0 +1,22 @@
+<div class="reconnect-screen">
+  <div class="reconnect-card">
+    <div class="logo-mark">PK</div>
+    <h1>keeper</h1>
+
+    <p class="lead">Your Lightroom connection has expired.</p>
+    <p class="detail">
+      Adobe signs you out after a while. Connect again to pick up where you left off — your sorting,
+      tags and streak are kept on this device.
+    </p>
+
+    <a [attr.href]="loginHref" class="btn-connect">Connect to Lightroom</a>
+
+    <button class="btn-later" (click)="dismissed.emit()" type="button">
+      @if (hasDeviceSource) {
+        Continue with this device's photos
+      } @else {
+        Continue without Lightroom
+      }
+    </button>
+  </div>
+</div>

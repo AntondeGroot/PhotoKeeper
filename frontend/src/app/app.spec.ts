@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AppComponent as App } from './app';
+import { LightroomService } from './lightroom.service';
 import { Photo, ReviewItem } from './photo';
 import { ReviewStore } from './storage/review/review-store';
 import { PreviewStore } from './storage/review/preview-store';
@@ -80,6 +81,80 @@ describe('App', () => {
   it('should create the app', () => {
     const fixture = TestBed.createComponent(App);
     expect(fixture.componentInstance).toBeTruthy();
+  });
+
+  describe('a lost Lightroom session', () => {
+    // The bug these cover: the session died, the app went on looking connected, and the only way
+    // back in was a Connect button on a Settings screen the user had no reason to open.
+    // An onboarded boot with no Lightroom session falls through to the device deck, which reads
+    // verdicts from IndexedDB — absent in this environment, so it is stubbed away.
+    function stubReviewStore(): void {
+      TestBed.overrideProvider(ReviewStore, {
+        useValue: {
+          setVerdict: () => Promise.resolve(),
+          getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
+          getDailyFeed: () => Promise.resolve(undefined),
+          setDailyFeed: () => Promise.resolve(),
+          pruneDailyFeedExcept: () => Promise.resolve(),
+        },
+      });
+    }
+
+    function bootOnboarded(): { app: App } {
+      localStorage.setItem('onboarded', 'true');
+      stubReviewStore();
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges(); // ngOnInit → init()
+      return { app: fixture.componentInstance };
+    }
+
+    it('asks a returning user to sign in again when the tokens are gone', () => {
+      localStorage.setItem('lr-had-session', 'true'); // connected before, tokens since lost
+
+      const { app } = bootOnboarded();
+
+      expect(app.reconnect.showing()).toBe(true);
+      expect(app.authenticated()).toBe(false);
+    });
+
+    it('leaves a device-only user alone — they never had a session to lose', () => {
+      const { app } = bootOnboarded();
+
+      expect(app.reconnect.showing()).toBe(false);
+    });
+
+    it('stops treating Lightroom as available the moment a session is lost mid-session', async () => {
+      localStorage.setItem('lr-access-token', 'acc');
+      localStorage.setItem('lr-refresh-token', 'ref');
+      localStorage.setItem('lr-had-session', 'true');
+      stubReviewStore();
+      const fixture = TestBed.createComponent(App);
+      const httpMock = TestBed.inject(HttpTestingController);
+      const app = fixture.componentInstance;
+      fixture.detectChanges();
+      httpMock.expectOne('api/catalog').flush({ id: 'cat-1' });
+      await tick();
+      expect(app.authenticated()).toBe(true);
+
+      // What the interceptor does when Adobe rejects the refresh token partway through a swipe.
+      TestBed.inject(LightroomService).loseSession();
+      fixture.detectChanges();
+
+      expect(app.authenticated()).toBe(false);
+      expect(app.reconnect.showing()).toBe(true);
+      httpMock.match(() => true).forEach((r) => r.flush({}));
+    });
+
+    it('lets the user carry on without reconnecting, for this run', () => {
+      localStorage.setItem('lr-had-session', 'true');
+      const { app } = bootOnboarded();
+
+      app.reconnect.dismiss();
+
+      expect(app.reconnect.showing()).toBe(false);
+      // The session is still gone — dismissing hides the prompt, it does not mend anything.
+      expect(TestBed.inject(LightroomService).sessionLost()).toBe(true);
+    });
   });
 
   describe('preview prefetch', () => {
