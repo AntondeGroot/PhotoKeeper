@@ -254,9 +254,8 @@ describe('isAuthFailure', () => {
   const status = (code: number): HttpErrorResponse => new HttpErrorResponse({ status: code });
 
   it('separates a rejected session from a backend that is merely unreachable', () => {
-    // Only these mean the credentials are no good.
+    // The one status the backend uses to say a token is genuinely spent.
     expect(isAuthFailure(status(401))).toBe(true);
-    expect(isAuthFailure(status(403))).toBe(true);
 
     // A deploy restarts the backend, so these are routine on the first call after one. Treating
     // them as an expired session is what used to throw away perfectly valid Lightroom tokens.
@@ -268,5 +267,12 @@ describe('isAuthFailure', () => {
     // Anything that is not an HTTP failure at all cannot be an auth failure.
     expect(isAuthFailure(new Error('boom'))).toBe(false);
     expect(isAuthFailure(undefined)).toBe(false);
+  });
+
+  it('does not read a 403 as a spent token — nothing behind the API issues one', () => {
+    // A CORS rule that omitted the deployed origin rejected every POST /api/auth/refresh with 403
+    // before it reached the controller. Counting that as Adobe refusing the token signed the user
+    // out roughly daily, for a whole month, while their credentials were fine the entire time.
+    expect(isAuthFailure(status(403))).toBe(false);
   });
 });
