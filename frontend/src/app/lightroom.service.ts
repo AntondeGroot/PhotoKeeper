@@ -56,11 +56,18 @@ export interface TokenSet {
  * A deploy restarts the backend, so a 502 on the first call after one is routine — and treating
  * that as an expired session throws away credentials that were perfectly valid.
  *
- * 401/403 only, and only after {@link authRefreshInterceptor} has already tried to refresh: by the
- * time an error reaches here, a recoverable token has been recovered.
+ * 401 and nothing else, deliberately. The backend answers with exactly one status when a token is
+ * genuinely spent, and never produces a 403 of its own — so a 403 can only have come from something
+ * in front of it: a proxy, a WAF, a CORS rule. This used to accept 403 too, and a CORS rule that
+ * omitted the deployed origin then rejected every `POST /api/auth/refresh` before it reached the
+ * controller. The device read that as Adobe refusing the token and signed the user out, daily,
+ * while nothing was wrong with their credentials at all.
+ *
+ * Only meaningful after {@link authRefreshInterceptor} has already tried to refresh: by the time an
+ * error reaches here, a recoverable token has been recovered.
  */
 export function isAuthFailure(err: unknown): boolean {
-  return err instanceof HttpErrorResponse && (err.status === 401 || err.status === 403);
+  return err instanceof HttpErrorResponse && err.status === 401;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -107,6 +107,19 @@ describe('authRefreshInterceptor', () => {
     expect(svc.sessionLost()).toBe(true);
   });
 
+  it('keeps the session when the refresh is blocked by something in front of the backend', () => {
+    // The real incident: a CORS rule that listed only the dev server. Browsers send Origin on a
+    // same-origin POST, so Spring rejected every refresh with 403 before AuthController saw it —
+    // and the app, reading 403 as Adobe's verdict, signed the user out about once a day.
+    http.get('api/albums').subscribe({ error: () => undefined });
+
+    expire('api/albums');
+    httpMock.expectOne(REFRESH_URL).flush(null, { status: 403, statusText: 'Forbidden' });
+
+    expect(svc.getRefreshToken()).toBe('old-ref');
+    expect(svc.sessionLost()).toBe(false);
+  });
+
   it('does not try to refresh the refresh call itself', () => {
     svc.refresh().subscribe({ error: () => undefined });
 
