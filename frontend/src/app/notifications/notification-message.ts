@@ -6,6 +6,8 @@
  * no-op web stub stands in for the PoC. In-app banners are a separate, celebration-only surface.
  */
 
+import { LandingSpot } from './landing';
+
 /** Which family a message belongs to — also its default selection priority (date > stat > evergreen). */
 export type HeadsUpType = 'evergreen' | 'date' | 'stat';
 
@@ -38,6 +40,9 @@ export interface NotificationMessage {
   stat?: StatCondition; // required when type === 'stat'
   cooldownDays?: number; // don't re-show within this many days (default 0 = no cooldown)
   priority?: number; // overrides the type default when several qualify at once
+  // Where tapping it should open the app. Omitted means the Sort step — what every message did
+  // before this existed, and still the right answer for a plain "your photos are waiting".
+  opensAt?: LandingSpot;
 }
 
 /** The live review context the picker evaluates conditions against and fills {{vars}} from. */
@@ -55,6 +60,8 @@ export interface RenderedNotification {
   icon: string;
   title: string;
   text: string;
+  /** Carried through from the message: where tapping this notification opens the app. */
+  opensAt: LandingSpot;
 }
 
 /** The {{vars}} a message body may interpolate (the numeric fields of {@link ReviewStats}). */

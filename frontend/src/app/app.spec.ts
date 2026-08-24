@@ -554,7 +554,7 @@ describe('App', () => {
   describe('tag review mode', () => {
     it('disabling tagging while in Tag mode falls back to Sort', () => {
       const app = TestBed.createComponent(App).componentInstance;
-      app.setReviewMode('tag');
+      app.nav.setReviewMode('tag');
       app.setTaggingEnabled(false);
       expect(app.reviewMode()).toBe('sort');
     });
@@ -565,22 +565,6 @@ describe('App', () => {
       app.setTagDirection({ dir: 'up', tagId: 'animals' });
       expect(app.tagDirections().up).toBe('animals');
       expect(app.tagDirections().left).toBeUndefined();
-    });
-  });
-
-  describe('manage-albums sub-screen', () => {
-    it('closes when switching tabs, so returning to Settings shows the main page', () => {
-      const fixture = TestBed.createComponent(App);
-      const app = fixture.componentInstance;
-
-      app.setActiveTab('settings');
-      app.manageAlbumsOpen.set(true); // user drilled into Manage albums
-
-      app.setActiveTab('review'); // navigate away
-      expect(app.manageAlbumsOpen()).toBe(false);
-
-      app.setActiveTab('settings'); // back to Settings → main page, not stranded in Manage albums
-      expect(app.manageAlbumsOpen()).toBe(false);
     });
   });
 

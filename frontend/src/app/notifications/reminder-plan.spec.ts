@@ -19,8 +19,8 @@ const UNFINISHED_DAY: ReminderSettings = {
 };
 
 const MESSAGES: ReminderMessages = {
-  morning: { id: 'm', icon: '📷', title: 'Morning', text: 'Sort a few.' },
-  evening: { id: 'e', icon: '🌙', title: 'Evening', text: 'Still waiting.' },
+  morning: { id: 'm', icon: '📷', title: 'Morning', text: 'Sort a few.', opensAt: 'sort' },
+  evening: { id: 'e', icon: '🌙', title: 'Evening', text: 'Still waiting.', opensAt: 'sort' },
 };
 
 describe('planReminders', () => {

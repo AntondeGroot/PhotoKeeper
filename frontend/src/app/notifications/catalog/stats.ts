@@ -23,6 +23,7 @@ export const STAT_MESSAGES: NotificationMessage[] = [
     title: 'Your edit queue is filling up',
     text: '{{editQueue}} waiting — knock out a few today?',
     cooldownDays: 3,
+    opensAt: 'edit',
   },
   {
     id: 'prints-arrived',
@@ -33,5 +34,6 @@ export const STAT_MESSAGES: NotificationMessage[] = [
     text: 'Your prints arrived — ready to fill the album?',
     priority: 4, // a real-world arrival outranks even a date theme
     cooldownDays: 1,
+    opensAt: 'prints',
   },
 ];

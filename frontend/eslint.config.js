@@ -111,6 +111,7 @@ export default tseslint.config(
             'src/app/notifications/heads-up/heads-up.types.ts',
             'src/app/notifications/catalog/*.ts',
             'src/app/notifications/notification-message.ts',
+            'src/app/notifications/landing.ts',
             'src/app/notifications/notification-sender.ts',
             'src/app/notifications/picker.ts',
             'src/app/celebrations/celebration.types.ts',

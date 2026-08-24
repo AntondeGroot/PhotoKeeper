@@ -1,5 +1,6 @@
 import { InjectionToken } from '@angular/core';
 import { PlannedReminder } from './reminder-plan';
+import { LandingSpot } from './landing';
 import { CapacitorOsReminders, localNotificationsPlugin } from './capacitor-os-reminders';
 
 /**
@@ -12,6 +13,12 @@ export interface OsReminders {
   ensurePermission(): Promise<boolean>;
   /** Replaces every reminder this app has scheduled with exactly `reminders` (empty = cancel all). */
   apply(reminders: PlannedReminder[]): Promise<void>;
+  /**
+   * Calls back when the app is opened by tapping one of these reminders, with the step that reminder
+   * was about. Belongs on the same seam as scheduling because it is the same plugin and the same
+   * "only the native build can do this" boundary — the reminder and its tap are one feature.
+   */
+  onOpened(listener: (spot: LandingSpot) => void): void;
 }
 
 /**
@@ -26,6 +33,11 @@ export class WebOsReminders implements OsReminders {
 
   apply(): Promise<void> {
     return Promise.resolve();
+  }
+
+  /** Nothing is ever scheduled here, so nothing can ever be tapped. */
+  onOpened(): void {
+    // no-op
   }
 }
 
