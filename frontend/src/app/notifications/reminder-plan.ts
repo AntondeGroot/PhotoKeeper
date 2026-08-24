@@ -1,4 +1,5 @@
 import { RenderedNotification } from './notification-message';
+import { LandingSpot } from './landing';
 
 /**
  * Stable OS notification ids. Fixed (not generated) on purpose: re-scheduling reuses the id, so the
@@ -24,6 +25,8 @@ export interface PlannedReminder {
   at: TimeOfDay;
   /** Evening nudges post quietly (low-importance channel, no sound); the morning one announces itself. */
   silent: boolean;
+  /** Where tapping it opens the app — handed to the OS with the alarm, and read back at the tap. */
+  opensAt: LandingSpot;
 }
 
 /**
@@ -78,6 +81,7 @@ const DEFAULT_MORNING: RenderedNotification = {
   icon: '📷',
   title: 'Your photos are waiting',
   text: 'A few minutes now keeps the pile from growing.',
+  opensAt: 'sort',
 };
 
 const DEFAULT_EVENING: RenderedNotification = {
@@ -85,6 +89,7 @@ const DEFAULT_EVENING: RenderedNotification = {
   icon: '🌙',
   title: 'Still time today',
   text: 'A quick sort before bed keeps the streak going.',
+  opensAt: 'sort',
 };
 
 function planMorning(
@@ -98,8 +103,8 @@ function planMorning(
   if (!settings.workWaiting) return null;
   const at = parseTimeOfDay(settings.morningTime);
   if (!at) return null;
-  const { title, text } = message ?? DEFAULT_MORNING;
-  return { id: MORNING_REMINDER_ID, title, text, at, silent: false };
+  const { title, text, opensAt } = message ?? DEFAULT_MORNING;
+  return { id: MORNING_REMINDER_ID, title, text, at, silent: false, opensAt };
 }
 
 /**
@@ -116,8 +121,8 @@ function planEvening(
   if (settings.dayComplete || settings.pileCount <= 0) return null;
   const at = parseTimeOfDay(settings.eveningTime);
   if (!at) return null;
-  const { title, text } = message ?? DEFAULT_EVENING;
-  return { id: EVENING_REMINDER_ID, title, text, at, silent: true };
+  const { title, text, opensAt } = message ?? DEFAULT_EVENING;
+  return { id: EVENING_REMINDER_ID, title, text, at, silent: true, opensAt };
 }
 
 /**

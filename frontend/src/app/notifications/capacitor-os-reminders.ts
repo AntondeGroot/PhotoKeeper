@@ -1,5 +1,6 @@
 import type { OsReminders } from './os-reminders';
 import { PlannedReminder, REMINDER_IDS } from './reminder-plan';
+import { LandingSpot, isLandingSpot } from './landing';
 
 /** Android importance levels. 4 = pops up with a sound; 2 = sits quietly in the shade. */
 const IMPORTANCE_HIGH = 4;
@@ -30,6 +31,17 @@ interface NotificationSpec {
   channelId: string;
   /** `on` without a day is Capacitor's daily cron: it re-arms itself after each fire. */
   schedule: { on: { hour: number; minute: number }; allowWhileIdle: boolean };
+  /** Ours to fill: Android hands it back untouched when the notification is tapped. */
+  extra: { opensAt: LandingSpot };
+}
+
+/** The tap event, as the plugin delivers it: the notification exactly as it was scheduled. */
+interface ActionPerformed {
+  notification?: { extra?: { opensAt?: unknown } };
+}
+
+interface ListenerHandle {
+  remove(): Promise<void>;
 }
 
 /** The slice of @capacitor/local-notifications this app uses, as the native bridge exposes it. */
@@ -39,6 +51,10 @@ export interface LocalNotificationsPlugin {
   createChannel(channel: ChannelSpec): Promise<void>;
   cancel(options: { notifications: { id: number }[] }): Promise<void>;
   schedule(options: { notifications: NotificationSpec[] }): Promise<unknown>;
+  addListener(
+    eventName: 'localNotificationActionPerformed',
+    listener: (event: ActionPerformed) => void,
+  ): Promise<ListenerHandle>;
 }
 
 interface CapacitorBridge {
@@ -69,6 +85,7 @@ function toNotification(reminder: PlannedReminder): NotificationSpec {
     // allowWhileIdle so Doze doesn't hold a 09:00 reminder until the phone next wakes. The plugin
     // downgrades to an inexact alarm by itself when exact alarms aren't permitted.
     schedule: { on: { hour: reminder.at.hour, minute: reminder.at.minute }, allowWhileIdle: true },
+    extra: { opensAt: reminder.opensAt },
   };
 }
 
@@ -92,6 +109,22 @@ export class CapacitorOsReminders implements OsReminders {
     await this.plugin.cancel({ notifications: REMINDER_IDS.map((id) => ({ id })) });
     if (reminders.length === 0) return;
     await this.plugin.schedule({ notifications: reminders.map(toNotification) });
+  }
+
+  /**
+   * Where the tap wants to go, once the user opens the app from one of these reminders.
+   *
+   * Registered on startup rather than lazily: Android retains the event until something listens, so
+   * a cold start — the app was not running when the notification fired, which is the normal case —
+   * still delivers it, but only to a listener that is already there.
+   */
+  onOpened(listener: (spot: LandingSpot) => void): void {
+    void this.plugin.addListener('localNotificationActionPerformed', (event) => {
+      const spot = event.notification?.extra?.opensAt;
+      // A reminder scheduled by an older build may name a step this one no longer has; ignoring it
+      // opens the app where it always did rather than acting on a value we cannot honour.
+      if (isLandingSpot(spot)) listener(spot);
+    });
   }
 
   private async ensureChannels(): Promise<void> {

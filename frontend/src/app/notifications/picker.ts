@@ -118,5 +118,8 @@ export function pickNotification(
     icon: chosen.icon,
     title: renderTemplate(chosen.title, stats),
     text: renderTemplate(chosen.text, stats),
+    // Resolved here rather than at the tap: by then the app may be starting from cold, and the
+    // message that was chosen hours ago is the only thing that knows what it was about.
+    opensAt: chosen.opensAt ?? 'sort',
   };
 }

@@ -147,6 +147,13 @@ describe('pickNotification', () => {
     expect(pickNotification(catalog, stats())?.title).toBe('Day 7');
   });
 
+  it('carries where the message opens the app, defaulting to the Sort step', () => {
+    // Resolved at pick time because the tap may be hours later, on an app starting from cold.
+    const editNudge = msg({ id: 'edit', opensAt: 'edit' });
+    expect(pickNotification([editNudge], stats())?.opensAt).toBe('edit');
+    expect(pickNotification([msg({ id: 'plain' })], stats())?.opensAt).toBe('sort');
+  });
+
   it('skips a message still within its cooldown', () => {
     const m = msg({ id: 'a', cooldownDays: 3 });
     const lastShown = new Date('2026-06-19T09:00:00').getTime(); // 1 day ago < 3-day cooldown

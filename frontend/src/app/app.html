@@ -78,21 +78,21 @@
         <button
           class="tab-btn"
           [class.active]="activeTab() === 'review'"
-          (click)="setActiveTab('review')"
+          (click)="nav.setActiveTab('review')"
         >
           Daily review
         </button>
         <button
           class="tab-btn"
           [class.active]="activeTab() === 'prints'"
-          (click)="setActiveTab('prints')"
+          (click)="nav.setActiveTab('prints')"
         >
           Prints
         </button>
         <button
           class="tab-btn"
           [class.active]="activeTab() === 'settings'"
-          (click)="setActiveTab('settings')"
+          (click)="nav.setActiveTab('settings')"
         >
           Settings
         </button>
@@ -128,14 +128,14 @@
           <div class="mode-bar">
             <button
               class="tab-btn"
-              (click)="setReviewMode('sort')"
+              (click)="nav.setReviewMode('sort')"
               [class.active]="reviewMode() === 'sort'"
             >
               Sort
             </button>
             <button
               class="tab-btn"
-              (click)="setReviewMode('edit')"
+              (click)="nav.setReviewMode('edit')"
               [class.active]="reviewMode() === 'edit'"
             >
               Edit
@@ -143,7 +143,7 @@
             @if (taggingEnabled()) {
               <button
                 class="tab-btn"
-                (click)="setReviewMode('tag')"
+                (click)="nav.setReviewMode('tag')"
                 [class.active]="reviewMode() === 'tag'"
               >
                 Tag
@@ -156,7 +156,9 @@
                 <h2>Nothing left to sort.</h2>
                 <p>Your whole library is reviewed, edited and filed.</p>
                 <p>New photos will show up here when they arrive.</p>
-                <button class="secondary" (click)="setActiveTab('prints')">Go to Prints →</button>
+                <button class="secondary" (click)="nav.setActiveTab('prints')">
+                  Go to Prints →
+                </button>
               </div>
             } @else if (!stats.sessionDone()) {
               <app-review-album-tags [album]="currentReviewPhoto().album" />
@@ -208,7 +210,7 @@
                 [maybeCount]="stats.maybeCount()"
                 [streakDays]="decisions.streakDays()"
                 [canLoadMore]="canLoadMore()"
-                (printsClick)="setActiveTab('prints')"
+                (printsClick)="nav.setActiveTab('prints')"
                 (loadMore)="loadMore()"
               />
             }

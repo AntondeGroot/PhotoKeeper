@@ -45,6 +45,7 @@ import { TagReviewService } from './tagging/tag-review.service';
 import { TagReviewComponent } from './tagging/tag-review/tag-review';
 import { SwipeDir } from './tagging/tags';
 import { PreferencesService } from './preferences.service';
+import { NavigationService } from './navigation.service';
 
 // How many photos ahead of the current one to preload, so swiping never waits for an image.
 const PREFETCH_AHEAD = 5;
@@ -137,8 +138,11 @@ export class AppComponent implements OnInit, OnDestroy {
   canContinueOnboarding = computed(() => this.authenticated() || this.deviceReady());
   // Developer detection lab, reached via the ?lab query param. Replaces the review UI when set.
   labMode = signal(false);
-  activeTab = signal<'review' | 'prints' | 'settings'>('review');
-  reviewMode = signal<'sort' | 'edit' | 'tag'>('sort');
+  // Which screen the app is on — plus the redirect a tapped reminder asks for — belongs to
+  // NavigationService; these reference its signals so template bindings keep working unchanged.
+  readonly nav = inject(NavigationService);
+  readonly activeTab = this.nav.activeTab;
+  readonly reviewMode = this.nav.reviewMode;
   // The Tag review step (cursor + its derived state + swipe/tag actions) lives in TagReviewService;
   // these reference its members so existing template bindings keep working unchanged.
   readonly tagReviewIndex = this.tagReview.cursor;
@@ -146,10 +150,10 @@ export class AppComponent implements OnInit, OnDestroy {
   // Album list (from the backend) + the ids the user has tagged as "vacation", and whether the
   // Manage-albums sub-screen is open. Vacation tags persist to localStorage like the other settings.
   albums = signal<Album[]>([]);
-  manageAlbumsOpen = signal(false);
+  readonly manageAlbumsOpen = this.nav.manageAlbumsOpen;
   // Content-tag catalog + assignments live in TagState; `tags` is referenced for template bindings.
   readonly tags = this.tagState.tags;
-  tagsManagerOpen = signal(false);
+  readonly tagsManagerOpen = this.nav.tagsManagerOpen;
   error = signal<string | null>(null);
   // Burst-detection window in seconds (the persisted threshold lives in DetectionSettingsService).
   burstWindowSeconds = computed(() => this.detectionSettings.burstOptions().windowMs / 1000);
@@ -442,14 +446,6 @@ export class AppComponent implements OnInit, OnDestroy {
     return this.svc.getCatalogId();
   }
 
-  setActiveTab(tab: 'review' | 'prints' | 'settings'): void {
-    this.activeTab.set(tab);
-    // Switching tabs closes the Settings sub-screens, so returning to Settings lands on the main page
-    // rather than stranding anyone who missed a back arrow.
-    this.manageAlbumsOpen.set(false);
-    this.tagsManagerOpen.set(false);
-  }
-
   /** Open the current single photo full screen with verdict buttons (delegated to FullscreenViewerService). */
   openPhotoFullscreen(): void {
     this.viewer.openPhoto();
@@ -489,15 +485,10 @@ export class AppComponent implements OnInit, OnDestroy {
     this.decisions.toggleKeepsake();
   }
 
-  setReviewMode(mode: 'sort' | 'edit' | 'tag'): void {
-    if (mode === 'tag') this.tagReview.reset(); // start the tag pass at the first keeper
-    this.reviewMode.set(mode);
-  }
-
   /** Settings toggle for the optional Tag step. Turning it off while in Tag mode falls back to Sort. */
   setTaggingEnabled(enabled: boolean): void {
     this.taggingEnabled.set(enabled);
-    if (!enabled && this.reviewMode() === 'tag') this.reviewMode.set('sort');
+    this.nav.leaveTagModeIfDisabled();
   }
 
   /** Swipe in Tag mode: apply the direction's bound tag and advance (delegated to TagReviewService). */
