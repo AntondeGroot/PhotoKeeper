@@ -1,0 +1,50 @@
+<div class="picker">
+  <div class="picker-head">
+    <div class="picker-title">Which photos belong to this panorama?</div>
+    <div class="picker-hint">
+      Tap the shots before and after that are part of the sweep. Gold means it belongs.
+      @if (hasSibling()) {
+        <span class="picker-sibling-hint">
+          Dashed frames are another panorama detection found here — tap them to merge it into this
+          one.
+        </span>
+      }
+    </div>
+  </div>
+
+  @if (!loaded()) {
+    <div class="picker-empty">Looking for the photos around it…</div>
+  } @else if (candidates().length === 0) {
+    <!-- Nothing scanned around these frames, so there is no neighbourhood to offer. -->
+    <div class="picker-empty">
+      No neighbouring photos on this device yet — they arrive with the next background scan.
+    </div>
+  } @else {
+    <div class="picker-strip">
+      @for (candidate of candidates(); track candidate.id) {
+        <button
+          class="picker-frame"
+          [class.chosen]="isSelected(candidate.id)"
+          [class.grouped]="candidate.inOtherGroup"
+          [attr.aria-pressed]="isSelected(candidate.id)"
+          [attr.title]="candidate.inOtherGroup ? 'part of another detected group' : null"
+          (click)="toggle(candidate.id)"
+          type="button"
+        >
+          @if (url(candidate.id); as preview) {
+            <img class="picker-img" [src]="preview" alt="" draggable="false" />
+          } @else {
+            <span class="picker-name"
+              >{{ candidate.name }}{{ candidate.ext ? '.' + candidate.ext : '' }}</span
+            >
+          }
+        </button>
+      }
+    </div>
+  }
+
+  <div class="picker-actions">
+    <button class="picker-cancel" (click)="cancelled.emit()" type="button">Cancel</button>
+    <button class="picker-done" [disabled]="!changed()" (click)="done()" type="button">Done</button>
+  </div>
+</div>

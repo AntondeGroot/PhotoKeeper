@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { GroupOverride, GroupReclass, PhotoKeeperDb } from '../photokeeper-db';
+import { GroupMembers, GroupOverride, GroupReclass, PhotoKeeperDb } from '../photokeeper-db';
 
 /**
  * Order-independent key for a group's member set, so an override matches a re-detected group however
@@ -62,5 +62,19 @@ export class GroupOverrideStore {
    */
   async reclassifications(): Promise<GroupReclass[]> {
     return (await this.db.open()).getAll('groupReclass');
+  }
+
+  /**
+   * Records what a group actually consists of, after the user added the frames detection missed (or
+   * took one out). Keyed by the *detected* member set, so the correction is found again by the group
+   * it was made about rather than by what it was corrected into.
+   */
+  async setMembers(members: GroupMembers): Promise<void> {
+    await (await this.db.open()).put('groupMembers', members, groupSignature(members.memberIds));
+  }
+
+  /** Every membership correction, for matching against detected groups at selection time. */
+  async memberships(): Promise<GroupMembers[]> {
+    return (await this.db.open()).getAll('groupMembers');
   }
 }

@@ -7,7 +7,16 @@ import { PreferencesService } from '../preferences.service';
 import { ReviewFeedService, todayKey } from './review-feed.service';
 import { StreakService } from './streak.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
-import { Burst, BurstPhoto, Pano, Photo, ReviewItem, isDevicePhoto } from '../photo';
+import {
+  Burst,
+  BurstPhoto,
+  Pano,
+  PanoFrame,
+  Photo,
+  ReviewItem,
+  isDevicePhoto,
+  unitAssetIds,
+} from '../photo';
 
 /** Turns a dissolved burst's frame into a standalone review photo, carrying over the burst's album. */
 function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
@@ -263,6 +272,53 @@ export class ReviewDecisionsService {
     );
   }
 
+  /**
+   * "Photos are missing" — replaces the current pano's frames with the set the user confirmed.
+   *
+   * The card is re-titled from the new count, because that line is how many frames the sweep has and
+   * a stale one would contradict what is on screen. The correction is recorded against the *detected*
+   * frames, so a re-scan that finds the same short group has it corrected again rather than quietly
+   * dropping the frames back off.
+   */
+  setPanoFrames(frames: PanoFrame[]): void {
+    const current = this.feed.current();
+    if (current?.kind !== 'pano' || frames.length < 2) return;
+    const detectedIds = current.frames.map((frame) => frame.id);
+    const updated: Pano = {
+      ...current,
+      name: `Panorama · ${frames.length} frames`,
+      frames,
+    };
+    const absorbed = this.unitsAbsorbedBy(frames, current);
+    this.feed.photos.update((list) =>
+      list.flatMap((item) => {
+        if (item.id === current.id) return [updated];
+        return absorbed.includes(item) ? [] : [item];
+      }),
+    );
+    this.persistDay();
+    void this.recordMembers(detectedIds, frames);
+    // Each absorbed group is dissolved as well as removed: without that, the next selection would
+    // hydrate it from detection all over again and the sweep would be back in two pieces.
+    for (const unit of absorbed) void this.recordAbsorbed(unit);
+  }
+
+  /**
+   * The other units in today's deck that these frames have taken over.
+   *
+   * A sweep detected as *two* panoramas is the case this exists for: merging the second one into the
+   * first has to take it off the deck, or the same photographs stand there twice, each asking for its
+   * own verdict. A unit that only partly overlaps goes too — its remaining frames carry no verdict
+   * yet, so they simply come round again in a later selection, whereas leaving it would duplicate the
+   * frames that were taken.
+   */
+  private unitsAbsorbedBy(frames: PanoFrame[], current: Pano): ReviewItem[] {
+    const chosen = new Set(frames.map((frame) => frame.id));
+    return this.feed
+      .photos()
+      .filter((item) => item.id !== current.id && unitAssetIds(item).some((id) => chosen.has(id)));
+  }
+
   promoteToPrint(id: string): void {
     this.setStatus(id, 'toPrint');
     void this.persistVerdict(id);
@@ -308,6 +364,32 @@ export class ReviewDecisionsService {
       await this.groupOverrides.dissolve({
         memberIds: burst.photos.map((p) => p.id),
         dissolvedAt: Date.now(),
+      });
+    } catch {
+      // Best-effort correction; never break the review flow.
+    }
+  }
+
+  private async recordAbsorbed(unit: ReviewItem): Promise<void> {
+    // Singles need no record: they are not groups, and dropping out of today's deck is all that
+    // happens to them — the merged pano now owns the frame, so selection will not draw it alone.
+    if (unit.kind === 'photo') return;
+    try {
+      await this.groupOverrides.dissolve({
+        memberIds: unitAssetIds(unit),
+        dissolvedAt: Date.now(),
+      });
+    } catch {
+      // Best-effort correction; never break the review flow.
+    }
+  }
+
+  private async recordMembers(detectedIds: string[], frames: PanoFrame[]): Promise<void> {
+    try {
+      await this.groupOverrides.setMembers({
+        memberIds: detectedIds,
+        frameIds: frames.map((frame) => frame.id),
+        at: Date.now(),
       });
     } catch {
       // Best-effort correction; never break the review flow.

@@ -106,6 +106,7 @@ export default tseslint.config(
             'src/app/detection/detectors/**/*.ts', // pure detectors + their contract types
             'src/app/review/selection/unit-selection.ts',
             'src/app/review/review-buffer-target.ts',
+            'src/app/review/pano-frames.ts',
             'src/app/review/fullscreen-viewer/viewer-image.ts',
             'src/app/prints/prints.types.ts',
             'src/app/notifications/heads-up/heads-up.types.ts',

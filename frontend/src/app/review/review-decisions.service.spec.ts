@@ -30,6 +30,17 @@ const burst = (id: string, frameIds: string[]): Burst => ({
   photos: frameIds.map((fid) => ({ id: fid, name: fid })),
 });
 
+const pano = (id: string, frameIds: string[]): Pano => ({
+  id,
+  name: `Panorama · ${frameIds.length} frames`,
+  album: 'Trip',
+  taken: '2026-01-01',
+  status: 'backlog',
+  kind: 'pano',
+  orientation: 'horizontal',
+  frames: frameIds.map((fid) => ({ id: fid, name: fid })),
+});
+
 describe('ReviewDecisionsService', () => {
   let service: ReviewDecisionsService;
   // Minimal fake feed: a writable deck + cursor with the three navigation helpers the service uses.
@@ -40,6 +51,7 @@ describe('ReviewDecisionsService', () => {
   let dailyFeeds: Map<string, ReviewItem[]>;
   let dissolves: { memberIds: string[] }[];
   let reclassifies: { memberIds: string[]; type: string; orientation?: string }[];
+  let memberships: { memberIds: string[]; frameIds: string[]; at: number }[];
   let refillCalls: number;
 
   beforeEach(() => {
@@ -50,6 +62,7 @@ describe('ReviewDecisionsService', () => {
     dailyFeeds = new Map();
     dissolves = [];
     reclassifies = [];
+    memberships = [];
     refillCalls = 0;
     localStorage.removeItem('celebratedGoal');
 
@@ -91,6 +104,10 @@ describe('ReviewDecisionsService', () => {
             },
             reclassify: (o: { memberIds: string[]; type: string; orientation?: string }) => {
               reclassifies.push(o);
+              return Promise.resolve();
+            },
+            setMembers: (o: { memberIds: string[]; frameIds: string[]; at: number }) => {
+              memberships.push(o);
               return Promise.resolve();
             },
           },
@@ -246,6 +263,111 @@ describe('ReviewDecisionsService', () => {
 
     service.markPanoAsBurst();
     expect(photos()[0].id).toBe('burst:alb1:f1'); // the id it started from, not burst:pano:burst:…
+  });
+
+  describe('setPanoFrames() — "photos are missing"', () => {
+    it('takes the frames the user confirmed, and re-titles the card from the new count', async () => {
+      photos.set([pano('pano:alb1:f2', ['f2', 'f3'])]);
+      index.set(0);
+
+      service.setPanoFrames([
+        { id: 'f1', name: 'DSC_1' },
+        { id: 'f2', name: 'DSC_2' },
+        { id: 'f3', name: 'DSC_3' },
+      ]);
+      await Promise.resolve();
+
+      const updated = photos()[0] as Pano;
+      expect(updated.frames.map((f) => f.id)).toEqual(['f1', 'f2', 'f3']);
+      expect(updated.name).toBe('Panorama · 3 frames');
+    });
+
+    it('records the correction against the frames detection found, so a re-scan re-applies it', async () => {
+      photos.set([pano('pano:alb1:f2', ['f2', 'f3'])]);
+      index.set(0);
+
+      service.setPanoFrames([
+        { id: 'f1', name: 'DSC_1' },
+        { id: 'f2', name: 'DSC_2' },
+        { id: 'f3', name: 'DSC_3' },
+      ]);
+      await Promise.resolve();
+
+      expect(memberships).toEqual([
+        expect.objectContaining({ memberIds: ['f2', 'f3'], frameIds: ['f1', 'f2', 'f3'] }),
+      ]);
+      expect(dailyFeeds.get(todayKey())?.length).toBe(1); // survives a reload too
+    });
+
+    it('takes the sibling pano off the deck when its frames are merged in', async () => {
+      // The real case: one sweep detected as two panos. Left on the deck, the same photographs
+      // would stand there twice, each asking for its own verdict.
+      photos.set([pano('pano:alb1:f1', ['f1', 'f2']), pano('pano:alb1:f3', ['f3', 'f4'])]);
+      index.set(0);
+
+      service.setPanoFrames([
+        { id: 'f1', name: 'DSC_1' },
+        { id: 'f2', name: 'DSC_2' },
+        { id: 'f3', name: 'DSC_3' },
+        { id: 'f4', name: 'DSC_4' },
+      ]);
+      await Promise.resolve();
+
+      expect(photos()).toHaveLength(1);
+      expect((photos()[0] as Pano).frames.map((f) => f.id)).toEqual(['f1', 'f2', 'f3', 'f4']);
+    });
+
+    it('dissolves the absorbed group, so the next scan does not split the sweep again', async () => {
+      photos.set([pano('pano:alb1:f1', ['f1', 'f2']), pano('pano:alb1:f3', ['f3', 'f4'])]);
+      index.set(0);
+
+      service.setPanoFrames([
+        { id: 'f1', name: 'DSC_1' },
+        { id: 'f2', name: 'DSC_2' },
+        { id: 'f3', name: 'DSC_3' },
+        { id: 'f4', name: 'DSC_4' },
+      ]);
+      await Promise.resolve();
+
+      expect(dissolves).toEqual([expect.objectContaining({ memberIds: ['f3', 'f4'] })]);
+      expect(memberships).toEqual([
+        expect.objectContaining({ memberIds: ['f1', 'f2'], frameIds: ['f1', 'f2', 'f3', 'f4'] }),
+      ]);
+    });
+
+    it('drops a single whose photo the sweep has taken, without recording a group correction', async () => {
+      photos.set([pano('pano:alb1:f1', ['f1', 'f2']), photo('f3')]);
+      index.set(0);
+
+      service.setPanoFrames([
+        { id: 'f1', name: 'DSC_1' },
+        { id: 'f2', name: 'DSC_2' },
+        { id: 'f3', name: 'DSC_3' },
+      ]);
+      await Promise.resolve();
+
+      expect(photos()).toHaveLength(1); // the single is part of the sweep now
+      expect(dissolves).toEqual([]); // a photo is not a group; there is nothing to dissolve
+    });
+
+    it('ignores a set too small to be a panorama at all', () => {
+      photos.set([pano('pano:alb1:f2', ['f2', 'f3'])]);
+      index.set(0);
+
+      service.setPanoFrames([{ id: 'f2', name: 'DSC_2' }]);
+
+      expect((photos()[0] as Pano).frames).toHaveLength(2);
+      expect(memberships).toEqual([]);
+    });
+
+    it('leaves anything that is not a pano alone', () => {
+      service.setPanoFrames([
+        { id: 'x', name: 'x' },
+        { id: 'y', name: 'y' },
+      ]);
+
+      expect(memberships).toEqual([]);
+    });
   });
 
   it('promoteToPrint() marks the photo toPrint and bumps the edit count', () => {

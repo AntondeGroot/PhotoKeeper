@@ -30,12 +30,13 @@ export class DailyUnitsService {
     limit: number,
     rng: () => number = Math.random,
   ): Promise<ReviewItem[]> {
-    const [albums, metaById, allGroups, dissolved, reclassified] = await Promise.all([
+    const [albums, metaById, allGroups, dissolved, reclassified, memberships] = await Promise.all([
       firstValueFrom(this.svc.getAlbums()),
       this.meta.getAll(),
       this.groups.getAll(),
       this.overrides.getAll(),
       this.overrides.reclassifications(),
+      this.overrides.memberships(),
     ]);
 
     const albumName = new Map(albums.map((a) => [a.id, a.name]));
@@ -53,9 +54,14 @@ export class DailyUnitsService {
       if (dissolved.some((o) => coversSameGroup(o.memberIds, group.memberIds))) continue;
       // A reclassified group is re-typed before hydration ("this burst is actually a pano").
       const reclass = reclassified.find((r) => coversSameGroup(r.memberIds, group.memberIds));
-      const effective = reclass
+      const retyped = reclass
         ? { ...group, type: reclass.type, orientation: reclass.orientation }
         : group;
+      // A membership correction says what the group actually consists of ("the pano is missing
+      // frames"). Applied last, and to the *detected* member set: it is keyed by what detection
+      // found, so re-running detection finds the same correction again.
+      const members = memberships.find((m) => coversSameGroup(m.memberIds, group.memberIds));
+      const effective = members ? { ...retyped, memberIds: members.frameIds } : retyped;
       pushInto(groupsByAlbum, group.sourceAlbumId, effective);
     }
 

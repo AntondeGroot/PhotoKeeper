@@ -1,44 +1,57 @@
 <div class="pano-card">
-  <div class="pano-viewport" [class.vertical]="vertical">
-    <div #strip class="pano-strip" [class.vertical]="vertical" (scroll)="onScroll()">
-      @for (frame of pano.frames; track frame.id) {
-        <div class="pano-frame" [class.blur]="frame.blur">
-          @if (imageUrls.get(frame.id); as url) {
-            <img class="pano-frame-img" [src]="url" alt="" draggable="false" />
-          } @else {
-            <div class="frame-name">{{ frame.name }}{{ frame.ext ? '.' + frame.ext : '' }}</div>
-          }
-        </div>
+  @if (picking()) {
+    <!-- The picker replaces the sweep rather than sitting beside it: it is the same frames, asked
+         about differently, and two strips of the same photos would be a puzzle. -->
+    <app-pano-frame-picker
+      [pano]="pano"
+      (confirmed)="applyFrames($event)"
+      (cancelled)="picking.set(false)"
+    />
+  } @else {
+    <div class="pano-viewport" [class.vertical]="vertical">
+      <div #strip class="pano-strip" [class.vertical]="vertical" (scroll)="onScroll()">
+        @for (frame of pano.frames; track frame.id) {
+          <div class="pano-frame" [class.blur]="frame.blur">
+            @if (imageUrls.get(frame.id); as url) {
+              <img class="pano-frame-img" [src]="url" alt="" draggable="false" />
+            } @else {
+              <div class="frame-name">{{ frame.name }}{{ frame.ext ? '.' + frame.ext : '' }}</div>
+            }
+          </div>
+        }
+      </div>
+      @if (overflowing()) {
+        <input
+          class="pano-slider"
+          [class.vertical]="vertical"
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          [value]="scrollPct()"
+          (input)="onSlider($event)"
+          aria-label="scroll through panorama frames"
+        />
       }
     </div>
-    @if (overflowing()) {
-      <input
-        class="pano-slider"
-        [class.vertical]="vertical"
-        type="range"
-        min="0"
-        max="100"
-        step="0.1"
-        [value]="scrollPct()"
-        (input)="onSlider($event)"
-        aria-label="scroll through panorama frames"
-      />
-    }
-  </div>
-  <div class="pano-info">
-    <div>
-      <div class="pano-name">{{ pano.name }}</div>
-      <div class="pano-meta">
-        {{ pano.frames.length }} frames · {{ pano.orientation }} sweep · ~30% overlap
+    <div class="pano-info">
+      <div>
+        <div class="pano-name">{{ pano.name }}</div>
+        <div class="pano-meta">
+          {{ pano.frames.length }} frames · {{ pano.orientation }} sweep · ~30% overlap
+        </div>
       </div>
+      <span class="chip chip-amber">panorama</span>
     </div>
-    <span class="chip chip-amber">panorama</span>
-  </div>
-  <div class="action-buttons">
-    <button (click)="swiped.emit('rejected')">✕</button>
-    <button (click)="swiped.emit('toEdit')">↑</button>
-    <button (click)="swiped.emit('kept')">✓</button>
-    <button (click)="swiped.emit('maybe')">↓</button>
-  </div>
-  <button class="reclassify" (click)="reclassified.emit()">actually a burst →</button>
+    <div class="action-buttons">
+      <button (click)="swiped.emit('rejected')">✕</button>
+      <button (click)="swiped.emit('toEdit')">↑</button>
+      <button (click)="swiped.emit('kept')">✓</button>
+      <button (click)="swiped.emit('maybe')">↓</button>
+    </div>
+    <div class="pano-corrections">
+      <button class="reclassify" (click)="picking.set(true)">photos are missing…</button>
+      <button class="reclassify" (click)="reclassified.emit()">actually a burst →</button>
+    </div>
+  }
 </div>
