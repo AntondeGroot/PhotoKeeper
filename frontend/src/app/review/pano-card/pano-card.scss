@@ -148,3 +148,14 @@
   font-size: 11px;
   cursor: pointer;
 }
+
+// The two "this isn't quite right" corrections, side by side under the actions: both are quiet
+// admissions that detection got something wrong, and neither should compete with the verdict buttons.
+.pano-corrections {
+  display: flex;
+  gap: 10px;
+
+  .reclassify {
+    flex: 1;
+  }
+}

@@ -192,6 +192,7 @@
                     [imageUrls]="currentUnitImageUrls()"
                     (swiped)="decide($event)"
                     (reclassified)="markPanoAsBurst()"
+                    (framesChanged)="setPanoFrames($event)"
                   />
                 }
                 @case ('stereo') {

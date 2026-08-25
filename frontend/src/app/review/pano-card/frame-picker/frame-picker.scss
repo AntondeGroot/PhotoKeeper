@@ -1,0 +1,136 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel);
+}
+
+.picker-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.picker-hint {
+  font-size: 11px;
+  color: var(--c-dim);
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+.picker-empty {
+  font-size: 12px;
+  color: var(--c-faint);
+  padding: 24px 4px;
+  text-align: center;
+}
+
+// The same scrolling strip as the sweep on the card, so the frames read in the order they were shot.
+.picker-strip {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.picker-frame {
+  position: relative;
+  flex: 0 0 88px;
+  height: 88px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: var(--c-bg);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // Dimmed until chosen, so the sweep the pano currently has is the thing that stands out.
+  opacity: 0.55;
+  transition:
+    opacity 0.15s,
+    box-shadow 0.15s,
+    border-color 0.15s;
+
+  &.chosen {
+    opacity: 1;
+    border-color: var(--c-amber);
+    // The gold ring: the statement that this frame is part of the panorama.
+    box-shadow: 0 0 0 2px var(--c-amber);
+  }
+}
+
+// A frame detection put in a group of its own — most often the other half of this same sweep. Dashed
+// so it reads as "these come as a set" without competing with the gold ring that means "belongs".
+.picker-frame.grouped:not(.chosen) {
+  border-style: dashed;
+  border-color: var(--c-dim);
+}
+
+.picker-sibling-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--c-faint);
+}
+
+.picker-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.picker-name {
+  font-size: 9px;
+  color: var(--c-faint);
+  letter-spacing: 0.5px;
+  padding: 4px;
+  text-align: center;
+  word-break: break-all;
+}
+
+.picker-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.picker-cancel,
+.picker-done {
+  flex: 1;
+  padding: 11px 0;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
+}
+
+.picker-cancel {
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-text);
+}
+
+.picker-done {
+  border: none;
+  background: var(--c-amber);
+  color: #131110;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}

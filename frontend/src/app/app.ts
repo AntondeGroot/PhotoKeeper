@@ -19,7 +19,7 @@ import { FullscreenViewerService } from './review/fullscreen-viewer.service';
 import { CatalogScanService } from './detection/scan/catalog-scan.service';
 import { DetectionSettingsService } from './detection/scan/detection-settings.service';
 import { BackgroundScanService } from './detection/scan/background-scan.service';
-import { Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
+import { PanoFrame, Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './photo';
 import { ReviewSortComponent } from './review/review-sort/review-sort';
 import { ReviewAlbumTagsComponent } from './review/review-album-tags/review-album-tags';
 import { StreakFrozenNoticeComponent } from './review/streak-frozen-notice/streak-frozen-notice';
@@ -540,6 +540,11 @@ export class AppComponent implements OnInit, OnDestroy {
   /** "This is actually a burst" — relabel the current pano (delegated). */
   markPanoAsBurst(): void {
     this.decisions.markPanoAsBurst();
+  }
+
+  /** "Photos are missing" — the frames the current pano should have (delegated). */
+  setPanoFrames(frames: PanoFrame[]): void {
+    this.decisions.setPanoFrames(frames);
   }
 
   promoteToPrint(id: string): void {

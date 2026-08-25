@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { PanoCardComponent } from './pano-card';
-import { Pano } from '../../photo';
+import { Pano, PanoFrame } from '../../photo';
+import { PanoFramesService } from '../pano-frames.service';
+import { PreviewCacheService } from '../preview-cache.service';
 
 function panoFixture(orientation: 'horizontal' | 'vertical' = 'horizontal'): Pano {
   return {
@@ -25,7 +27,27 @@ describe('PanoCardComponent', () => {
   let component: PanoCardComponent;
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [PanoCardComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [PanoCardComponent],
+      providers: [
+        // Only reached once the frame picker opens; stubbed so the card's own tests stay offline.
+        {
+          provide: PanoFramesService,
+          useValue: {
+            candidatesFor: () =>
+              Promise.resolve([
+                { id: 'pn0', name: 'DSC_0', taken: '2026-05-24T10:00:00' },
+                { id: 'pn1', name: 'DSC_1', taken: '2026-05-24T10:00:01' },
+                { id: 'pn2', name: 'DSC_2', taken: '2026-05-24T10:00:02' },
+              ]),
+          },
+        },
+        {
+          provide: PreviewCacheService,
+          useValue: { url: () => null, ensure: () => Promise.resolve() },
+        },
+      ],
+    }).compileComponents();
     fixture = TestBed.createComponent(PanoCardComponent);
     component = fixture.componentInstance;
     component.pano = panoFixture();
@@ -78,5 +100,84 @@ describe('PanoCardComponent', () => {
     fixture.componentRef.setInput('pano', panoFixture('vertical'));
     fixture.detectChanges();
     expect(root.querySelector('.pano-strip')?.classList.contains('vertical')).toBe(true);
+  });
+});
+
+describe('PanoCardComponent — "photos are missing"', () => {
+  let fixture: ComponentFixture<PanoCardComponent>;
+  let root: HTMLElement;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [PanoCardComponent],
+      providers: [
+        {
+          provide: PanoFramesService,
+          useValue: {
+            candidatesFor: () =>
+              Promise.resolve([
+                { id: 'pn0', name: 'DSC_0', taken: '2026-05-24T10:00:00' },
+                { id: 'pn1', name: 'DSC_1', taken: '2026-05-24T10:00:01' },
+                { id: 'pn2', name: 'DSC_2', taken: '2026-05-24T10:00:02' },
+              ]),
+          },
+        },
+        {
+          provide: PreviewCacheService,
+          useValue: { url: () => null, ensure: () => Promise.resolve() },
+        },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(PanoCardComponent);
+    fixture.componentInstance.pano = panoFixture();
+    fixture.detectChanges();
+    root = fixture.nativeElement as HTMLElement;
+  });
+
+  function clickCorrection(label: string): void {
+    const buttons = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('.pano-corrections button'),
+    );
+    buttons.find((b) => b.textContent?.includes(label))?.click();
+    fixture.detectChanges();
+  }
+
+  it('swaps the sweep for the picker, so the same photos are only asked about once', async () => {
+    clickCorrection('photos are missing');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(root.querySelector('app-pano-frame-picker')).not.toBeNull();
+    expect(root.querySelector('.pano-strip')).toBeNull();
+  });
+
+  it('hands the confirmed frames up and puts the sweep back', async () => {
+    let changed: PanoFrame[] | undefined;
+    fixture.componentInstance.framesChanged.subscribe((frames) => (changed = frames));
+    clickCorrection('photos are missing');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    root.querySelector<HTMLButtonElement>('.picker-frame')?.click(); // add the shot before the sweep
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('.picker-done')?.click();
+    fixture.detectChanges();
+
+    expect(changed?.map((f) => f.id)).toEqual(['pn0', 'pn1', 'pn2']);
+    expect(root.querySelector('.pano-strip')).not.toBeNull(); // back to the sweep
+  });
+
+  it('leaves the pano alone on Cancel', async () => {
+    let changed: PanoFrame[] | undefined;
+    fixture.componentInstance.framesChanged.subscribe((frames) => (changed = frames));
+    clickCorrection('photos are missing');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    root.querySelector<HTMLButtonElement>('.picker-cancel')?.click();
+    fixture.detectChanges();
+
+    expect(changed).toBeUndefined();
+    expect(root.querySelector('.pano-strip')).not.toBeNull();
   });
 });

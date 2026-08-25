@@ -96,6 +96,40 @@ describe('DailyUnitsService', () => {
     }
   });
 
+  it('gives a pano back the frames the user said it was missing', async () => {
+    albums = [{ id: 'alb-1', name: 'Lisbon' }];
+    for (const [id, second] of [
+      ['a1', '00'],
+      ['a2', '02'],
+      ['a3', '04'],
+    ]) {
+      await metaStore.put(id, {
+        albumId: 'alb-1',
+        name: `IMG_${id}`,
+        taken: `2026-05-01T10:00:${second}Z`,
+      });
+    }
+    // Detection found only two of the three frames; the user added the third in the picker.
+    await groupStore.replaceForAlbum('alb-1', [
+      { type: 'pano', sourceAlbumId: 'alb-1', memberIds: ['a2', 'a3'] },
+    ]);
+    await overrideStore.setMembers({
+      memberIds: ['a2', 'a3'],
+      frameIds: ['a1', 'a2', 'a3'],
+      at: 1,
+    });
+
+    const units = await service.buildUnits([], 10, fixedRng);
+
+    // One unit, not a pano plus a stray single: the added frame belongs to the group now, so
+    // selection cannot also draw it on its own.
+    expect(units).toHaveLength(1);
+    expect(units[0].kind).toBe('pano');
+    if (units[0].kind === 'pano') {
+      expect(units[0].frames.map((f) => f.id)).toEqual(['a1', 'a2', 'a3']);
+    }
+  });
+
   it('marks vacation albums and tolerates an album missing from the album list', async () => {
     albums = []; // 'alb-x' is not in the (empty) album list → album name resolves to null
     await metaStore.put('a1', { albumId: 'alb-x', name: 'IMG_1', taken: '2026-05-01T10:00:00Z' });

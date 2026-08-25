@@ -12,14 +12,15 @@ import {
   viewChild,
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
-import { Pano } from '../../photo';
+import { Pano, PanoFrame } from '../../photo';
+import { PanoFramePickerComponent } from './frame-picker/frame-picker';
 
 @Component({
   selector: 'app-pano-card',
   templateUrl: './pano-card.html',
   styleUrl: './pano-card.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [PanoFramePickerComponent],
 })
 export class PanoCardComponent {
   @Input() pano!: Pano;
@@ -28,6 +29,11 @@ export class PanoCardComponent {
   @Output() swiped = new EventEmitter<'kept' | 'rejected' | 'toEdit' | 'maybe'>();
   /** "This isn't a pano, it's a burst" — relabel the group so it's reviewed as a burst instead. */
   @Output() reclassified = new EventEmitter<void>();
+  /** "Photos are missing" — the frames this pano should have, once the user has said which. */
+  @Output() framesChanged = new EventEmitter<PanoFrame[]>();
+
+  /** Whether the frame picker has taken over the card. */
+  protected readonly picking = signal(false);
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly strip = viewChild<ElementRef<HTMLElement>>('strip');
@@ -39,6 +45,12 @@ export class PanoCardComponent {
 
   protected get vertical(): boolean {
     return this.pano.orientation === 'vertical';
+  }
+
+  /** Done in the picker: hand the frames up and put the sweep back on screen. */
+  protected applyFrames(frames: PanoFrame[]): void {
+    this.picking.set(false);
+    this.framesChanged.emit(frames);
   }
 
   constructor() {

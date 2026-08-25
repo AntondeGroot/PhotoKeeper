@@ -71,3 +71,32 @@ describe('GroupOverrideStore', () => {
     expect((await store.getAll())[0].dissolvedAt).toBe(2);
   });
 });
+
+describe('GroupOverrideStore — membership corrections', () => {
+  beforeEach(() => {
+    indexedDB = new IDBFactory(); // fresh, empty database per test
+    TestBed.resetTestingModule();
+  });
+
+  it('stores what a group actually consists of, keyed by what detection found', async () => {
+    // Keyed by the detected set on purpose: the next scan finds that same set again, and the
+    // correction has to be waiting for it under that key.
+    const store = TestBed.inject(GroupOverrideStore);
+
+    await store.setMembers({ memberIds: ['f2', 'f3'], frameIds: ['f1', 'f2', 'f3'], at: 1 });
+
+    const stored = await store.memberships();
+    expect(stored).toEqual([{ memberIds: ['f2', 'f3'], frameIds: ['f1', 'f2', 'f3'], at: 1 }]);
+  });
+
+  it('replaces an earlier correction for the same group rather than stacking another', async () => {
+    const store = TestBed.inject(GroupOverrideStore);
+
+    await store.setMembers({ memberIds: ['f2', 'f3'], frameIds: ['f1', 'f2', 'f3'], at: 1 });
+    await store.setMembers({ memberIds: ['f3', 'f2'], frameIds: ['f2', 'f3', 'f4'], at: 2 });
+
+    const stored = await store.memberships();
+    expect(stored).toHaveLength(1); // order-independent key — same group, one answer
+    expect(stored[0].frameIds).toEqual(['f2', 'f3', 'f4']);
+  });
+});

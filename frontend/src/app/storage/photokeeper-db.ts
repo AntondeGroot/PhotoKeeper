@@ -68,6 +68,21 @@ export interface GroupReclass {
 }
 
 /**
+ * A user correction of a group's *membership*: "this panorama is missing frames" (or has one too
+ * many). Keyed by the detected member set like the other two corrections, so it survives reloads and
+ * re-scans; selection swaps the detected members for {@link GroupMembers.frameIds} before hydrating.
+ *
+ * Kept apart from {@link GroupReclass} because they answer different questions and can both hold at
+ * once — a group can be re-typed *and* have a frame added, and merging them would make the second
+ * correction overwrite the first.
+ */
+export interface GroupMembers {
+  memberIds: string[]; // the detected group this correction was made about
+  frameIds: string[]; // what the group actually consists of, in capture order
+  at: number; // epoch ms
+}
+
+/**
  * A snapshot of an album's asset population, written after each detection scan. The change-gate
  * hashes the current population and compares it against this; on a mismatch it diffs the fingerprint
  * lists to find exactly which assets were added/removed/changed, so only those get re-hashed.
@@ -94,6 +109,7 @@ export interface AlbumManifest {
  * - assetMeta: assetId → lightweight metadata for on-device selection (album, name, taken)
  * - groupOverrides: member-set signature → a "not a group" user correction
  * - groupReclass: member-set signature → a "this is actually a burst/pano" user correction
+ * - groupMembers: member-set signature → a "this pano is missing frames" user correction
  * - frameSignature: assetId → grayscale signature (Uint8Array), the pano matcher's input
  * - frameAspect: assetId → rendition width/height, the pano aspect gate's input
  * - tags: tagId → a user-defined content tag (the editable catalog)
@@ -111,6 +127,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   assetMeta: { key: string; value: AssetMeta };
   groupOverrides: { key: string; value: GroupOverride };
   groupReclass: { key: string; value: GroupReclass };
+  groupMembers: { key: string; value: GroupMembers };
   frameSignature: { key: string; value: FrameSignature };
   frameAspect: { key: string; value: number };
   tags: { key: string; value: Tag };
@@ -158,9 +175,10 @@ export class PhotoKeeperDb {
     // added 'celebrationCurrent' (the pick standing for the current session, so a restart shows
     // the same picture). v20 added 'reviewBuffer' (units selected ahead of being needed). v21 clears
     // the queued units + stored decks, which were assembled before edits were folded into their
-    // originals.
+    // originals. v22 added 'groupMembers' (the frames a group actually has, after "this pano is
+    // missing frames").
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 21, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 22, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -180,6 +198,7 @@ export class PhotoKeeperDb {
           'assetMeta',
           'groupOverrides',
           'groupReclass',
+          'groupMembers',
           'frameSignature',
           'frameAspect',
           'tags',
