@@ -55,6 +55,63 @@ describe('TagManagerComponent', () => {
     expect(removed).toBe('family');
   });
 
+  describe('swipe directions', () => {
+    it('offers a binding row for each of the seven assignable directions', () => {
+      const labels = Array.from(root.querySelectorAll('.dir-row .dir-label')).map((l) =>
+        l.textContent?.trim(),
+      );
+
+      expect(labels).toEqual([
+        '← Left',
+        '→ Right',
+        '↑ Up',
+        '↓ Down',
+        '↖ Up-left',
+        '↗ Up-right',
+        '↙ Down-left',
+        '↘ Down-right', // the reserved corner, stated but not chosen
+      ]);
+      expect(root.querySelectorAll('.dir-select')).toHaveLength(7);
+    });
+
+    it('states the reserved corner as fixed rather than offering it as a choice', () => {
+      expect(root.querySelector('.dir-fixed')?.textContent?.trim()).toBe('No tag · always');
+    });
+
+    it('offers only the tags still going spare, plus None', () => {
+      // A tag lives on one direction, so listing one that is already spoken for offers a choice that
+      // would quietly unbind it somewhere else.
+      fixture.componentRef.setInput('directions', { left: 'animals' });
+      fixture.detectChanges();
+      const selects = root.querySelectorAll<HTMLSelectElement>('.dir-select');
+      const optionsOf = (s: HTMLSelectElement) =>
+        Array.from(s.options).map((o) => o.textContent?.trim());
+
+      expect(optionsOf(selects[1])).toEqual(['None', 'Family']); // right: Animals is taken
+      expect(optionsOf(selects[0])).toEqual(['None', 'Animals', 'Family']); // left: its own stays
+      expect(selects[0].value).toBe('animals');
+    });
+
+    it('marks a bound direction as set', () => {
+      fixture.componentRef.setInput('directions', { left: 'animals' });
+      fixture.detectChanges();
+      const controls = root.querySelectorAll('.dir-control');
+
+      expect(controls[0].classList.contains('bound')).toBe(true);
+      expect(controls[1].classList.contains('bound')).toBe(false);
+    });
+
+    it('emits the binding when a direction is pointed at a tag', () => {
+      let changed: { dir: string; tagId: string | null } | undefined;
+      fixture.componentInstance.directionChanged.subscribe((c) => (changed = c));
+      const corner = root.querySelectorAll<HTMLSelectElement>('.dir-select')[4]; // up-left
+      corner.value = 'family';
+      corner.dispatchEvent(new Event('change'));
+
+      expect(changed).toEqual({ dir: 'up-left', tagId: 'family' });
+    });
+  });
+
   it('emits renamed on change of a name field', () => {
     let renamed: { id: string; name: string } | undefined;
     fixture.componentInstance.renamed.subscribe((c) => (renamed = c));

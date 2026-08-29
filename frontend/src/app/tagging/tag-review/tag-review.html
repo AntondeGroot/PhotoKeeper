@@ -2,19 +2,27 @@
   <div class="tag-review">
     <div
       class="tag-card"
-      [style.transform]="dragTransform()"
       (pointerdown)="onPointerDown($event)"
       (pointermove)="onPointerMove($event)"
       (pointerup)="onPointerUp()"
       (pointercancel)="onPointerUp()"
     >
-      @if (imageUrl) {
-        <img class="tag-card-img" [src]="imageUrl" alt="" draggable="false" />
-      }
+      <!-- Only the picture travels with the drag. The labels below stay put on the card: they are
+           what you are aiming at, and a target that runs away with the photo leaves the screen just
+           as you reach for it. -->
+      <div class="tag-card-photo" [style.transform]="dragTransform()">
+        @if (imageUrl) {
+          <img class="tag-card-img" [src]="imageUrl" alt="" draggable="false" />
+        }
+      </div>
 
       @for (dir of dirs; track dir) {
         @if (directionTag(dir); as t) {
-          <div class="edge edge-{{ dir }}" [class.active]="edgeActive(dir)">
+          <div
+            class="edge edge-{{ dir }}"
+            [class.active]="edgeActive(dir)"
+            [class.reserved]="dir === noTagDir"
+          >
             {{ arrow[dir] }} {{ t.name }}
           </div>
         }

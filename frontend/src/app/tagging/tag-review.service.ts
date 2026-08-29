@@ -5,7 +5,7 @@ import { ReviewStore } from '../storage/review/review-store';
 import { PreviewCacheService } from '../review/preview-cache.service';
 import { PreferencesService } from '../preferences.service';
 import { TagState } from './tag-state.service';
-import { SWIPE_DIRS, SwipeDir, TagDirections } from './tags';
+import { ASSIGNABLE_DIRS, NO_TAG_DIR, NO_TAG_ID, SwipeDir, TagDirections } from './tags';
 import { Photo, ReviewStatus } from '../photo';
 
 /** Previews warmed either side of the cursor, so the next card is ready before you reach it. */
@@ -161,23 +161,34 @@ export class TagReviewService {
     await Promise.all(ids.map((id) => this.previews.ensure(id).catch(() => undefined)));
   }
 
-  /** Swipe in Tag mode: apply that direction's bound tag to the current photo, then advance. */
+  /**
+   * Swipe in Tag mode: label the photo with that direction's tag and move on.
+   *
+   * The reserved corner labels it "no tag", which is a decision like any other — it settles the
+   * photo, counts toward the pass, and keeps it out of a later pass over the untagged keepers.
+   * An unbound direction does nothing at all: there is no answer to record, so the card stays.
+   */
   swipe(dir: SwipeDir): void {
-    const tagId = this.prefs.tagDirections()[dir];
     const photo = this.currentPhoto();
-    if (!tagId || !photo) return;
+    if (!photo) return;
+    const tagId = dir === NO_TAG_DIR ? NO_TAG_ID : this.prefs.tagDirections()[dir];
+    if (!tagId) return;
     const wasUntagged = !this.tagState.tagsFor(photo.id).length;
     this.tagState.apply(photo.id, tagId);
     if (wasUntagged) this.taggedCount.update((n) => n + 1);
     this.next();
   }
 
-  /** Bind (or clear) a swipe direction to a tag. A tag lives on at most one direction. */
+  /**
+   * Bind (or clear) a swipe direction to a tag. A tag lives on at most one direction, and the
+   * reserved corner cannot be bound at all — it is what "none of these" means.
+   */
   setDirection(change: { dir: SwipeDir; tagId: string | null }): void {
+    if (change.dir === NO_TAG_DIR) return;
     this.prefs.tagDirections.update((dirs) => {
       const next: TagDirections = { ...dirs };
       if (change.tagId) {
-        for (const d of SWIPE_DIRS) if (next[d] === change.tagId) delete next[d]; // unique per tag
+        for (const d of ASSIGNABLE_DIRS) if (next[d] === change.tagId) delete next[d]; // unique per tag
         next[change.dir] = change.tagId;
       } else {
         delete next[change.dir];

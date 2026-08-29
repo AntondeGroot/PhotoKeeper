@@ -61,17 +61,29 @@ export class TagState {
     return this.assignments()[assetId] ?? [];
   }
 
-  /** Apply a tag to a photo (no-op if already applied). */
+  /**
+   * Give a photo a tag, replacing whatever it had.
+   *
+   * A photo carries one tag, not a set: the Tag step asks "what is this a photo *of*", and a single
+   * swipe answers it. Applying a second tag therefore corrects the first rather than adding to it.
+   * The stored shape stays a list — it is what IndexedDB holds and what a Lightroom keyword sync
+   * would want — so a photo labelled under the older, multi-tag behaviour still reads back whole.
+   */
   apply(assetId: string, tagId: string): void {
-    const current = this.tagsFor(assetId);
-    if (!current.includes(tagId)) this.write(assetId, [...current, tagId]);
+    if (this.tagsFor(assetId).join() === tagId) return; // already exactly this tag
+    this.write(assetId, [tagId]);
   }
 
-  /** Toggle a tag on/off for a photo. */
+  /** Tapping a tag: the photo's tag if it wasn't already, otherwise no tag at all. */
   toggle(assetId: string, tagId: string): void {
-    const current = this.tagsFor(assetId);
-    const next = current.includes(tagId) ? current.filter((t) => t !== tagId) : [...current, tagId];
-    this.write(assetId, next);
+    if (this.tagsFor(assetId).includes(tagId)) {
+      this.write(
+        assetId,
+        this.tagsFor(assetId).filter((t) => t !== tagId),
+      );
+      return;
+    }
+    this.apply(assetId, tagId);
   }
 
   private write(assetId: string, tagIds: string[]): void {

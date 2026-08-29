@@ -5,18 +5,32 @@
 }
 
 .tag-card {
+  // The filename strip along the bottom is part of the card but not part of the picture, so the
+  // labels are placed against this rather than against the card: centring on the whole card put the
+  // left and right labels visibly below the middle of the photo you are actually looking at.
+  --name-strip: 44px;
+
   position: relative;
   height: 340px;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: hidden; // the picture slides *within* the card rather than over the page
   border: 1px solid var(--c-line);
-  background: linear-gradient(160deg, var(--c-panel2) 0%, var(--c-bg) 100%);
+  background: var(--c-bg);
   touch-action: none; // we own the drag gesture
   cursor: grab;
 
   &:active {
     cursor: grabbing;
   }
+}
+
+// The layer that follows the drag: the photograph and nothing else. Carries the card's own backdrop
+// so a photo with no preview yet still moves under your finger.
+.tag-card-photo {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, var(--c-panel2) 0%, var(--c-bg) 100%);
+  will-change: transform;
 }
 
 .tag-card-img {
@@ -41,6 +55,11 @@
   font-size: 12.5px;
   font-weight: 700;
   white-space: nowrap;
+  // Eight labels share the card's edges, so a long tag name is trimmed rather than allowed to run
+  // under the label beside it.
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   pointer-events: none;
   transition:
     background 0.12s,
@@ -53,15 +72,16 @@
   }
 }
 
+// Centred in the picture area — everything above the filename strip — not in the card.
 .edge-left {
   left: 10px;
-  top: 50%;
+  top: calc((100% - var(--name-strip)) / 2);
   transform: translateY(-50%);
 }
 
 .edge-right {
   right: 10px;
-  top: 50%;
+  top: calc((100% - var(--name-strip)) / 2);
   transform: translateY(-50%);
 }
 
@@ -72,9 +92,43 @@
 }
 
 .edge-down {
-  bottom: 44px; // clears the filename strip
+  bottom: var(--name-strip);
   left: 50%;
   transform: translateX(-50%);
+}
+
+/* ── Corners ── */
+.edge-up-left {
+  top: 10px;
+  left: 10px;
+}
+
+.edge-up-right {
+  top: 10px;
+  right: 10px;
+}
+
+.edge-down-left {
+  bottom: var(--name-strip);
+  left: 10px;
+}
+
+.edge-down-right {
+  bottom: var(--name-strip);
+  right: 10px;
+}
+
+// The reserved "no tag" corner is an answer, not a label you chose — stated quietly so the tags you
+// picked are what the eye lands on, but it still fills in when the drag commits to it.
+.edge.reserved {
+  color: var(--c-dim);
+  border-color: var(--c-line);
+
+  &.active {
+    background: var(--c-dim);
+    border-color: var(--c-dim);
+    color: #131110;
+  }
 }
 
 .tag-card-name {

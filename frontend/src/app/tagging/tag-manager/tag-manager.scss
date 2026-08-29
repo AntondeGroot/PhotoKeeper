@@ -175,17 +175,71 @@
   color: var(--c-text);
 }
 
+// The control is the wrapper, not the select: the browser's own arrow can't be styled, so the arrow
+// is drawn here and the select is stripped bare and laid over it.
+.dir-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 140px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel2);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+
+  // A bound direction reads as set rather than empty — the same amber the tag's own label wears in
+  // the Tag step, so the two screens agree about what "this direction is spoken for" looks like.
+  &.bound {
+    border-color: rgba(229, 160, 69, 0.45);
+    background: rgba(229, 160, 69, 0.08);
+
+    .dir-select {
+      color: var(--c-amber);
+      font-weight: 600;
+    }
+  }
+
+  &:hover {
+    border-color: var(--c-dim);
+  }
+
+  // The chevron, sitting where the native arrow was and ignoring the pointer so the whole control
+  // still opens the picker.
+  &::after {
+    content: '';
+    position: absolute;
+    right: 12px;
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid var(--c-dim);
+    border-bottom: 1.5px solid var(--c-dim);
+    transform: translateY(-2px) rotate(45deg);
+    pointer-events: none;
+  }
+
+  &:focus-within {
+    border-color: var(--c-amber);
+  }
+}
+
 .dir-select {
+  appearance: none;
+  width: 100%;
   font-family: var(--font-body);
   font-size: 13px;
   color: var(--c-text);
-  background: var(--c-panel2);
-  border: 1px solid var(--c-line);
-  border-radius: 8px;
-  padding: 7px 10px;
-  color-scheme: dark;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 30px 9px 12px;
+  color-scheme: dark; // the OS picker's own list follows the app's dark theme
   cursor: pointer;
-  min-width: 130px;
+
+  &:focus {
+    outline: none; // the wrapper shows focus, so the ring isn't drawn twice
+  }
 }
 
 .manager-hint {
@@ -194,4 +248,11 @@
   color: var(--c-faint);
   line-height: 1.7;
   padding: 0 4px;
+}
+
+// The reserved corner's binding, stated where the others are chosen so the set reads as complete.
+.dir-fixed {
+  font-size: 12.5px;
+  color: var(--c-faint);
+  padding: 7px 2px;
 }

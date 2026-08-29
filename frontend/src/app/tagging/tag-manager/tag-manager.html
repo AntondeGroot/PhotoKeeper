@@ -34,18 +34,38 @@
 
   <div class="dir-section">
     <div class="dir-title">Swipe directions</div>
-    <p class="dir-sub">In the Tag step, swipe a photo to apply that direction’s tag.</p>
+    <p class="dir-sub">
+      In the Tag step, swipe a photo toward a direction to apply that tag — corners included. A
+      photo carries one tag, so swiping again replaces it.
+    </p>
     @for (dir of dirs; track dir) {
       <div class="dir-row">
         <span class="dir-label">{{ arrow[dir] }} {{ dirLabel[dir] }}</span>
-        <select class="dir-select" (change)="onDirectionChange(dir, $event)">
-          <option value="" [selected]="!directions[dir]">— none —</option>
-          @for (tag of tags; track tag.id) {
-            <option [value]="tag.id" [selected]="directions[dir] === tag.id">{{ tag.name }}</option>
-          }
-        </select>
+        <!-- A native select, restyled: on a phone this opens the OS picker, which is a better list
+             than anything drawn here. The wrapper supplies the chevron, since the browser's own
+             arrow cannot be styled. -->
+        <span class="dir-control" [class.bound]="!!boundTag(dir)">
+          <select
+            class="dir-select"
+            [attr.aria-label]="dirLabel[dir] + ' swipe tag'"
+            (change)="onDirectionChange(dir, $event)"
+          >
+            <option value="" [selected]="!directions[dir]">None</option>
+            @for (tag of optionsFor(dir); track tag.id) {
+              <option [value]="tag.id" [selected]="directions[dir] === tag.id">
+                {{ tag.name }}
+              </option>
+            }
+          </select>
+        </span>
       </div>
     }
+    <!-- Fixed, not a choice: the pass draws from untagged keepers, so "none of these apply" has to
+         be sayable or a photo you keep declining comes back for ever. -->
+    <div class="dir-row">
+      <span class="dir-label">{{ arrow[noTagDir] }} {{ dirLabel[noTagDir] }}</span>
+      <span class="dir-fixed">{{ noTag.name }} · always</span>
+    </div>
   </div>
 
   <p class="manager-hint">

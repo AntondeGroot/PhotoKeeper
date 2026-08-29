@@ -175,6 +175,37 @@ describe('TagReviewService', () => {
     expect(service.cursor()).toBe(1);
   });
 
+  it('swipe() into the reserved corner labels the photo "no tag" and moves on', () => {
+    // The pool is the untagged keepers, so declining a photo has to leave a mark — otherwise it
+    // comes back in every later pass.
+    tagDirections.set({ up: 't1' });
+
+    service.swipe('down-right');
+
+    expect(applied).toEqual([{ assetId: 'a', tagId: 'no-tag' }]);
+    expect(service.cursor()).toBe(1);
+  });
+
+  it('swipe() into the reserved corner ignores anything bound there', () => {
+    tagDirections.set({ 'down-right': 't1' }); // a stale binding cannot outrank "no tag"
+
+    service.swipe('down-right');
+
+    expect(applied).toEqual([{ assetId: 'a', tagId: 'no-tag' }]);
+  });
+
+  it('setDirection() refuses to bind the reserved corner', () => {
+    service.setDirection({ dir: 'down-right', tagId: 't1' });
+
+    expect(tagDirections()['down-right']).toBeUndefined();
+  });
+
+  it('setDirection() binds a corner like any other direction', () => {
+    service.setDirection({ dir: 'up-left', tagId: 't1' });
+
+    expect(tagDirections()['up-left']).toBe('t1');
+  });
+
   it('setDirection() binds a tag and keeps it unique across directions', () => {
     service.setDirection({ dir: 'up', tagId: 't1' });
     expect(tagDirections().up).toBe('t1');
