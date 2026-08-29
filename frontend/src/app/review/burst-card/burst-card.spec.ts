@@ -42,8 +42,8 @@ describe('BurstCardComponent', () => {
       { id: 's2', name: 'B' },
       { id: 's3', name: 'C' },
     ]);
-    let winner: string | undefined;
-    component.picked.subscribe((id) => (winner = id));
+    let winner: string[] | undefined;
+    component.resolved.subscribe((ids) => (winner = ids));
 
     expect(component.duel()).toEqual({
       a: { id: 's1', name: 'A' },
@@ -55,18 +55,18 @@ describe('BurstCardComponent', () => {
     expect(component.duel()).toEqual({ a: { id: 's2', name: 'B' }, b: { id: 's3', name: 'C' } });
 
     component.chooseWinner('s3'); // s3 beats s2 → no challengers left → resolved
-    expect(winner).toBe('s3');
+    expect(winner).toEqual(['s3']);
   });
 
   it('has no duel for a single survivor and keepChampion emits it', () => {
     component.burst = burst([{ id: 's1', name: 'only' }]);
-    let winner: string | undefined;
-    component.picked.subscribe((id) => (winner = id));
+    let winner: string[] | undefined;
+    component.resolved.subscribe((ids) => (winner = ids));
 
     expect(component.duel()).toBeNull();
 
     component.keepChampion();
-    expect(winner).toBe('s1');
+    expect(winner).toEqual(['s1']);
   });
 
   it('renders an image for a duel frame that has a preview URL', () => {
@@ -120,9 +120,9 @@ describe('BurstCardComponent', () => {
     const c = fixture.componentInstance;
     c.burst = threeFrame();
     let compared: { ids: string[]; start: number } | undefined;
-    let winner: string | undefined;
+    let winner: string[] | undefined;
     c.compare.subscribe((e) => (compared = e));
-    c.picked.subscribe((id) => (winner = id));
+    c.resolved.subscribe((ids) => (winner = ids));
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     const frames = el.querySelectorAll<HTMLButtonElement>('.burst-frame');
@@ -134,17 +134,88 @@ describe('BurstCardComponent', () => {
     expect(winner).toBeUndefined(); // tapping a frame never picks
   });
 
-  it('emits dissolved when "not a burst" is clicked', () => {
-    const fixture = TestBed.createComponent(BurstCardComponent);
-    fixture.componentInstance.burst = burstFixture();
-    let emitted = false;
-    fixture.componentInstance.dissolved.subscribe(() => (emitted = true));
-    fixture.detectChanges();
+  describe('a pair where nobody loses', () => {
+    /** The five-frame burst the fault was found in: worse frames thrown out, then two keepers. */
+    const fiveFrame = () =>
+      burst([
+        { id: 's1', name: 'A' },
+        { id: 's2', name: 'B' },
+        { id: 's3', name: 'C' },
+        { id: 's4', name: 'D' },
+        { id: 's5', name: 'E' },
+      ]);
 
-    (fixture.nativeElement as HTMLElement)
-      .querySelector<HTMLButtonElement>('.not-a-burst')
-      ?.click();
+    it('keeps both and carries on, without touching what was already decided', () => {
+      // The reported fault: after throwing out the weaker frames, a pair you both want used to leave
+      // "not a burst" as the only answer — and that handed the whole set back undecided.
+      const component = new BurstCardComponent();
+      component.burst = fiveFrame();
+      let kept: string[] | undefined;
+      component.resolved.subscribe((ids) => (kept = ids));
 
-    expect(emitted).toBe(true);
+      component.chooseWinner('s1'); // s1 beats s2 — s2 is out
+      component.chooseWinner('s1'); // s1 beats s3 — s3 is out
+      expect(component.duel()).toEqual({ a: { id: 's1', name: 'A' }, b: { id: 's4', name: 'D' } });
+
+      component.keepBoth(); // s1 and s4 are both keepers
+      expect(kept).toBeUndefined(); // s5 has not been looked at yet
+      expect(component.champion()?.id).toBe('s5'); // it is offered on its own
+
+      component.keepChampion();
+      expect(kept).toEqual(['s1', 's4', 's5']); // and the frames thrown out earlier stayed out
+    });
+
+    it('resolves on the spot when the kept pair was the last of the burst', () => {
+      const component = new BurstCardComponent();
+      component.burst = burst([
+        { id: 's1', name: 'A' },
+        { id: 's2', name: 'B' },
+      ]);
+      let kept: string[] | undefined;
+      component.resolved.subscribe((ids) => (kept = ids));
+
+      component.keepBoth();
+
+      expect(kept).toEqual(['s1', 's2']);
+    });
+
+    it('rejects both and carries on with the rest of the burst', () => {
+      const component = new BurstCardComponent();
+      component.burst = fiveFrame();
+      let kept: string[] | undefined;
+      component.resolved.subscribe((ids) => (kept = ids));
+
+      component.rejectBoth(); // s1 and s2 are both out
+      expect(component.duel()).toEqual({ a: { id: 's3', name: 'C' }, b: { id: 's4', name: 'D' } });
+
+      component.keepBoth(); // s3 and s4 are keepers
+      component.keepChampion(); // s5 alone
+      expect(kept).toEqual(['s3', 's4', 's5']);
+    });
+
+    it('settles on nothing when every frame was rejected', () => {
+      const component = new BurstCardComponent();
+      component.burst = burst([
+        { id: 's1', name: 'A' },
+        { id: 's2', name: 'B' },
+      ]);
+      let kept: string[] | undefined;
+      component.resolved.subscribe((ids) => (kept = ids));
+
+      component.rejectBoth();
+
+      expect(kept).toEqual([]);
+    });
+
+    it('offers "keep both" and "reject both" on the duel itself', () => {
+      const fixture = TestBed.createComponent(BurstCardComponent);
+      fixture.componentInstance.burst = fiveFrame();
+      fixture.detectChanges();
+      const labels = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.burst-pick-both .pick-btn'),
+      ).map((b) => b.textContent?.trim());
+
+      expect(labels).toEqual(['Keep both photos', 'Reject both photos']);
+    });
   });
 });

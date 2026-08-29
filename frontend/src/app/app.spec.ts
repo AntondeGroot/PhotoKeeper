@@ -10,7 +10,6 @@ import { StoredVerdict } from './storage/photokeeper-db';
 import { DailyUnitsService } from './review/selection/daily-units.service';
 import { CatalogScanService } from './detection/scan/catalog-scan.service';
 import { DetectionSettingsService } from './detection/scan/detection-settings.service';
-import { GroupOverrideStore } from './storage/detection/group-override-store';
 import { TagStore } from './storage/tags/tag-store';
 import { AssetTagStore } from './storage/tags/asset-tag-store';
 
@@ -444,53 +443,12 @@ describe('App', () => {
       ]);
       app.reviewIndex.set(0);
 
-      app.resolveBurst('f1');
+      app.resolveBurst(['f1']);
 
       expect(app.reviewPhotos()[0].status).toBe('kept'); // burst unit done
       await tick();
       expect(saved.get('f1')?.status).toBe('kept'); // winner
       expect(saved.get('f2')?.status).toBe('rejected'); // loser
-    });
-  });
-
-  describe('dissolve a burst', () => {
-    it('replaces the burst with its frames as singles and records an override', async () => {
-      let recorded: { memberIds: string[] } | undefined;
-      TestBed.overrideProvider(ReviewStore, {
-        useValue: { setDailyFeed: () => Promise.resolve() },
-      });
-      TestBed.overrideProvider(GroupOverrideStore, {
-        useValue: {
-          dissolve: (o: { memberIds: string[] }) => {
-            recorded = o;
-            return Promise.resolve();
-          },
-        },
-      });
-      const fixture = TestBed.createComponent(App);
-      const app = fixture.componentInstance;
-      app.reviewPhotos.set([
-        {
-          id: 'burst:alb-1:f1',
-          name: 'Burst · 2 frames',
-          album: 'A',
-          taken: '2026-01-01',
-          status: 'backlog',
-          kind: 'burst',
-          photos: [
-            { id: 'f1', name: 'IMG_1' },
-            { id: 'f2', name: 'IMG_2' },
-          ],
-        },
-      ]);
-      app.reviewIndex.set(0);
-
-      app.dissolveBurst();
-
-      expect(app.reviewPhotos().map((u) => u.id)).toEqual(['f1', 'f2']);
-      expect(app.reviewPhotos().every((u) => u.kind === 'photo')).toBe(true);
-      await tick();
-      expect(recorded?.memberIds).toEqual(['f1', 'f2']);
     });
   });
 

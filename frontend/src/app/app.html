@@ -179,9 +179,8 @@
                   <app-burst-card
                     [burst]="$any(currentReviewPhoto())"
                     [imageUrls]="currentUnitImageUrls()"
-                    (picked)="resolveBurst($event)"
+                    (resolved)="resolveBurst($event)"
                     (rejectedAll)="rejectBurst()"
-                    (dissolved)="dissolveBurst()"
                     (reclassified)="markBurstAsPano()"
                     (compare)="openBurstCompare($event)"
                   />
