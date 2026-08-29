@@ -46,7 +46,30 @@
     &:hover {
       filter: brightness(1.06);
     }
+
+    // "Keep both" / "Reject both" are ordinary answers, not warnings — but the A-or-B choice is the
+    // common one, so these carry the same shape in a quieter weight rather than competing for the eye.
+    &.subtle {
+      background: transparent;
+      border: 1px solid var(--c-line);
+      color: var(--c-text);
+      font-weight: 600;
+      font-size: 13px;
+
+      &:hover {
+        filter: none;
+        border-color: var(--c-dim);
+      }
+    }
   }
+}
+
+.burst-pick-both {
+  margin-top: -4px;
+}
+
+.kept-so-far {
+  color: var(--c-keep);
 }
 
 .burst-frames {
@@ -145,15 +168,6 @@
   color: var(--c-faint);
   font-size: 12px;
   text-decoration: underline;
-  cursor: pointer;
-}
-
-.not-a-burst {
-  align-self: center;
-  background: none;
-  border: none;
-  color: var(--c-faint);
-  font-size: 11px;
   cursor: pointer;
 }
 

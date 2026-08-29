@@ -140,7 +140,7 @@ describe('ReviewDecisionsService', () => {
   it('resolveBurst() keeps the winner, rejects the rest, and marks the unit done', async () => {
     photos.set([burst('grp', ['f1', 'f2', 'f3'])]);
     index.set(0);
-    service.resolveBurst('f2');
+    service.resolveBurst(['f2']);
     await Promise.resolve();
     expect(photos()[0].status).toBe('kept'); // the burst unit itself is done
     expect(verdicts).toContainEqual({
@@ -157,15 +157,39 @@ describe('ReviewDecisionsService', () => {
     });
   });
 
-  it('dissolveBurst() expands the group into single photos and records the override', () => {
+  it('resolveBurst() keeps every frame the duel kept, not just one', async () => {
+    // A burst can hold two frames worth keeping — the pair where nobody lost.
+    photos.set([burst('grp', ['f1', 'f2', 'f3'])]);
+    index.set(0);
+
+    service.resolveBurst(['f1', 'f3']);
+    await Promise.resolve();
+
+    expect(photos()[0].status).toBe('kept');
+    expect(verdicts).toContainEqual({
+      id: 'f1',
+      verdict: { status: 'kept', starred: false, keepsake: false },
+    });
+    expect(verdicts).toContainEqual({
+      id: 'f3',
+      verdict: { status: 'kept', starred: false, keepsake: false },
+    });
+    expect(verdicts).toContainEqual({
+      id: 'f2',
+      verdict: { status: 'rejected', starred: false, keepsake: false },
+    });
+  });
+
+  it('resolveBurst() marks the unit rejected when the answer was "none of them"', async () => {
+    // Otherwise a burst nobody kept would count in the day's tally as one that was kept.
     photos.set([burst('grp', ['f1', 'f2'])]);
     index.set(0);
-    service.dissolveBurst();
-    expect(photos().map((p) => p.id)).toEqual(['f1', 'f2']);
-    expect(photos().every((p) => p.kind === 'photo')).toBe(true);
-    expect(dailyFeeds.get(todayKey())?.length).toBe(2); // re-persisted
-    expect(dissolves.length).toBe(1);
-    expect(dissolves[0].memberIds).toEqual(['f1', 'f2']);
+
+    service.resolveBurst([]);
+    await Promise.resolve();
+
+    expect(photos()[0].status).toBe('rejected');
+    expect(verdicts.map((v) => v.verdict.status)).toEqual(['rejected', 'rejected', 'rejected']);
   });
 
   it('markBurstAsPano() re-types the unit in place and records the reclassify', () => {
@@ -188,10 +212,10 @@ describe('ReviewDecisionsService', () => {
     photos.set([burst('grp', ['f1', 'f2']), device]);
     index.set(0);
 
-    service.dissolveBurst();
+    service.markBurstAsPano(); // any edit to the deck re-persists it
 
-    expect(photos().map((p) => p.id)).toEqual(['f1', 'f2', 'dev1']); // still on screen
-    expect(dailyFeeds.get(todayKey())?.map((p) => p.id)).toEqual(['f1', 'f2']); // but not stored
+    expect(photos().map((p) => p.id)).toEqual(['pano:grp', 'dev1']); // still on screen
+    expect(dailyFeeds.get(todayKey())?.map((p) => p.id)).toEqual(['pano:grp']); // but not stored
   });
 
   describe('withdrawAlbum()', () => {

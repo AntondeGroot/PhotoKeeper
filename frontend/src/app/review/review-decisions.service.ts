@@ -7,31 +7,7 @@ import { PreferencesService } from '../preferences.service';
 import { ReviewFeedService, todayKey } from './review-feed.service';
 import { StreakService } from './streak.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
-import {
-  Burst,
-  BurstPhoto,
-  Pano,
-  PanoFrame,
-  Photo,
-  ReviewItem,
-  isDevicePhoto,
-  unitAssetIds,
-} from '../photo';
-
-/** Turns a dissolved burst's frame into a standalone review photo, carrying over the burst's album. */
-function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
-  return {
-    id: frame.id,
-    name: frame.name,
-    album: burst.album,
-    taken: burst.taken,
-    status: 'backlog',
-    kind: 'photo',
-    starred: false,
-    keepsake: false,
-    ai: frame.ai,
-  };
-}
+import { Burst, Pano, PanoFrame, ReviewItem, isDevicePhoto, unitAssetIds } from '../photo';
 
 /**
  * The id a unit takes when re-typed. Replaces the type prefix rather than stacking another, so
@@ -169,15 +145,22 @@ export class ReviewDecisionsService {
     void this.persistVerdict(current.id);
   }
 
-  // Resolves a burst's duel: the winning frame is kept, every other frame rejected. Marks the burst
-  // unit done (so it leaves the queue and counts toward the goal) and persists per-frame verdicts.
-  resolveBurst(winnerId: string): void {
+  /**
+   * Settles a burst: `keptIds` are kept, every other frame is rejected, and the unit leaves the queue
+   * as one decision that counts toward the day's goal.
+   *
+   * A list rather than a single winner, because a burst can hold two frames worth keeping — the two
+   * of a pair where nobody lost. The unit's own verdict follows the frames: kept if any survived,
+   * rejected if the answer in the end was "none of them", so the day's tally says what happened.
+   */
+  resolveBurst(keptIds: string[]): void {
     const current = this.feed.current();
     if (current?.kind !== 'burst') return;
-    this.setStatus(current.id, 'kept');
+    const kept = new Set(keptIds);
+    this.setStatus(current.id, kept.size > 0 ? 'kept' : 'rejected');
     void this.persistVerdict(current.id); // burst unit itself: done, survives reload
     for (const frame of current.photos) {
-      const status = frame.id === winnerId ? ('kept' as const) : ('rejected' as const);
+      const status = kept.has(frame.id) ? ('kept' as const) : ('rejected' as const);
       void this.reviewStore.setVerdict(frame.id, { status, starred: false, keepsake: false });
     }
     this.feed.advance();
@@ -189,20 +172,6 @@ export class ReviewDecisionsService {
     this.setStatus(current.id, 'rejected');
     void this.persistVerdict(current.id);
     this.feed.advance();
-  }
-
-  // "Not a burst" — the user says these frames aren't a real group. Replace the burst with its frames
-  // as individual photos to review now, and record an override so the group stays dissolved across
-  // reloads and re-scans (selection drops it). Stays put on the first frame.
-  dissolveBurst(): void {
-    const current = this.feed.current();
-    if (current?.kind !== 'burst') return;
-    const singles = current.photos.map((frame) => burstFrameToPhoto(frame, current));
-    this.feed.photos.update((list) =>
-      list.flatMap((item) => (item.id === current.id ? singles : [item])),
-    );
-    this.persistDay();
-    void this.recordDissolve(current);
   }
 
   /**
@@ -357,17 +326,6 @@ export class ReviewDecisionsService {
     this.scan.scheduleRefill(this.isAuthenticated);
     // A decision may have just carried the day's count over the sorting goal — celebrate it.
     this.maybeCelebrateGoal();
-  }
-
-  private async recordDissolve(burst: Burst): Promise<void> {
-    try {
-      await this.groupOverrides.dissolve({
-        memberIds: burst.photos.map((p) => p.id),
-        dissolvedAt: Date.now(),
-      });
-    } catch {
-      // Best-effort correction; never break the review flow.
-    }
   }
 
   private async recordAbsorbed(unit: ReviewItem): Promise<void> {

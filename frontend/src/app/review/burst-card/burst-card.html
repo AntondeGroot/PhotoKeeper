@@ -2,8 +2,8 @@
   <div>
     <p class="burst-heading">Which is better — A or B?</p>
     <p class="burst-subtitle">
-      Burst of {{ survivors().length }}. Tap a photo to enlarge; keep A or B below. The rest are
-      dropped.
+      Burst of {{ survivors().length }}. Tap a photo to enlarge. Keep the better one — or both, if
+      they're both worth keeping. Anything you don't keep is rejected.
     </p>
   </div>
 
@@ -34,7 +34,18 @@
       <button class="pick-btn" (click)="chooseWinner(photo.a.id)">Keep A</button>
       <button class="pick-btn" (click)="chooseWinner(photo.b.id)">Keep B</button>
     </div>
-    <p class="burst-progress">Duel {{ challengerIdx() }} of {{ totalDuels() }}</p>
+    <!-- The two answers a duel cannot express: both are keepers, or neither is. Both settle this
+         pair only and carry on with the rest of the burst. -->
+    <div class="burst-pick burst-pick-both">
+      <button class="pick-btn subtle" (click)="keepBoth()">Keep both photos</button>
+      <button class="pick-btn subtle" (click)="rejectBoth()">Reject both photos</button>
+    </div>
+    <p class="burst-progress">
+      Duel {{ challengerIdx() }} of {{ totalDuels() }}
+      @if (keptSoFar() > 0) {
+        <span class="kept-so-far">· {{ keptSoFar() }} kept so far</span>
+      }
+    </p>
   } @else if (champion(); as champion) {
     <div class="burst-frames">
       <button class="burst-frame" (click)="compare.emit({ ids: [champion.id], start: 0 })">
@@ -48,6 +59,7 @@
     </div>
     <div class="burst-pick">
       <button class="pick-btn" (click)="keepChampion()">Keep this one</button>
+      <button class="pick-btn subtle" (click)="rejectChampion()">Reject it</button>
     </div>
   }
 
@@ -56,9 +68,6 @@
       <span class="excluded-chip">{{ excluded().length }} soft frame excluded</span>
     }
   </div>
-  <button class="reject-all" (click)="rejectedAll.emit()">neither — reject the burst</button>
-  <button class="not-a-burst" (click)="dissolved.emit()">
-    not a burst — review these separately
-  </button>
+  <button class="reject-all" (click)="rejectedAll.emit()">reject the whole burst</button>
   <button class="reclassify" (click)="reclassified.emit()">actually a panorama →</button>
 </div>

@@ -518,18 +518,13 @@ export class AppComponent implements OnInit, OnDestroy {
     this.tagReview.prev();
   }
 
-  /** Burst duel: keep the winner, reject the rest (delegated to ReviewDecisionsService). */
-  resolveBurst(winnerId: string): void {
-    this.decisions.resolveBurst(winnerId);
+  /** The burst's outcome: the frames to keep (everything else in it is rejected). Delegated. */
+  resolveBurst(keptIds: string[]): void {
+    this.decisions.resolveBurst(keptIds);
   }
 
   rejectBurst(): void {
     this.decisions.rejectBurst();
-  }
-
-  /** "Not a burst" — dissolve the group into individual photos (delegated). */
-  dissolveBurst(): void {
-    this.decisions.dissolveBurst();
   }
 
   /** "This is actually a pano" — relabel the current burst (delegated). */
