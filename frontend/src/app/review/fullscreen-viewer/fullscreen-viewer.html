@@ -30,10 +30,10 @@
 
   @if (reviewMode) {
     <div class="viewer-actions">
-      <button class="va reject" (click)="chooseVerdict('rejected')">✕ Reject</button>
-      <button class="va maybe" (click)="chooseVerdict('maybe')">Maybe</button>
-      <button class="va edit" (click)="chooseVerdict('toEdit')">Edit</button>
-      <button class="va keep" (click)="chooseVerdict('kept')">✓ Keep</button>
+      <button class="viewer-action reject" (click)="chooseVerdict('rejected')">✕ Reject</button>
+      <button class="viewer-action maybe" (click)="chooseVerdict('maybe')">Maybe</button>
+      <button class="viewer-action edit" (click)="chooseVerdict('toEdit')">Edit</button>
+      <button class="viewer-action keep" (click)="chooseVerdict('kept')">✓ Keep</button>
     </div>
     <div class="viewer-hint">swipe or use the buttons · tap the photo to close</div>
   } @else if (multi()) {

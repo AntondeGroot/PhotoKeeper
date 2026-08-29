@@ -130,7 +130,7 @@
   display: flex;
   gap: 10px;
 
-  .va {
+  .viewer-action {
     padding: 12px 18px;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -141,13 +141,13 @@
     cursor: pointer;
   }
 
-  .va.keep {
+  .viewer-action.keep {
     background: var(--c-amber);
     color: #131110;
     border-color: transparent;
   }
 
-  .va.reject {
+  .viewer-action.reject {
     background: rgba(224, 108, 108, 0.85);
     border-color: transparent;
   }
