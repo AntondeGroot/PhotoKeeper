@@ -59,11 +59,28 @@ describe('TagState', () => {
     expect(stored['IMG_1']).toEqual(['animals']);
   });
 
+  it('apply() replaces the photo tag rather than adding a second one', () => {
+    // A photo carries one tag: the Tag step asks what it is a photo *of*, and one swipe answers.
+    service.apply('IMG_1', 'animals');
+    service.apply('IMG_1', 'family');
+
+    expect(service.tagsFor('IMG_1')).toEqual(['family']);
+    expect(stored['IMG_1']).toEqual(['family']);
+  });
+
   it('toggle() flips a tag on and off, persisting each change', () => {
     service.toggle('IMG_1', 'family');
     expect(service.tagsFor('IMG_1')).toEqual(['family']);
     service.toggle('IMG_1', 'family');
     expect(service.tagsFor('IMG_1')).toEqual([]);
     expect(stored['IMG_1']).toEqual([]);
+  });
+
+  it('toggle() moves the photo to the tapped tag when it already had another', () => {
+    service.apply('IMG_1', 'animals');
+
+    service.toggle('IMG_1', 'family');
+
+    expect(service.tagsFor('IMG_1')).toEqual(['family']);
   });
 });

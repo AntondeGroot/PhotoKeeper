@@ -41,7 +41,7 @@ export default tseslint.config(
       'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
       'max-classes-per-file': ['error', 1],
       'sonarjs/cognitive-complexity': ['error', 15],
-      eqeqeq: ['error', 'always'],
+      'eqeqeq': ['error', 'always'],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': 'error',
       '@typescript-eslint/prefer-readonly': 'error',

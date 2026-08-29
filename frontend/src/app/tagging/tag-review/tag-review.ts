@@ -10,22 +10,28 @@ import {
 import { SafeUrl } from '@angular/platform-browser';
 import { Photo } from '../../photo';
 import { Tag } from '../tags';
-import { DIR_ARROW, SWIPE_DIRS, SwipeDir, TagDirections } from '../tags';
+import {
+  DIR_ARROW,
+  NO_TAG,
+  NO_TAG_DIR,
+  SWIPE_DIRS,
+  SwipeDir,
+  TagDirections,
+  swipeDirOf,
+} from '../tags';
 
 /** Drag distance (px) past which a release counts as a directional swipe. */
 const SWIPE_THRESHOLD = 70;
 
-/** The dominant swipe direction of a drag vector (the larger axis decides). */
-function dominantDir(dx: number, dy: number): SwipeDir {
-  if (Math.abs(dx) >= Math.abs(dy)) return dx < 0 ? 'left' : 'right';
-  return dy < 0 ? 'up' : 'down';
-}
-
 /**
- * The Tag review step. Swipe a keeper in one of four directions to apply that direction's bound tag
- * and advance to the next photo (like Sort). The bound tags are shown as edge labels; any other tags
- * sit below as tappable chips. The current photo's applied tags show as removable chips so a mis-swipe
- * can be undone. Presentational — the host owns the pool, cursor, direction map and persistence.
+ * The Tag review step. Swipe a keeper toward one of eight labels — four axes, four corners — to
+ * apply that direction's tag and advance to the next photo (like Sort). The bottom-right corner is
+ * always "no tag": the answer for a photo none of them fit.
+ *
+ * A drag that comes back to the middle applies nothing and keeps the photo on screen, so committing
+ * is something you do, not something you fail to avoid. Unbound directions do nothing at all.
+ *
+ * Presentational — the host owns the pool, cursor, direction map and persistence.
  */
 @Component({
   selector: 'app-tag-review',
@@ -56,6 +62,7 @@ export class TagReviewComponent {
 
   protected readonly dirs = SWIPE_DIRS;
   protected readonly arrow = DIR_ARROW;
+  protected readonly noTagDir = NO_TAG_DIR;
   protected readonly dragX = signal(0);
   protected readonly dragY = signal(0);
   protected readonly dragTransform = computed(
@@ -66,8 +73,12 @@ export class TagReviewComponent {
   private startX = 0;
   private startY = 0;
 
-  /** The tag bound to a direction (undefined if unbound or its tag was deleted). */
+  /**
+   * The tag a direction applies: the built-in "no tag" for the reserved corner, else whatever is
+   * bound to it (undefined when unbound, or when its tag has since been deleted).
+   */
   protected directionTag(dir: SwipeDir): Tag | undefined {
+    if (dir === NO_TAG_DIR) return NO_TAG;
     const id = this.directions[dir];
     return id ? this.tags.find((t) => t.id === id) : undefined;
   }
@@ -78,9 +89,12 @@ export class TagReviewComponent {
     return this.tags.filter((t) => !bound.has(t.id));
   }
 
-  /** The current photo's applied tags, resolved to catalog entries (for the removable chips). */
+  /**
+   * The current photo's applied tags, resolved for the removable chips. The built-in "no tag" is
+   * included: it is a real assignment, and one you must be able to take back off.
+   */
   protected get appliedTags(): Tag[] {
-    return this.tags.filter((t) => this.appliedTagIds.includes(t.id));
+    return [...this.tags, NO_TAG].filter((t) => this.appliedTagIds.includes(t.id));
   }
 
   protected isApplied(id: string): boolean {
@@ -88,15 +102,13 @@ export class TagReviewComponent {
   }
 
   /**
-   * Whether this edge is the one a release would fire — i.e. it's the *dominant* drag direction and the
-   * drag has passed the commit threshold. Only ever true for a single edge, so the filled label always
-   * shows exactly which tag will be applied (no ambiguous double-highlight on a diagonal drag).
+   * Whether this edge is the one a release would fire — the drag points into its 45° sector and has
+   * passed the commit threshold. True for at most one edge, so the filled label always names exactly
+   * the tag that would be applied; back inside the threshold nothing is lit, which is what makes
+   * "return to the middle" visibly mean "nothing happens".
    */
   protected edgeActive(dir: SwipeDir): boolean {
-    const dx = this.dragX();
-    const dy = this.dragY();
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD) return false;
-    return dir === dominantDir(dx, dy);
+    return this.pendingDir() === dir;
   }
 
   onPointerDown(event: PointerEvent): void {
@@ -113,14 +125,21 @@ export class TagReviewComponent {
   }
 
   onPointerUp(): void {
-    const dx = this.dragX();
-    const dy = this.dragY();
+    const dir = this.pendingDir();
     this.dragging = false;
     this.dragX.set(0);
     this.dragY.set(0);
 
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD) return; // a tap / too short: ignore
-    const dir = dominantDir(dx, dy);
-    if (this.directionTag(dir)) this.swiped.emit(dir); // only act when that direction is bound
+    // No direction pending means the drag ended inside the threshold — a tap, or a drag taken back
+    // to the middle. Either way the photo keeps its tag and stays where it is.
+    if (dir && this.directionTag(dir)) this.swiped.emit(dir);
+  }
+
+  /** The direction the drag currently commits to, or null while it is still near the middle. */
+  private pendingDir(): SwipeDir | null {
+    const dx = this.dragX();
+    const dy = this.dragY();
+    if (Math.hypot(dx, dy) < SWIPE_THRESHOLD) return null;
+    return swipeDirOf(dx, dy);
   }
 }
