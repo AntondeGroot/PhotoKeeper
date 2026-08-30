@@ -19,7 +19,7 @@
     <properties>
         <java.version>25</java.version>
         <error-prone.version>2.50.0</error-prone.version>
-        <nullaway.version>0.13.8</nullaway.version>
+        <nullaway.version>0.14.0</nullaway.version>
         <log4j2.version>2.26.0</log4j2.version>
         <tomcat.version>10.1.55</tomcat.version>
     </properties>
@@ -247,7 +247,7 @@
                     <plugin>
                         <groupId>org.pitest</groupId>
                         <artifactId>pitest-maven</artifactId>
-                        <version>1.25.9</version>
+                        <version>1.30.0</version>
                         <dependencies>
                             <dependency>
                                 <groupId>org.pitest</groupId>
