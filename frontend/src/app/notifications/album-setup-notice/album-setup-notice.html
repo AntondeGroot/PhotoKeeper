@@ -1,0 +1,28 @@
+@if (visible()) {
+  <div class="setup-notice" role="dialog" aria-modal="true" aria-labelledby="setup-notice-title">
+    <div class="setup-notice__card">
+      <h2 id="setup-notice-title" class="setup-notice__title">Set up your Lightroom albums</h2>
+      <p class="setup-notice__body">
+        Keeper can't change ratings or flags in Lightroom — but it <em>can</em> file your photos
+        into albums you've made. Create these albums in Lightroom (as normal albums) and Keeper will
+        sort your decisions into them:
+      </p>
+
+      <ul class="setup-notice__list">
+        @for (album of missing(); track album.name) {
+          <li class="setup-notice__item">
+            <code class="setup-notice__name">{{ album.name }}</code>
+            <span class="setup-notice__purpose">{{ album.purpose }}</span>
+          </li>
+        }
+      </ul>
+
+      <p class="setup-notice__hint">
+        Once they exist, every edit, print, and delete decision you make syncs into the matching
+        album automatically. This reminder disappears when all three albums are present.
+      </p>
+
+      <button type="button" class="setup-notice__ok" (click)="dismiss()">OK</button>
+    </div>
+  </div>
+}
