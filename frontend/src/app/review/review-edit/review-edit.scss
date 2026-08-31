@@ -83,3 +83,24 @@
     color: var(--c-amber);
   }
 }
+
+// The way into the whole album, above the queue: the per-item links open one photograph, this opens
+// the place they all live so a session of editing can just carry on there. Stated in the same amber
+// as those links, but full width — it is about the set, not about a row.
+.open-album {
+  display: block;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(229, 160, 69, 0.45);
+  background: rgba(229, 160, 69, 0.1);
+  color: var(--c-amber);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+
+  &:hover {
+    background: rgba(229, 160, 69, 0.16);
+  }
+}
