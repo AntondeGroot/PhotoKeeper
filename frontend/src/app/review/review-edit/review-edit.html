@@ -1,4 +1,12 @@
 @if (!editDone) {
+  <!-- Only once the album exists: the button is a door, and one that opens on nothing is worse than
+       no door. Editing a single photo never needed it — that is the per-item link below. -->
+  @if (editAlbumUrl(); as albumUrl) {
+    <a class="open-album" [href]="albumUrl" target="_blank" rel="noopener">
+      Open {{ editAlbumName }} in Lightroom →
+    </a>
+  }
+
   <div class="edit-queue">
     @for (photo of queue; track photo.id) {
       <div class="edit-item">

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Observable, of, throwError } from 'rxjs';
-import { AlbumSetupNoticeComponent, REQUIRED_ALBUMS } from './album-setup-notice';
+import { AlbumSetupNoticeComponent } from './album-setup-notice';
+import { REQUIRED_ALBUMS } from '../../keeper-albums';
 import { LightroomService } from '../../lightroom.service';
 
 /** The catalog's albums, as the notice asks for them — only the names matter to it. */
