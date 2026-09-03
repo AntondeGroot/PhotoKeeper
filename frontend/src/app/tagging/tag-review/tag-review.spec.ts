@@ -13,7 +13,7 @@ const photo: Photo = {
   status: 'kept',
   kind: 'photo',
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 };
 
 const tags: Tag[] = [

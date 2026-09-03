@@ -1,60 +1,67 @@
-<div class="prints">
-  <!-- To print — albums edited and waiting to be exported/ordered -->
-  <section class="lane">
-    <header class="lane-head">
-      <span class="lane-title lane-title-print">To print</span>
-      <span class="lane-count">{{ toPrint().length }}</span>
-    </header>
-    @if (toPrint().length === 0) {
-      <p class="lane-hint">
-        Albums ready to print — edited in your Daily review and waiting to be exported. Each album
-        is its own folder; export it in Lightroom and order it wherever you like.
-      </p>
-    } @else {
-      @for (group of toPrint(); track group.album) {
-        <article class="album-card">
-          <div class="album-card-head">
-            <div class="album-meta">
-              <div class="album-title">{{ group.album }}</div>
-              <div class="album-subtitle">{{ group.photos.length }} photos · ready to print</div>
-            </div>
-            <button class="album-pill album-pill-print" (click)="markOrdered(group.album)">
-              I've ordered these →
-            </button>
-          </div>
-          <app-photo-stack [photos]="group.photos" />
-        </article>
-      }
-    }
-  </section>
-
-  <!-- Done — ordered, awaiting placement; mark done once on the wall / in the album -->
-  <section class="lane">
-    <header class="lane-head">
-      <span class="lane-title lane-title-done">Done</span>
-      <span class="lane-count">{{ done().length }}</span>
-    </header>
-    @if (done().length === 0) {
-      <p class="lane-hint">
-        Printed and placed — the photo completed its journey from camera to a wall or an album.
-      </p>
-    } @else {
-      @for (group of done(); track group.album) {
-        <article class="album-card">
-          <div class="album-card-head">
-            <div class="album-meta">
-              <div class="album-title">{{ group.album }}</div>
-              <div class="album-subtitle">
-                {{ group.photos.length }} photos · on the wall or in the album?
+@if (choosingAlbum(); as album) {
+  <app-print-picker [album]="album" (toggled)="toggleSaveOnly($event)" (closed)="choose(null)" />
+} @else {
+  <div class="prints">
+    <!-- To print — albums edited and waiting to be exported/ordered -->
+    <section class="lane">
+      <header class="lane-head">
+        <span class="lane-title lane-title-print">To print</span>
+        <span class="lane-count">{{ toPrint().length }}</span>
+      </header>
+      @if (toPrint().length === 0) {
+        <p class="lane-hint">
+          Albums ready to print — every photo in them sorted, and waiting to be exported. Each album
+          is its own folder; export it in Lightroom and order it wherever you like.
+        </p>
+      } @else {
+        @for (group of toPrint(); track group.album) {
+          <article class="album-card">
+            <div class="album-card-head">
+              <div class="album-meta">
+                <div class="album-title">{{ group.album }}</div>
+                <div class="album-subtitle">
+                  {{ chosen(group).length }} of {{ group.photos.length }} photos · ready to print
+                </div>
               </div>
+              <button class="album-pill album-pill-print" (click)="settle(group)">
+                {{ chosen(group).length ? "I've ordered these →" : 'Nothing to print — done' }}
+              </button>
             </div>
-            <button class="album-pill album-pill-done" (click)="markPlaced(group.album)">
-              <span class="pill-box"></span> Mark as done
-            </button>
-          </div>
-          <app-photo-stack [photos]="group.photos" />
-        </article>
+            <app-photo-stack [photos]="chosen(group)" />
+            <button class="album-choose" (click)="choose(group.album)">Choose prints →</button>
+          </article>
+        }
       }
-    }
-  </section>
-</div>
+    </section>
+
+    <!-- Done — ordered, awaiting placement; mark done once on the wall / in the album -->
+    <section class="lane">
+      <header class="lane-head">
+        <span class="lane-title lane-title-done">Done</span>
+        <span class="lane-count">{{ done().length }}</span>
+      </header>
+      @if (done().length === 0) {
+        <p class="lane-hint">
+          Printed and placed — the photo completed its journey from camera to a wall or an album.
+        </p>
+      } @else {
+        @for (group of done(); track group.album) {
+          <article class="album-card">
+            <div class="album-card-head">
+              <div class="album-meta">
+                <div class="album-title">{{ group.album }}</div>
+                <div class="album-subtitle">
+                  {{ group.photos.length }} photos · on the wall or in the album?
+                </div>
+              </div>
+              <button class="album-pill album-pill-done" (click)="markPlaced(group.album)">
+                <span class="pill-box"></span> Mark as done
+              </button>
+            </div>
+            <app-photo-stack [photos]="chosen(group)" />
+          </article>
+        }
+      }
+    </section>
+  </div>
+}

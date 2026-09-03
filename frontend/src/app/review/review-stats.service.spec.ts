@@ -14,7 +14,7 @@ const photo = (id: string, status: Photo['status'], album: string | null = null)
   status,
   kind: 'photo',
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 });
 
 describe('ReviewStatsService', () => {

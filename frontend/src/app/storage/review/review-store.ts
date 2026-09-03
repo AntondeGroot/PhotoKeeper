@@ -44,6 +44,19 @@ export class ReviewStore {
     this.verdicts?.set(assetId, verdict); // write through, so the cache stays warm
   }
 
+  /**
+   * Flips one photo's "keep it, don't print it" choice, leaving the rest of its verdict untouched.
+   *
+   * A photo with no verdict is ignored rather than given one: the choice is made on the Prints tab,
+   * over photos that have already been sorted, so an id with nothing stored is a photo that has no
+   * business being there.
+   */
+  async setSaveOnly(assetId: string, saveOnly: boolean): Promise<void> {
+    const verdict = (await this.getVerdicts()).get(assetId);
+    if (!verdict) return;
+    await this.setVerdict(assetId, { ...verdict, saveOnly });
+  }
+
   // ── Daily selection ───────────────────────────────────────────────────────
   async getDailyFeed(date: string): Promise<ReviewItem[] | undefined> {
     return (await this.db.open()).get('dailyFeed', date);

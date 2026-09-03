@@ -1,0 +1,26 @@
+<header class="picker-head">
+  <button class="picker-back" (click)="closed.emit()" aria-label="Back to albums">←</button>
+  <div class="picker-meta">
+    <div class="picker-title">{{ album().album }}</div>
+    <div class="picker-count">{{ chosen() }} of {{ photos().length }} chosen to print</div>
+  </div>
+  <button class="picker-done" (click)="closed.emit()">Done</button>
+</header>
+<p class="picker-hint">
+  Everything here prints. Tap a photo to keep it without printing it — tap again to put it back.
+</p>
+<div class="picker-grid" #grid (scroll)="revealMore(grid)">
+  @for (photo of shown(); track photo.id) {
+    <button class="pick" [class.pick-saved]="photo.saveOnly" (click)="toggled.emit(photo)">
+      @if (imageUrl(photo.id); as url) {
+        <img [src]="url" alt="" draggable="false" />
+      } @else if (photo.scene; as scene) {
+        <app-scene [scene]="scene" />
+      }
+      <!-- Only the exception is marked: an unbadged photo is one that prints. -->
+      @if (photo.saveOnly) {
+        <span class="pick-badge">saved</span>
+      }
+    </button>
+  }
+</div>

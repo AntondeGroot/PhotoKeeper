@@ -13,7 +13,7 @@ const photo = (id: string): Photo => ({
   status: 'toEdit',
   kind: 'photo',
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 });
 
 describe('ReviewEditComponent', () => {

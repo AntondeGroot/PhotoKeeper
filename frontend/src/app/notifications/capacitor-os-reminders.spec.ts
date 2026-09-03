@@ -64,7 +64,7 @@ describe('CapacitorOsReminders', () => {
     const opened: LandingSpot[] = [];
     os.onOpened((spot) => opened.push(spot));
 
-    listeners[0]({ notification: { extra: { opensAt: 'keepsakes' } } });
+    listeners[0]({ notification: { extra: { opensAt: 'saveOnlys' } } });
     listeners[0]({});
 
     expect(opened).toEqual([]);

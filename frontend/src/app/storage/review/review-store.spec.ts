@@ -13,7 +13,7 @@ function photo(id: string): Photo {
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
   };
 }
 
@@ -28,14 +28,14 @@ describe('ReviewStore', () => {
 
   describe('verdicts', () => {
     it('persists a verdict and reads it back', async () => {
-      await store.setVerdict('a1', { status: 'kept', starred: true, keepsake: false });
+      await store.setVerdict('a1', { status: 'kept', starred: true, saveOnly: false });
 
       const verdicts = await store.getVerdicts();
-      expect(verdicts.get('a1')).toEqual({ status: 'kept', starred: true, keepsake: false });
+      expect(verdicts.get('a1')).toEqual({ status: 'kept', starred: true, saveOnly: false });
     });
 
     it('reads the store once, then keeps the cache in step with new verdicts', async () => {
-      await store.setVerdict('a1', { status: 'kept', starred: false, keepsake: false });
+      await store.setVerdict('a1', { status: 'kept', starred: false, saveOnly: false });
       const first = await store.getVerdicts();
 
       // The map is reused rather than rebuilt: every feed build, scan and streak check asks for
@@ -43,18 +43,37 @@ describe('ReviewStore', () => {
       expect(await store.getVerdicts()).toBe(first);
 
       // A later decision is written through, so the cache cannot go stale behind a caller's back.
-      await store.setVerdict('a2', { status: 'rejected', starred: false, keepsake: false });
+      await store.setVerdict('a2', { status: 'rejected', starred: false, saveOnly: false });
       expect((await store.getVerdicts()).get('a2')?.status).toBe('rejected');
       expect((await store.getVerdicts()).size).toBe(2);
     });
 
     it('overwrites an existing verdict for the same asset', async () => {
-      await store.setVerdict('a1', { status: 'maybe', starred: false, keepsake: false });
-      await store.setVerdict('a1', { status: 'rejected', starred: false, keepsake: false });
+      await store.setVerdict('a1', { status: 'maybe', starred: false, saveOnly: false });
+      await store.setVerdict('a1', { status: 'rejected', starred: false, saveOnly: false });
 
       const verdicts = await store.getVerdicts();
       expect(verdicts.size).toBe(1);
       expect(verdicts.get('a1')?.status).toBe('rejected');
+    });
+
+    it('setSaveOnly changes that flag alone, and ignores a photo with no verdict', async () => {
+      await store.setVerdict('a1', { status: 'toPrint', starred: true, saveOnly: false });
+
+      await store.setSaveOnly('a1', true);
+
+      // The Prints tab knows about printing, not about sorting. The rest of the verdict has to come
+      // back untouched, or choosing what to print would quietly undo a swipe.
+      expect((await store.getVerdicts()).get('a1')).toEqual({
+        status: 'toPrint',
+        starred: true,
+        saveOnly: true,
+      });
+
+      // An id with nothing stored is a photo that was never sorted, so there is no print choice to
+      // record — inventing a verdict here would slip it into an album's print set.
+      await store.setSaveOnly('ghost', true);
+      expect((await store.getVerdicts()).has('ghost')).toBe(false);
     });
 
     it('returns an empty map when nothing is stored', async () => {

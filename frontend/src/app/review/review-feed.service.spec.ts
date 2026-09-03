@@ -16,7 +16,7 @@ const photo = (id: string, status: Photo['status'] = 'backlog'): Photo => ({
   status,
   kind: 'photo',
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 });
 
 describe('ReviewFeedService', () => {

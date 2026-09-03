@@ -132,19 +132,6 @@ export class ReviewDecisionsService {
     void this.persistVerdict(current.id);
   }
 
-  toggleKeepsake(): void {
-    const current = this.feed.current();
-    if (!current) return;
-    this.feed.photos.update((list) =>
-      list.map((item) =>
-        item.id === current.id && item.kind === 'photo'
-          ? { ...item, keepsake: !item.keepsake }
-          : item,
-      ),
-    );
-    void this.persistVerdict(current.id);
-  }
-
   /**
    * Settles a burst: `keptIds` are kept, every other frame is rejected, and the unit leaves the queue
    * as one decision that counts toward the day's goal.
@@ -161,7 +148,7 @@ export class ReviewDecisionsService {
     void this.persistVerdict(current.id); // burst unit itself: done, survives reload
     for (const frame of current.photos) {
       const status = kept.has(frame.id) ? ('kept' as const) : ('rejected' as const);
-      void this.reviewStore.setVerdict(frame.id, { status, starred: false, keepsake: false });
+      void this.reviewStore.setVerdict(frame.id, { status, starred: false, saveOnly: false });
     }
     this.feed.advance();
   }
@@ -314,7 +301,7 @@ export class ReviewDecisionsService {
       const verdict: StoredVerdict = {
         status: item.status,
         starred: item.kind === 'photo' ? item.starred : false,
-        keepsake: item.kind === 'photo' ? item.keepsake : false,
+        saveOnly: item.kind === 'photo' ? item.saveOnly : false,
       };
       try {
         await this.reviewStore.setVerdict(id, verdict);

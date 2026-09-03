@@ -27,7 +27,7 @@ function toPhoto(id: string, meta: AssetMeta, status: ReviewStatus): Photo {
     status,
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
   };
 }
 

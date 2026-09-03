@@ -3,6 +3,8 @@ import { AlbumPrintStore } from '../storage/review/album-print-store';
 import { FinishedAlbumsService } from './finished-albums.service';
 import { AlbumGroup } from '../photo';
 import { AlbumPrintState } from './prints.types';
+import { Photo } from '../photo';
+import { ReviewStore } from '../storage/review/review-store';
 
 /**
  * The Prints tab's two-stage fulfilment flow on top of the to-print albums. Each album starts in "To
@@ -15,6 +17,7 @@ import { AlbumPrintState } from './prints.types';
 export class PrintsService {
   private readonly store = inject(AlbumPrintStore);
   private readonly finishedAlbums = inject(FinishedAlbumsService);
+  private readonly reviews = inject(ReviewStore);
 
   private readonly states = signal<Map<string, AlbumPrintState>>(new Map());
   // A couple of random Lightroom albums, shown only while there are no real to-print albums.
@@ -41,6 +44,27 @@ export class PrintsService {
   readonly done = computed(() =>
     this.base().filter((g) => this.states().get(g.album) === 'ordered'),
   );
+
+  /**
+   * Flips one photo between "print it" and "just save it" — in the albums on screen and on disk.
+   *
+   * The choice belongs to the photo, not the album, so it is stored on the verdict: it then survives
+   * the album being ordered, re-scanned, or looked at again months later.
+   */
+  async toggleSaveOnly(photo: Photo): Promise<void> {
+    const saveOnly = !photo.saveOnly;
+    this.finished.update((groups) =>
+      groups.map((group) => ({
+        ...group,
+        photos: group.photos.map((p) => (p.id === photo.id ? { ...p, saveOnly } : p)),
+      })),
+    );
+    try {
+      await this.reviews.setSaveOnly(photo.id, saveOnly);
+    } catch {
+      // Best-effort persistence; the grid already shows the choice.
+    }
+  }
 
   /** "I've ordered these" — move an album from To print into Done. */
   markOrdered(album: string): Promise<void> {

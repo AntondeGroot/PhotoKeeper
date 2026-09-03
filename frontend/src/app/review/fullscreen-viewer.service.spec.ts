@@ -15,7 +15,7 @@ const photo = (id: string, status: Photo['status'] = 'backlog'): Photo => ({
   status,
   kind: 'photo',
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 });
 
 const burst = (id: string, frameIds: string[]): Burst => ({

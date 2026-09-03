@@ -262,9 +262,15 @@ export class ReviewFeedService {
 
   private applyVerdict(item: ReviewItem, verdict: StoredVerdict | undefined): ReviewItem {
     if (!verdict) return item;
-    // starred/keepsake only exist on single photos; groups carry just a status.
+    // starred/saveOnly only exist on single photos; groups carry just a status. `saveOnly` is
+    // defaulted because verdicts stored before the Prints pass existed simply have no such field.
     return item.kind === 'photo'
-      ? { ...item, status: verdict.status, starred: verdict.starred, keepsake: verdict.keepsake }
+      ? {
+          ...item,
+          status: verdict.status,
+          starred: verdict.starred,
+          saveOnly: verdict.saveOnly ?? false,
+        }
       : { ...item, status: verdict.status };
   }
 
@@ -279,7 +285,7 @@ export class ReviewFeedService {
       status: 'backlog',
       kind: 'photo',
       starred: false,
-      keepsake: false,
+      saveOnly: false,
     };
   }
 }

@@ -17,7 +17,7 @@ const meta = (taken: string): AssetMeta => ({ albumId: 'al', name: 'n', taken })
 const verdict = (status: Photo['status']): StoredVerdict => ({
   status,
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 });
 
 describe('TagReviewService', () => {

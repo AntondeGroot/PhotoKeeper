@@ -16,7 +16,6 @@ export class ReviewSortComponent {
   @Input() imageUrls = new Map<string, SafeUrl>();
   @Output() swiped = new EventEmitter<'kept' | 'rejected' | 'toEdit' | 'maybe'>();
   @Output() starToggle = new EventEmitter<void>();
-  @Output() keepsakeToggle = new EventEmitter<void>();
   @Output() tapped = new EventEmitter<void>();
   /** Forwarded from the card: open an edited photo beside the original it came from. */
   @Output() compare = new EventEmitter<{ ids: string[]; start: number }>();
