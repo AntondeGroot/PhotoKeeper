@@ -17,7 +17,8 @@ export type ReviewStatus = Photo['status'];
 export interface StoredVerdict {
   status: ReviewStatus;
   starred: boolean;
-  keepsake: boolean;
+  /** Chosen on the Prints tab: keep the photo, but leave it out of the album's print order. */
+  saveOnly: boolean;
 }
 
 /** How an album is classified. Room to grow (e.g. 'stereo') alongside 'vacation'. */

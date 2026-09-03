@@ -201,7 +201,7 @@ function toPhoto(asset: PhotoAsset, albumName: string | null): Photo {
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
   };
 }
 

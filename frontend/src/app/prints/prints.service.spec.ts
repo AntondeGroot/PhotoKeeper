@@ -6,6 +6,7 @@ import { FinishedAlbumsService } from './finished-albums.service';
 import { LightroomService } from '../lightroom.service';
 import { AlbumGroup, Photo } from '../photo';
 import { AlbumPrintState } from './prints.types';
+import { ReviewStore } from '../storage/review/review-store';
 
 const photo = (id: string): Photo => ({
   id,
@@ -15,7 +16,7 @@ const photo = (id: string): Photo => ({
   status: 'toPrint',
   kind: 'photo',
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 });
 const group = (album: string, ...ids: string[]): AlbumGroup => ({ album, photos: ids.map(photo) });
 
@@ -24,6 +25,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0)); // let the field-initi
 describe('PrintsService', () => {
   let finished: AlbumGroup[];
   let setCalls: { album: string; state: AlbumPrintState }[];
+  let saveOnlyCalls: { id: string; saveOnly: boolean }[];
 
   function make(seed: Map<string, AlbumPrintState> = new Map()): PrintsService {
     TestBed.resetTestingModule();
@@ -36,6 +38,15 @@ describe('PrintsService', () => {
             getAll: () => Promise.resolve(new Map(seed)),
             set: (album: string, state: AlbumPrintState) => {
               setCalls.push({ album, state });
+              return Promise.resolve();
+            },
+          },
+        },
+        {
+          provide: ReviewStore,
+          useValue: {
+            setSaveOnly: (id: string, saveOnly: boolean) => {
+              saveOnlyCalls.push({ id, saveOnly });
               return Promise.resolve();
             },
           },
@@ -53,6 +64,7 @@ describe('PrintsService', () => {
   beforeEach(() => {
     finished = [group('Trip', 'a', 'b'), group('Home', 'c')];
     setCalls = [];
+    saveOnlyCalls = [];
   });
 
   it('lists albums with no state as To print, none as Done initially', async () => {
@@ -84,5 +96,25 @@ describe('PrintsService', () => {
     await flush();
     expect(service.done().map((g) => g.album)).toEqual(['Trip']);
     expect(service.toPrint().map((g) => g.album)).toEqual(['Home']);
+  });
+
+  it('toggleSaveOnly sets a photo aside, and puts it back when tapped again', async () => {
+    const service = make();
+    await flush();
+    const trip = () => service.toPrint()[0].photos;
+
+    await service.toggleSaveOnly(trip()[1]);
+    expect(trip().map((p) => p.saveOnly)).toEqual([false, true]);
+
+    // Tapped again it prints once more: the grid is the only place this can be changed, so a
+    // one-way flip would leave a mis-tap uncorrectable.
+    await service.toggleSaveOnly(trip()[1]);
+    expect(trip().map((p) => p.saveOnly)).toEqual([false, false]);
+
+    // Both flips reach the verdict — the choice has to outlive the tab being closed.
+    expect(saveOnlyCalls).toEqual([
+      { id: 'b', saveOnly: true },
+      { id: 'b', saveOnly: false },
+    ]);
   });
 });

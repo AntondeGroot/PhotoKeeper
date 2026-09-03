@@ -124,3 +124,15 @@
 }
 
 // The print pile itself lives in PhotoStackComponent (app-photo-stack).
+
+// Opens the album's print picker. Quiet by design: the album's own action is the pill above it.
+.album-choose {
+  display: block;
+  margin: 4px 0 0 auto;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  color: var(--c-print);
+  font-size: 11.5px;
+  cursor: pointer;
+}

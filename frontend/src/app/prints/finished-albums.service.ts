@@ -4,31 +4,46 @@ import { LightroomService } from '../lightroom.service';
 import { AlbumGroup, Photo, ReviewStatus } from '../photo';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewStore } from '../storage/review/review-store';
-import { AssetMeta } from '../storage/photokeeper-db';
+import { AssetMeta, StoredVerdict } from '../storage/photokeeper-db';
 
 /** Statuses that mean the photo still has work outstanding, so its album is not finished. */
 const UNFINISHED: ReviewStatus[] = ['backlog', 'toEdit', 'maybe'];
 
-function toPhoto(id: string, meta: AssetMeta, album: string): Photo {
+/**
+ * Statuses that put a photo in front of you when the album's prints are chosen.
+ *
+ * `kept` counts, not just `toPrint`: keeping a photo says "it is good as it is", which is a verdict
+ * on *editing* and never meant "not worth printing". Leaving it out made editing the only road to
+ * paper, so the shots that came out right were the ones that could never be printed.
+ */
+const PRINTABLE: ReviewStatus[] = ['kept', 'toPrint'];
+
+function toPhoto(id: string, meta: AssetMeta, album: string, verdict: StoredVerdict): Photo {
   return {
     id,
     name: meta.name,
     ext: meta.ext,
     album,
     taken: meta.taken,
-    status: 'toPrint',
+    status: verdict.status,
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    // Verdicts stored before this choice existed have no field, and the default is to print.
+    saveOnly: verdict.saveOnly ?? false,
   };
 }
 
 /**
- * Albums where every photo has been dealt with and at least one is waiting to be printed.
+ * Albums where every photo has been dealt with, together with the photos in them worth putting on
+ * paper.
  *
  * An album belongs on the Prints tab when it is *finished* — nothing left to sort, nothing left to
  * edit, nothing still undecided. Ordering prints for an album you are halfway through means
  * ordering the wrong set, and re-ordering later is the expensive kind of mistake.
+ *
+ * Every printable photo comes through, including the ones set aside as "just save". The choice is
+ * made on this tab and has to stay changeable there — a photo that vanished the moment it was set
+ * aside could never be brought back.
  *
  * Computed over the whole library rather than the day's deck. The deck holds fifteen units drawn at
  * random, so a deck-scoped view showed an album the moment one of its photos happened to be picked
@@ -51,12 +66,16 @@ export class FinishedAlbumsService {
     const ready = new Map<string, Photo[]>();
     const blocked = new Set<string>();
     for (const [id, asset] of meta) {
-      const status = verdicts.get(id)?.status ?? 'backlog';
+      const verdict = verdicts.get(id);
+      const status = verdict?.status ?? 'backlog';
       if (UNFINISHED.includes(status)) {
         blocked.add(asset.albumId);
-      } else if (status === 'toPrint') {
+      } else if (verdict && PRINTABLE.includes(status)) {
         const name = albumName.get(asset.albumId) ?? 'No album';
-        ready.set(asset.albumId, [...(ready.get(asset.albumId) ?? []), toPhoto(id, asset, name)]);
+        ready.set(asset.albumId, [
+          ...(ready.get(asset.albumId) ?? []),
+          toPhoto(id, asset, name, verdict),
+        ]);
       }
     }
 

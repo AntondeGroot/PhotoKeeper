@@ -31,7 +31,7 @@ function photo(id: string): Photo {
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
   };
 }
 
@@ -286,13 +286,13 @@ describe('App', () => {
       app.decide('kept');
 
       expect(saved).toEqual([
-        { id: 'p0', verdict: { status: 'kept', starred: false, keepsake: false } },
+        { id: 'p0', verdict: { status: 'kept', starred: false, saveOnly: false } },
       ]);
     });
 
     it('re-applies stored verdicts onto freshly loaded photos', async () => {
       const stored = new Map<string, StoredVerdict>([
-        ['p1', { status: 'kept', starred: true, keepsake: false }],
+        ['p1', { status: 'kept', starred: true, saveOnly: false }],
       ]);
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
@@ -561,8 +561,8 @@ describe('App', () => {
     it('resumes at the first un-reviewed photo, skipping ones already done', async () => {
       const selection = [photo('p1'), photo('p2'), photo('p3')];
       const verdicts = new Map<string, StoredVerdict>([
-        ['p1', { status: 'kept', starred: false, keepsake: false }],
-        ['p2', { status: 'rejected', starred: false, keepsake: false }],
+        ['p1', { status: 'kept', starred: false, saveOnly: false }],
+        ['p2', { status: 'rejected', starred: false, saveOnly: false }],
       ]);
       TestBed.overrideProvider(ReviewStore, {
         useValue: {

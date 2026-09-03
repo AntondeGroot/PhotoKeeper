@@ -30,7 +30,7 @@ describe('isLandingSpot', () => {
 
   it('rejects anything else, including a step from a future build', () => {
     // The OS held that alarm for hours; the app that scheduled it may not be the app reading it.
-    expect(isLandingSpot('keepsakes')).toBe(false);
+    expect(isLandingSpot('saveOnlys')).toBe(false);
     expect(isLandingSpot(undefined)).toBe(false);
     expect(isLandingSpot(2)).toBe(false);
   });

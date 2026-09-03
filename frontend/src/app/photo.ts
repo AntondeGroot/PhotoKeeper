@@ -101,7 +101,10 @@ export interface Photo {
   status: ReviewStatus;
   kind: 'photo';
   starred: boolean;
-  keepsake: boolean;
+  // "Keep it, but don't print it." Not asked during sorting — whether a photo is worth paper is a
+  // judgement about the album, made once it is finished, so it belongs to the Prints tab's pass.
+  // Printing is the default, hence a flag for the exception rather than one for the rule.
+  saveOnly: boolean;
   ai?: AiHint;
   // 'device' marks a photo pulled from a local device folder rather than Lightroom; for those `album`
   // holds the folder name. Absent/'lightroom' for catalogue assets.
@@ -150,7 +153,7 @@ export const DEVICE_PHOTOS: Photo[] = [
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
     source: 'device',
     ai: { verdict: 'kept', reason: 'Decent snapshot — worth uploading' },
     scene: {
@@ -171,7 +174,7 @@ export const DEVICE_PHOTOS: Photo[] = [
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
     source: 'device',
     ai: { verdict: 'rejected', reason: 'Shaky — straight to trash' },
     scene: {
@@ -193,7 +196,7 @@ export const DEVICE_PHOTOS: Photo[] = [
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
     source: 'device',
     ai: { verdict: 'toEdit', reason: 'Nice night scene — import to Lightroom' },
     scene: {
@@ -214,7 +217,7 @@ export const DEVICE_PHOTOS: Photo[] = [
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
     source: 'device',
     ai: { verdict: 'rejected', reason: 'Screenshot — not a photo to keep' },
     scene: {
@@ -235,7 +238,7 @@ export const DEVICE_PHOTOS: Photo[] = [
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
     source: 'device',
     scene: {
       variant: 'coast',
@@ -265,7 +268,7 @@ export const MOCK_PHOTOS: Photo[] = [
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
     ai: {
       verdict: 'kept',
       reason: 'Tack sharp, strong golden light',
@@ -280,7 +283,7 @@ export const MOCK_PHOTOS: Photo[] = [
     status: 'backlog',
     kind: 'photo',
     starred: true,
-    keepsake: false,
+    saveOnly: false,
   },
   {
     id: 'IMG_4038',
@@ -291,7 +294,7 @@ export const MOCK_PHOTOS: Photo[] = [
     status: 'backlog',
     kind: 'photo',
     starred: false,
-    keepsake: false,
+    saveOnly: false,
     ai: {
       verdict: 'rejected',
       reason: 'Motion blur on subject, flat light',
@@ -306,7 +309,7 @@ export const MOCK_PHOTOS: Photo[] = [
     status: 'kept',
     kind: 'photo',
     starred: false,
-    keepsake: true,
+    saveOnly: true,
   },
 ];
 

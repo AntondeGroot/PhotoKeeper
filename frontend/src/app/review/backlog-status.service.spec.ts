@@ -25,7 +25,7 @@ describe('BacklogStatusService', () => {
   /** Puts an asset in the library and gives it a verdict. */
   async function asset(id: string, status: ReviewStatus): Promise<void> {
     await meta.put(id, { albumId: 'a', name: id, taken: '2026-01-01' });
-    await reviews.setVerdict(id, { status, starred: false, keepsake: false });
+    await reviews.setVerdict(id, { status, starred: false, saveOnly: false });
   }
 
   it('assumes there is work when the library population is unknown', async () => {
@@ -63,7 +63,7 @@ describe('BacklogStatusService', () => {
     expect(await service.hasWorkWaiting()).toBe(true);
 
     // Editing promotes it to toPrint, which is the only thing that marks the job done.
-    await reviews.setVerdict('a2', { status: 'toPrint', starred: false, keepsake: false });
+    await reviews.setVerdict('a2', { status: 'toPrint', starred: false, saveOnly: false });
 
     expect(await service.hasWorkWaiting()).toBe(false);
   });

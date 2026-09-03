@@ -17,7 +17,7 @@ const photo = (id: string, status: Photo['status'] = 'backlog'): Photo => ({
   status,
   kind: 'photo',
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 });
 
 const burst = (id: string, frameIds: string[]): Burst => ({
@@ -126,7 +126,7 @@ describe('ReviewDecisionsService', () => {
     expect(photos()[0].status).toBe('kept');
     expect(index()).toBe(1);
     expect(verdicts).toEqual([
-      { id: 'a', verdict: { status: 'kept', starred: false, keepsake: false } },
+      { id: 'a', verdict: { status: 'kept', starred: false, saveOnly: false } },
     ]);
     expect(refillCalls).toBe(1); // every decision tops up the scan buffer
   });
@@ -145,15 +145,15 @@ describe('ReviewDecisionsService', () => {
     expect(photos()[0].status).toBe('kept'); // the burst unit itself is done
     expect(verdicts).toContainEqual({
       id: 'f2',
-      verdict: { status: 'kept', starred: false, keepsake: false },
+      verdict: { status: 'kept', starred: false, saveOnly: false },
     });
     expect(verdicts).toContainEqual({
       id: 'f1',
-      verdict: { status: 'rejected', starred: false, keepsake: false },
+      verdict: { status: 'rejected', starred: false, saveOnly: false },
     });
     expect(verdicts).toContainEqual({
       id: 'f3',
-      verdict: { status: 'rejected', starred: false, keepsake: false },
+      verdict: { status: 'rejected', starred: false, saveOnly: false },
     });
   });
 
@@ -168,15 +168,15 @@ describe('ReviewDecisionsService', () => {
     expect(photos()[0].status).toBe('kept');
     expect(verdicts).toContainEqual({
       id: 'f1',
-      verdict: { status: 'kept', starred: false, keepsake: false },
+      verdict: { status: 'kept', starred: false, saveOnly: false },
     });
     expect(verdicts).toContainEqual({
       id: 'f3',
-      verdict: { status: 'kept', starred: false, keepsake: false },
+      verdict: { status: 'kept', starred: false, saveOnly: false },
     });
     expect(verdicts).toContainEqual({
       id: 'f2',
-      verdict: { status: 'rejected', starred: false, keepsake: false },
+      verdict: { status: 'rejected', starred: false, saveOnly: false },
     });
   });
 

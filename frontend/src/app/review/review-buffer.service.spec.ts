@@ -15,7 +15,7 @@ const photo = (id: string): Photo => ({
   status: 'backlog',
   kind: 'photo',
   starred: false,
-  keepsake: false,
+  saveOnly: false,
 });
 
 describe('ReviewBufferService', () => {
@@ -58,7 +58,7 @@ describe('ReviewBufferService', () => {
   it('hands back a full batch off the front, however much of the library is already reviewed', async () => {
     // 480 of 500 decided — the state that made sampling on demand return two or three photos.
     for (let i = 0; i < 480; i++) {
-      await reviews.setVerdict(`p${i}`, { status: 'kept', starred: false, keepsake: false });
+      await reviews.setVerdict(`p${i}`, { status: 'kept', starred: false, saveOnly: false });
     }
     await service.refill();
 

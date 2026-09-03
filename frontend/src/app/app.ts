@@ -481,10 +481,6 @@ export class AppComponent implements OnInit, OnDestroy {
     this.decisions.toggleStar();
   }
 
-  toggleKeepsake(): void {
-    this.decisions.toggleKeepsake();
-  }
-
   /** Settings toggle for the optional Tag step. Turning it off while in Tag mode falls back to Sort. */
   setTaggingEnabled(enabled: boolean): void {
     this.taggingEnabled.set(enabled);
