@@ -175,8 +175,51 @@ export class ReviewDecisionsService {
    * made and removing it would silently discard it.
    */
   withdrawAlbum(album: string): void {
+    this.withdraw((item) => item.album === album && item.status === 'backlog');
+  }
+
+  /**
+   * A verdict on an incomplete pair: the frame is a photograph in its own right, or it is not worth
+   * keeping either way.
+   *
+   * <p>Offered because skipping alone is a trap. A shot whose other eye genuinely does not exist —
+   * one body misfired, or the frame was never imported — is undecidable by skipping, so it comes
+   * back every time the deck is drawn, forever. Judging a half is only dangerous while the pair
+   * might still be shown whole; once it is deliberately called a single, deciding it is the point.
+   *
+   * <p>The verdict is recorded against the frame as well as the unit. An incomplete pair's id is a
+   * synthetic one ({@link toIncompleteStereo}), so a verdict stored under that alone would leave the
+   * asset itself in the backlog and the same photograph would return tomorrow under a new unit id.
+   */
+  resolveIncompletePair(verdict: 'kept' | 'rejected'): void {
+    const current = this.feed.current();
+    if (current?.kind !== 'stereo' || !current.gap) return;
+    this.setStatus(current.id, verdict);
+    void this.persistVerdict(current.id);
+    for (const id of unitAssetIds(current)) {
+      void this.reviewStore.setVerdict(id, { status: verdict, starred: false, saveOnly: false });
+    }
+    this.feed.advance();
+  }
+
+  /**
+   * Takes the unit at the cursor out of today's deck, undecided.
+   *
+   * <p>What "skip" means on a stereo pair that is missing an eye. There is nothing there to judge,
+   * and a verdict would be worse than none: it would keep the frame out of every later selection, so
+   * the shot could never be shown whole once the albums are paired up properly. Left undecided, it
+   * comes back as a whole pair the moment the pairing works.
+   */
+  withdrawCurrentUnit(): void {
+    const current = this.feed.current();
+    if (!current) return;
+    this.withdraw((item) => item.id === current.id);
+  }
+
+  /** Drops the matching units from today's deck, leaving the cursor somewhere sensible. */
+  private withdraw(doomed: (item: ReviewItem) => boolean): void {
     const before = this.feed.photos();
-    const remaining = before.filter((item) => !(item.album === album && item.status === 'backlog'));
+    const remaining = before.filter((item) => !doomed(item));
     if (remaining.length === before.length) return;
 
     // Hold the cursor on whatever the user was looking at; if that was one of the withdrawn units,
