@@ -20,6 +20,7 @@ import {
   Stereo,
   StereoBaseline,
   StereoFrame,
+  StereoGap,
   splitFileName,
   unitAssetIds,
 } from '../../photo';
@@ -33,6 +34,17 @@ export interface AlbumUnits {
   groups: readonly DetectedGroup[];
   /** Camera serial designated as the left eye for this stereo album's twin-DSLR rig (see PreferencesService). */
   stereoLeftSerial?: string;
+  /**
+   * Frames known to be left eyes because of the album they came from — a split shoot, where one
+   * album holds the left eyes and another the right. Ground truth, so it outranks every guess the
+   * hydrator would otherwise make from serials or capture order.
+   */
+  stereoLeftEyeIds?: ReadonlySet<string>;
+  /**
+   * Frames of a stereo album that have no other eye, and which eye is missing. Each one becomes an
+   * incomplete stereo unit instead of a photograph — see {@link toIncompleteStereo}.
+   */
+  stereoGaps?: ReadonlyMap<string, StereoGap>;
 }
 
 /**
@@ -145,6 +157,13 @@ function buildAlbumUnits(album: AlbumUnits): ReviewItem[] {
 
   for (const asset of album.assets) {
     if (asset.subtype !== 'image' || grouped.has(asset.id)) continue;
+    const gap = album.stereoGaps?.get(asset.id);
+    if (gap) {
+      // Half a photograph, and never anything else: it is shown as the pair it belongs to, with the
+      // missing side named, rather than falling through to the plain-photo unit below.
+      units.push(toIncompleteStereo(asset, gap, album.albumName));
+      continue;
+    }
     const original = edits.get(asset.id);
     if (original && !grouped.has(original.id)) {
       // An edit whose original is free: one unit covering the pair, shown as the edit.
@@ -168,7 +187,13 @@ function hydrateGroup(
   if (group.type === 'burst') return toBurst(group, members, album.albumName);
   if (group.type === 'pano') return toPano(group, members, album.albumName);
   if (group.type === 'stereo')
-    return hydrateStereo(group, members, album.albumName, album.stereoLeftSerial);
+    return hydrateStereo(
+      group,
+      members,
+      album.albumName,
+      album.stereoLeftSerial,
+      album.stereoLeftEyeIds,
+    );
   return null;
 }
 
@@ -276,6 +301,7 @@ export function hydrateStereo(
   members: PhotoAsset[],
   albumName: string | null,
   leftSerial?: string,
+  leftEyeIds?: ReadonlySet<string>,
 ): Stereo {
   const taken = members
     .map((m) => m.payload?.captureDate ?? '')
@@ -289,6 +315,27 @@ export function hydrateStereo(
     status: 'backlog' as const,
     kind: 'stereo' as const,
   };
+
+  // A split shoot says outright which frames are left eyes — the album they came from is the answer,
+  // so nothing below (serials, displacement, capture order) gets a say.
+  if (leftEyeIds) {
+    const left = members.filter((m) => leftEyeIds.has(m.id));
+    const right = members.filter((m) => !leftEyeIds.has(m.id));
+    if (left.length > 0 && right.length > 0) {
+      return {
+        ...base,
+        left: left.map(toStereoFrame),
+        baselines: [
+          {
+            key: 'b0',
+            label: 'pair',
+            hint: frameCount(right.length),
+            frames: right.map(toStereoFrame),
+          },
+        ],
+      };
+    }
+  }
 
   // Twin-rig: ≥ 2 distinct serials → split by body rather than by GPS/time.
   const serials = members.map(cameraSerial);
@@ -324,6 +371,42 @@ export function hydrateStereo(
   if (baselines.length === 0) return { ...base, ...undeterminedPair(members, '<1 m') };
 
   return { ...base, left: byMeters.get(0)!.map(toStereoFrame), baselines };
+}
+
+/**
+ * A frame whose other eye could not be found, as its own review unit: the side that exists, an empty
+ * side where the other should have been, and the gap that says which is which.
+ *
+ * Deliberately still a stereo unit. An album marked as holding one eye holds no photographs, only
+ * halves, and showing one as a photo would invite a verdict on it — which would keep it out of every
+ * later selection, so the shot could never be shown whole once the pairing is fixed.
+ */
+function toIncompleteStereo(asset: PhotoAsset, gap: StereoGap, albumName: string | null): Stereo {
+  const frame = toStereoFrame(asset);
+  // The frame sits on the side it is known to belong to. When that is not known — one album holding
+  // both eyes — the left is the side to show it on, the same way every whole pair is read.
+  const present = gap.missing === 'left' ? [] : [frame];
+  return {
+    id: `stereo-gap:${asset.id}`,
+    name:
+      gap.missing === 'unknown'
+        ? 'Stereo pair · no other eye'
+        : `Stereo pair · ${gap.missing} eye missing`,
+    album: albumName,
+    taken: asset.payload?.captureDate ?? '',
+    status: 'backlog',
+    kind: 'stereo',
+    left: present,
+    baselines: [
+      {
+        key: 'b0',
+        label: 'incomplete pair',
+        hint: frameCount(1),
+        frames: present.length ? [] : [frame],
+      },
+    ],
+    gap,
+  };
 }
 
 /**

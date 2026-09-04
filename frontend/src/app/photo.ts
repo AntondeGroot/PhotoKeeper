@@ -342,6 +342,47 @@ export interface StereoBaseline {
   frames: StereoFrame[];
 }
 
+/**
+ * The eye a stereo unit could not be given, and where that eye should have come from.
+ *
+ * A frame out of an album marked as holding one eye is half a photograph: on its own it is not a
+ * picture at all. It used to be held back silently, which left nobody able to see that a pairing
+ * had stopped working — the album simply went quiet. So the half is offered as a stereo unit that
+ * says what is missing instead, and asks for no verdict: a verdict would keep the frame out of
+ * every later selection, and the shot could then never be shown whole once the albums are paired
+ * up properly.
+ */
+export interface StereoGap {
+  /**
+   * The eye that is absent, so the card knows which side of the pair to draw as empty. 'unknown' is
+   * the honest answer for an album holding both eyes: there is one frame and nothing to pair it
+   * with, and which of the two eyes it is was never recorded anywhere.
+   */
+  missing: 'left' | 'right' | 'unknown';
+  /**
+   * The album the frame that *is* here came from. Not the same as the unit's `album` for a right-eye
+   * half: a split shoot's pairs are owned by the left album, so that is what the unit is filed
+   * under, while the frame itself sits in the right one.
+   */
+  foundIn: StereoAlbumRef;
+  /**
+   * The album the missing eye was looked for in — the other half of a split shoot, or the frame's
+   * own album when it holds both eyes. Null when no album was paired with this one, so there was
+   * nowhere to look at all.
+   */
+  expectedIn: StereoAlbumRef | null;
+}
+
+/**
+ * An album named on a stereo gap, by name *and* id: the name for what the card says, the id for the
+ * Lightroom deep-link behind it. Both, because a missing eye is most often something to go and look
+ * at in Lightroom rather than something the app can settle on its own.
+ */
+export interface StereoAlbumRef {
+  name: string;
+  id: string;
+}
+
 export interface Stereo {
   id: string;
   name: string;
@@ -351,6 +392,9 @@ export interface Stereo {
   kind: 'stereo';
   left: StereoFrame[];
   baselines: StereoBaseline[];
+  // Set only when one eye is missing: the unit is then an error card naming the gap, never a
+  // photograph to judge. See StereoGap.
+  gap?: StereoGap;
   // Present only for a twin-DSLR rig: the two body serials, so the workbench can offer a left/right swap
   // (persisted per album). `leftSerial` is the body currently shown as the left eye. Absent for drone/cha-cha.
   rig?: { leftSerial: string; rightSerial: string };

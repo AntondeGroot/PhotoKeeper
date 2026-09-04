@@ -32,6 +32,20 @@ export function computeAlbumManifest(
 }
 
 /**
+ * Whether every image in the album has been through detection — the cursor has reached the end of
+ * the population the manifest was written from.
+ *
+ * The question this answers is "is what detection found about this album final?", which is what
+ * anything reasoning about an *absence* has to know first. Mid-backfill an album is scanned a prefix
+ * at a time, so "no group was found for this frame" means only "not yet", and concluding anything
+ * from it would be concluding it from a scan that has not finished.
+ */
+export function isFullyScanned(manifest: AlbumManifest | undefined): boolean {
+  // Absent on a pre-cursor manifest, which means "scanned nothing yet" — the same as 0.
+  return !!manifest && (manifest.scanned ?? 0) >= manifest.fingerprints.length;
+}
+
+/**
  * Diffs a stored manifest against the current population. With no stored manifest, every asset is
  * "added". Cheap path: callers can compare {@link AlbumManifest.hash} first and skip this entirely
  * when the hashes match.
@@ -80,6 +94,16 @@ export class AlbumManifestStore {
 
   async put(albumId: string, manifest: AlbumManifest): Promise<void> {
     await (await this.db.open()).put('albumManifest', manifest, albumId);
+  }
+
+  /** Every stored manifest as an albumId → manifest map. */
+  async getAll(): Promise<Map<string, AlbumManifest>> {
+    const db = await this.db.open();
+    const keys = await db.getAllKeys('albumManifest');
+    const values = await db.getAll('albumManifest');
+    const map = new Map<string, AlbumManifest>();
+    keys.forEach((key, i) => map.set(key, values[i]));
+    return map;
   }
 
   async delete(albumId: string): Promise<void> {
