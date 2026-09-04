@@ -253,7 +253,6 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private async init(): Promise<void> {
     const params = new URLSearchParams(window.location.search);
-    this.labMode.set(params.has('lab'));
     const authError = params.get('auth_error');
 
     // After login the backend redirects with the tokens in the URL fragment; capture them.
@@ -265,6 +264,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // the launch splash and land straight on onboarding, where the Lightroom card shows the spinner /
     // checkmark for what just happened.
     const returningFromLogin = !!authError || !!(accessToken && refreshToken);
+    this.labMode.set(wantsLab(params, returningFromLogin));
     if (returningFromLogin) this.loading.set(false);
 
     if (authError) {
@@ -565,4 +565,26 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.goalResampleTimer) clearTimeout(this.goalResampleTimer);
     if (this.burstRescanTimer) clearTimeout(this.burstRescanTimer);
   }
+}
+
+/** Remembers, for this tab only, that the lab was asked for — see {@link wantsLab}. */
+const LAB_MODE_KEY = 'labMode';
+
+/**
+ * Whether to show the developer lab.
+ *
+ * `?lab` is a query parameter, and Adobe redirects back to a bare path with the tokens in the URL
+ * fragment — so asking for the lab and *then* signing in dropped the flag and landed you in the
+ * ordinary app, with nothing to say whether it had been ignored or lost. It is remembered for the
+ * tab across that one round-trip, and forgotten the moment the app is opened without it, so leaving
+ * the lab stays a matter of editing the address bar rather than clearing storage.
+ */
+function wantsLab(params: URLSearchParams, returningFromLogin: boolean): boolean {
+  if (params.has('lab')) {
+    sessionStorage.setItem(LAB_MODE_KEY, '1');
+    return true;
+  }
+  if (returningFromLogin && sessionStorage.getItem(LAB_MODE_KEY)) return true;
+  sessionStorage.removeItem(LAB_MODE_KEY);
+  return false;
 }
