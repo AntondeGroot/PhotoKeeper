@@ -36,6 +36,7 @@ import { PreviewCacheService } from '../../../review/preview-cache.service';
 import { StereoCardComponent } from '../../../review/stereo-card/stereo-card';
 import { CameraProbeComponent } from './camera-probe.component'; // throwaway (stereo-pairing)
 import { AlbumSpikeComponent } from './album-spike.component'; // throwaway (lightroom-write-back)
+import { SplitShootComponent } from './split-shoot.component';
 import { stripJpegMetadata } from './lab-jpeg';
 import { signatureToPng } from './lab-signature';
 import { PanoSeam, SeamStrip, buildSeam, seamColor } from './lab-seams';
@@ -65,6 +66,7 @@ interface LabFrame {
     StereoCardComponent,
     CameraProbeComponent /* throwaway (stereo-pairing) */,
     AlbumSpikeComponent /* throwaway (lightroom-write-back) */,
+    SplitShootComponent,
   ],
 })
 export class DetectionLabComponent implements OnInit {
