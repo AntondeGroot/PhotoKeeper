@@ -107,6 +107,26 @@ export class ReviewBufferService {
   }
 
   /**
+   * Drops every queued unit belonging to these albums.
+   *
+   * The queue is a snapshot of how the library was grouped when it was drawn, so a change to the
+   * grouping leaves it holding units that no longer exist — two hundred of them, served before
+   * anything freshly sampled. Marking an album stereo, or naming the album that holds its other
+   * eye, is exactly such a change: what was queued as single frames is now half of a pair each.
+   */
+  async dropAlbums(albums: Iterable<string>): Promise<void> {
+    const names = new Set(albums);
+    if (names.size === 0) return;
+    try {
+      await this.hydrate();
+      const remaining = this.queue().filter((unit) => !unit.album || !names.has(unit.album));
+      if (remaining.length !== this.queue().length) await this.persist(remaining);
+    } catch {
+      // Best-effort: a queue that could not be pruned refills itself as its stale units are taken.
+    }
+  }
+
+  /**
    * Tops the queue back up and warms the front. Safe to call and forget — it is the slow half, and
    * nothing waits on it.
    */

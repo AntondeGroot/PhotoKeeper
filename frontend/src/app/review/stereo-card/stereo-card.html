@@ -1,5 +1,5 @@
 @let view = displayStereo;
-<div class="stereo-card">
+<div class="stereo-card" [class.incomplete]="!!view.gap">
   <div class="stereo-header">
     <div>
       <div class="stereo-name">{{ view.name }}</div>
@@ -11,7 +11,11 @@
           ⇄ Swap L/R
         </button>
       }
-      <span class="chip chip-stereo">stereo</span>
+      @if (view.gap) {
+        <span class="chip chip-gap">incomplete</span>
+      } @else {
+        <span class="chip chip-stereo">stereo</span>
+      }
     </div>
   </div>
 
@@ -21,7 +25,8 @@
         <span class="baseline-label">{{ baseline.label }}</span>
         <span class="baseline-hint">{{ baseline.hint }}</span>
       </div>
-      <!-- The baseline's L|R pair in one frame: the shared left eye beside this baseline's right eye. -->
+      <!-- The baseline's L|R pair in one frame: the shared left eye beside this baseline's right eye.
+           A side with no frame is drawn as an empty slot — that is the whole point of a gap card. -->
       <div class="pair-frame">
         @if (view.left[0]; as l) {
           <div class="frame-thumb">
@@ -29,6 +34,10 @@
               <img class="frame-img" [src]="url" alt="" />
             }
             <div class="frame-name">L · {{ l.name }}</div>
+          </div>
+        } @else if (view.gap) {
+          <div class="frame-thumb frame-missing">
+            <div class="frame-name">{{ missingLabel }} · missing</div>
           </div>
         }
         @if (baseline.frames[0]; as r) {
@@ -38,43 +47,75 @@
             }
             <div class="frame-name">R · {{ r.name }}</div>
           </div>
+        } @else if (view.gap) {
+          <div class="frame-thumb frame-missing">
+            <div class="frame-name">{{ missingLabel }} · missing</div>
+          </div>
         }
       </div>
-      <button class="compare-btn" (click)="viewerBaseline.set(baseline.key)">
-        Compare in 3D ↗
-      </button>
-      <div class="verdict-buttons">
-        <button
-          class="verdict-btn keep"
-          [class.active]="verdicts()[baseline.key] === 'keep'"
-          (click)="setVerdict(baseline.key, 'keep')"
-        >
-          Keep
+      @if (view.gap) {
+        <p class="gap-message">{{ gapMessage }}</p>
+        <p class="gap-hint">{{ gapHint }}</p>
+        <!-- Not a verdict but a way to go and check: whether the other eye was never imported, or
+             is sitting there under a name the matcher could not tie to this frame, is a question
+             about the library, and Lightroom is where it gets answered. -->
+        @for (album of gapAlbums; track album.url) {
+          <a class="open-album" [href]="album.url" target="_blank" rel="noopener">
+            Open “{{ album.name }}” in Lightroom ↗
+            <span class="open-album-role">{{ album.role }}</span>
+          </a>
+        }
+      } @else {
+        <button class="compare-btn" (click)="viewerBaseline.set(baseline.key)">
+          Compare in 3D ↗
         </button>
-        <button
-          class="verdict-btn edit"
-          [class.active]="verdicts()[baseline.key] === 'edit'"
-          (click)="setVerdict(baseline.key, 'edit')"
-        >
-          Edit
-        </button>
-        <button
-          class="verdict-btn reject"
-          [class.active]="verdicts()[baseline.key] === 'reject'"
-          (click)="setVerdict(baseline.key, 'reject')"
-        >
-          Reject
-        </button>
-      </div>
+        <div class="verdict-buttons">
+          <button
+            class="verdict-btn keep"
+            [class.active]="verdicts()[baseline.key] === 'keep'"
+            (click)="setVerdict(baseline.key, 'keep')"
+          >
+            Keep
+          </button>
+          <button
+            class="verdict-btn edit"
+            [class.active]="verdicts()[baseline.key] === 'edit'"
+            (click)="setVerdict(baseline.key, 'edit')"
+          >
+            Edit
+          </button>
+          <button
+            class="verdict-btn reject"
+            [class.active]="verdicts()[baseline.key] === 'reject'"
+            (click)="setVerdict(baseline.key, 'reject')"
+          >
+            Reject
+          </button>
+        </div>
+      }
     </div>
   }
 
-  <label class="two-d-row">
-    <input type="checkbox" [checked]="twoD()" (change)="twoD.set($any($event.target).checked)" />
-    Also queue a 2D still
-  </label>
+  @if (view.gap) {
+    <!-- Skipping decides nothing on purpose — the pair may yet be shown whole. But a shot whose
+         other eye does not exist can never be completed, and skipping it forever is not an answer
+         either, so it can be settled as the single photograph it turned out to be. -->
+    <p class="gap-decide">If the other eye does not exist, judge this frame on its own:</p>
+    <div class="verdict-buttons">
+      <button class="verdict-btn keep" (click)="resolved.emit('kept')">Keep as a 2D photo</button>
+      <button class="verdict-btn reject" (click)="resolved.emit('rejected')">Reject</button>
+    </div>
+    <button class="done-btn" (click)="skipped.emit()">Skip for now</button>
+  } @else {
+    <label class="two-d-row">
+      <input type="checkbox" [checked]="twoD()" (change)="twoD.set($any($event.target).checked)" />
+      Also queue a 2D still
+    </label>
 
-  <button class="done-btn" [disabled]="!allChosen()" (click)="confirm()">Done with this set</button>
+    <button class="done-btn" [disabled]="!allChosen()" (click)="confirm()">
+      Done with this set
+    </button>
+  }
 </div>
 
 @if (viewerBaseline(); as key) {

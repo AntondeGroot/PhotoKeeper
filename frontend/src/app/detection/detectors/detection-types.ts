@@ -23,3 +23,9 @@ export interface DetectedGroup {
   memberIds: string[];
   orientation?: PanoOrientation; // only set for pano groups
 }
+
+/**
+ * How an album takes part in stereo: `both` holds the two eyes of every shot, while `left` and
+ * `right` each hold one eye and are half of a pair of albums (see docs/track-b-detection.md).
+ */
+export type StereoRole = 'both' | 'left' | 'right';

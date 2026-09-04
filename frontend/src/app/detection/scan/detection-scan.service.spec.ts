@@ -57,6 +57,8 @@ const SIZE_OF: Record<string, number> = {
   d1: 10, // a derived/combined stereograph (no camera EXIF) that looks near-identical to s1/s2
   r1: 11, // twin-DSLR rig: two bodies, one scene
   r2: 12,
+  w1: 13, // a wide-baseline drone pair: too much parallax for the stereo threshold, not for a burst
+  w2: 14,
 };
 const HASH_BY_SIZE: Record<number, string> = {
   1: '0000000000000000',
@@ -74,6 +76,10 @@ const HASH_BY_SIZE: Record<number, string> = {
   10: '0000000000000000',
   11: '0000000000000000',
   12: '0000000000000000',
+  // w1/w2 differ in 20 bits — outside the stereo tolerance (16), inside the burst one (24). This is
+  // the band a wide baseline lands in: parallax moves the frame more than a re-shoot of one scene.
+  13: '0000000000000000',
+  14: 'fffff00000000000',
 };
 
 // A 1-D "scene" sampled into a 64×64 grayscale signature: column c of a frame starting at scene
@@ -106,6 +112,8 @@ const SIGNATURE_BY_SIZE: Record<number, FrameSignature> = {
   10: flat,
   11: flat,
   12: flat,
+  13: flat,
+  14: flat,
 };
 const blobFor = (id: string) => new Blob(['x'.repeat(SIZE_OF[id])]);
 
@@ -319,7 +327,7 @@ describe('DetectionScanService', () => {
       geoImage('s2', '2026-05-03T10:00:02Z', 52.0, 5.00005),
     ];
 
-    const report = await service.scanAlbum('alb-s', BUDGET, true);
+    const report = await service.scanAlbum('alb-s', BUDGET, 'both');
 
     expect(report.groups).toBe(1);
     expect(await groupStore.getByAlbum('alb-s')).toEqual([
@@ -342,11 +350,44 @@ describe('DetectionScanService', () => {
       geoImage('s2', '2026-05-03T10:05:00Z', 52.0, 5.00005),
     ];
 
-    const report = await service.scanAlbum('alb-s', BUDGET, true);
+    const report = await service.scanAlbum('alb-s', BUDGET, 'both');
 
     expect(report.hashed).toBe(2); // a stereo album hashes every image, not just time-clusters
     expect(await groupStore.getByAlbum('alb-s')).toEqual([
       { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['s1', 's2'] },
+    ]);
+  });
+
+  it('hashes every image of a left-eye album, and groups none of them', async () => {
+    // A left-eye album forms no time clusters — every frame in it is a different scene — so under
+    // the burst gate almost nothing in one was ever hashed, and the cross-album matcher had no
+    // picture to compare. It also has no groups of its own: two near-identical left eyes are two
+    // *different* stereographs, and grouping them asked which of two photographs was the better one.
+    albumAssets = [
+      geoImage('s1', '2026-05-03T10:00:00Z', 52.0, 5.0),
+      geoImage('s2', '2026-05-03T10:00:02Z', 52.0, 5.00005),
+    ];
+
+    const report = await service.scanAlbum('alb-l', BUDGET, 'left');
+
+    expect(report.hashed).toBe(2);
+    expect(await groupStore.getByAlbum('alb-l')).toEqual([]);
+  });
+
+  it('calls a wide-baseline pair a stereo set, never a burst to duel A against B', async () => {
+    // The reported bug, as a drone shoots it: two positions 100 m apart, 30s apart, with enough
+    // parallax to put the frames 20 bits apart. That clears the burst threshold (24) while failing
+    // both stereo guards (hamming 16, 30 m) — so the pair used to fall through to the burst detector
+    // and arrive as "which is better, A or B?", a duel between the two eyes of one photograph.
+    albumAssets = [
+      geoImage('w1', '2026-05-03T10:00:00Z', 52.0, 5.0),
+      geoImage('w2', '2026-05-03T10:00:30Z', 52.001, 5.0),
+    ];
+
+    await service.scanAlbum('alb-s', BUDGET, 'both');
+
+    expect(await groupStore.getByAlbum('alb-s')).toEqual([
+      { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['w1', 'w2'] },
     ]);
   });
 
@@ -359,7 +400,7 @@ describe('DetectionScanService', () => {
       derivedImage('d1', '2026-05-03T10:00:04Z'),
     ];
 
-    await service.scanAlbum('alb-s', BUDGET, true);
+    await service.scanAlbum('alb-s', BUDGET, 'both');
 
     expect(await groupStore.getByAlbum('alb-s')).toEqual([
       { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['s1', 's2'] }, // d1 excluded
@@ -372,7 +413,7 @@ describe('DetectionScanService', () => {
       rigImage('r2', '2026-05-03T10:00:00Z', '4887374'),
     ];
 
-    await service.scanAlbum('alb-s', BUDGET, true);
+    await service.scanAlbum('alb-s', BUDGET, 'both');
 
     expect(await groupStore.getByAlbum('alb-s')).toEqual([
       { type: 'stereo', sourceAlbumId: 'alb-s', memberIds: ['r1', 'r2'] },

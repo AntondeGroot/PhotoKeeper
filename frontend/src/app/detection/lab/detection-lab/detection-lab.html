@@ -31,6 +31,13 @@
   <!-- Throwaway (lightroom-write-back): self-contained panel that validates the API write surface. -->
   <app-album-spike [assetId]="frames()[0]?.id ?? ''" />
 
+  <!-- A shoot split across two albums: the pairing is across them, so it needs both, not the one
+       album the view above analyses. -->
+  <details class="lab-section" open>
+    <summary>Split shoot — pair a left-eye album against a right-eye one</summary>
+    <app-split-shoot [albums]="albums()" />
+  </details>
+
   @if (error(); as e) {
     <p class="lab-error">{{ e }}</p>
   }

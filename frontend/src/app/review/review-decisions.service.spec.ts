@@ -218,6 +218,70 @@ describe('ReviewDecisionsService', () => {
     expect(dailyFeeds.get(todayKey())?.map((p) => p.id)).toEqual(['pano:grp']); // but not stored
   });
 
+  describe('resolveIncompletePair()', () => {
+    const incomplete = (id: string, frameId: string): ReviewItem => ({
+      id,
+      name: 'Stereo pair · right eye missing',
+      album: 'Iceland L',
+      taken: '2026-01-01',
+      status: 'backlog',
+      kind: 'stereo',
+      left: [{ id: frameId, name: frameId }],
+      baselines: [{ key: 'b0', label: 'incomplete pair', hint: '1 frame', frames: [] }],
+      gap: {
+        missing: 'right',
+        foundIn: { name: 'Iceland L', id: 'al-l' },
+        expectedIn: { name: 'Iceland R', id: 'al-r' },
+      },
+    });
+
+    // The frame, not just the unit. An incomplete pair's id is synthetic, so a verdict stored only
+    // under it would leave the photograph itself in the backlog — and it would come back tomorrow
+    // under a new unit id, which is exactly the trap "skip" already is.
+    it('records the verdict against the frame, so the photograph is actually settled', () => {
+      photos.set([incomplete('stereo-gap:f1', 'f1'), photo('b')]);
+
+      service.resolveIncompletePair('kept');
+
+      expect(verdicts.filter((v) => v.id === 'f1').map((v) => v.verdict.status)).toEqual(['kept']);
+      expect(photos()[0].status).toBe('kept');
+    });
+
+    it('rejects the frame the same way, so a half nobody wants also leaves the deck', () => {
+      photos.set([incomplete('stereo-gap:f1', 'f1'), photo('b')]);
+
+      service.resolveIncompletePair('rejected');
+
+      expect(verdicts.filter((v) => v.id === 'f1').map((v) => v.verdict.status)).toEqual([
+        'rejected',
+      ]);
+    });
+
+    it('does nothing on a whole pair, which is judged per baseline instead', () => {
+      photos.set([photo('a')]);
+
+      service.resolveIncompletePair('kept');
+
+      expect(photos()[0].status).toBe('backlog');
+    });
+  });
+
+  describe('withdrawCurrentUnit()', () => {
+    // What "Skip for now" does on a stereo pair that is missing an eye. No verdict may be recorded:
+    // one would keep the frame out of every later selection, so the shot could never be shown whole
+    // once the albums are paired up properly.
+    it('drops the unit at the cursor without recording a verdict', () => {
+      photos.set([photo('a'), photo('b'), photo('c')]);
+      index.set(1);
+
+      service.withdrawCurrentUnit();
+
+      expect(photos().map((p) => p.id)).toEqual(['a', 'c']);
+      expect(verdicts).toEqual([]);
+      expect(dailyFeeds.get(todayKey())?.map((p) => p.id)).toEqual(['a', 'c']);
+    });
+  });
+
   describe('withdrawAlbum()', () => {
     const inAlbum = (id: string, album: string, status: Photo['status'] = 'backlog'): Photo => ({
       ...photo(id, status),

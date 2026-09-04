@@ -1,4 +1,10 @@
-import { clusterStereo, StereoAsset, StereoOptions, haversineMeters } from './stereo';
+import {
+  clusterStereo,
+  mergeOverlappingSets,
+  StereoAsset,
+  StereoOptions,
+  haversineMeters,
+} from './stereo';
 
 const OPTS: StereoOptions = { maxHamming: 10, maxMeters: 25, minSize: 2 };
 
@@ -122,5 +128,23 @@ describe('haversineMeters', () => {
 
   it('is zero for the same point', () => {
     expect(haversineMeters(BASE_LAT, BASE_LNG, BASE_LAT, BASE_LNG)).toBe(0);
+  });
+});
+
+describe('mergeOverlappingSets', () => {
+  // Why it exists: in a stereo album the three clusterers are unioned rather than ranked, and two of
+  // them finding the same pair — one of them with an extra frame — must yield one set, not two
+  // overlapping ones offering the same photograph twice.
+  it('folds sets that share a frame into one, keeping first-seen member order', () => {
+    const merged = mergeOverlappingSets([
+      ['a', 'b'],
+      ['b', 'c'],
+      ['x', 'y'],
+    ]);
+
+    expect(merged).toEqual([
+      ['a', 'b', 'c'],
+      ['x', 'y'],
+    ]);
   });
 });

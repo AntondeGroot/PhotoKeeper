@@ -1,6 +1,20 @@
 import { Injectable, effect, signal } from '@angular/core';
 import { DeviceFolder, DEVICE_FOLDERS } from './photo';
 import { DEFAULT_TAG_DIRECTIONS, TagDirections } from './tagging/tags';
+import { StereoRole } from './detection/detectors/detection-types';
+
+const STEREO_ROLES: StereoRole[] = ['both', 'left', 'right'];
+
+/** The key the roles replaced, holding an array of album names that were all "both eyes". */
+const LEGACY_STEREO_KEY = 'stereoAlbums';
+
+/** Reads a stored `string → string` map, dropping anything that is not one. */
+function readStringMap(key: string): Record<string, string> {
+  const raw: unknown = readJson(key);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const valid = Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === 'string');
+  return Object.fromEntries(valid);
+}
 
 /** Reads + parses a JSON localStorage value, or null if absent/corrupt. */
 function readJson(key: string): unknown {
@@ -37,8 +51,13 @@ export class PreferencesService {
   readonly tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
   readonly vacationAlbumIds = signal<string[]>([]);
   // Stereo albums are keyed by *name* (not id like vacation): a review photo only carries its album
-  // name, so the in-review "mark as stereo" control and the album manager toggle the same key.
-  readonly stereoAlbums = signal<string[]>([]);
+  // name, so the in-review control and the album manager write the same key. The value is the album's
+  // role, because a rig that imports its eyes into two albums leaves each of them holding half a
+  // photograph rather than a stereo album (see docs/track-b-detection.md, Slice 6).
+  readonly stereoAlbumRoles = signal<Record<string, StereoRole>>({});
+  // The other half of a split pair: left album name → right album name. One direction only, so a
+  // pairing cannot contradict itself; the right album's side is found by looking up who claims it.
+  readonly stereoPartners = signal<Record<string, string>>({});
   // Per stereo album (by name), the camera serial designated as the LEFT eye of a twin-DSLR rig. Absent
   // → the hydrator defaults deterministically; the workbench swap writes the other body's serial here.
   readonly stereoLeftSerial = signal<Record<string, string>>({});
@@ -87,24 +106,39 @@ export class PreferencesService {
       this.vacationAlbumIds.set(vacation.filter((id): id is string => typeof id === 'string'));
     }
 
-    const stereo: unknown = readJson('stereoAlbums');
-    if (Array.isArray(stereo)) {
-      this.stereoAlbums.set(stereo.filter((name): name is string => typeof name === 'string'));
-    }
+    this.restoreStereoRoles();
 
-    const leftSerial: unknown = readJson('stereoLeftSerial');
-    if (leftSerial && typeof leftSerial === 'object' && !Array.isArray(leftSerial)) {
-      const valid = Object.entries(leftSerial).filter(
-        (e): e is [string, string] => typeof e[1] === 'string',
-      );
-      this.stereoLeftSerial.set(Object.fromEntries(valid));
-    }
+    this.stereoPartners.set(readStringMap('stereoPartners'));
+
+    this.stereoLeftSerial.set(readStringMap('stereoLeftSerial'));
 
     const folders: unknown = readJson('deviceFolders');
     if (Array.isArray(folders)) {
       const on = new Set(folders.filter((n): n is string => typeof n === 'string'));
       this.deviceFolders.update((list) => list.map((f) => ({ ...f, enabled: on.has(f.name) })));
     }
+  }
+
+  /**
+   * Restores the album roles, migrating the list of names they replaced — every album marked stereo
+   * before roles existed held both eyes, since that was the only kind there was. The old key is
+   * dropped once read, so it cannot come back and contradict the roles later.
+   */
+  private restoreStereoRoles(): void {
+    const roles: unknown = readJson('stereoAlbumRoles');
+    if (roles && typeof roles === 'object' && !Array.isArray(roles)) {
+      const valid = Object.entries(roles).filter((e): e is [string, StereoRole] =>
+        STEREO_ROLES.includes(e[1] as StereoRole),
+      );
+      this.stereoAlbumRoles.set(Object.fromEntries(valid));
+      return;
+    }
+
+    const legacy: unknown = readJson(LEGACY_STEREO_KEY);
+    if (!Array.isArray(legacy)) return;
+    const names = legacy.filter((name): name is string => typeof name === 'string');
+    this.stereoAlbumRoles.set(Object.fromEntries(names.map((name) => [name, 'both' as const])));
+    localStorage.removeItem(LEGACY_STEREO_KEY);
   }
 
   private persist(): void {
@@ -120,7 +154,8 @@ export class PreferencesService {
     localStorage.setItem('stereoView', this.stereoView());
     localStorage.setItem('tagDirections', JSON.stringify(this.tagDirections()));
     localStorage.setItem('vacationAlbumIds', JSON.stringify(this.vacationAlbumIds()));
-    localStorage.setItem('stereoAlbums', JSON.stringify(this.stereoAlbums()));
+    localStorage.setItem('stereoAlbumRoles', JSON.stringify(this.stereoAlbumRoles()));
+    localStorage.setItem('stereoPartners', JSON.stringify(this.stereoPartners()));
     localStorage.setItem('stereoLeftSerial', JSON.stringify(this.stereoLeftSerial()));
     localStorage.setItem('onboarded', String(this.onboarded()));
     localStorage.setItem('deviceEnabled', String(this.deviceEnabled()));

@@ -196,6 +196,71 @@ export async function frameSignatureFromBlob(blob: Blob): Promise<Uint8Array> {
 }
 
 /**
+ * Side of the reduced signature the stereo matcher compares. A quarter of the stored signature in
+ * each direction: measured on real split shoots it separates true pairs from wrong answers almost as
+ * well as the full 64² (a gap of 18 against 20) for a sixteenth of the arithmetic, which matters
+ * because the matcher compares every left frame against every right one.
+ */
+export const MATCH_SIZE = 32;
+
+/** Box-downsamples a square signature to `size`², so the matcher compares fewer, steadier cells. */
+export function reduceSignature(
+  signature: FrameSignature,
+  size = MATCH_SIZE,
+  from = SIGNATURE_SIZE,
+): Uint8Array {
+  const step = from / size;
+  const out = new Uint8Array(size * size);
+  for (let oy = 0; oy < size; oy++) {
+    for (let ox = 0; ox < size; ox++) {
+      let sum = 0;
+      for (let y = oy * step; y < (oy + 1) * step; y++) {
+        for (let x = ox * step; x < (ox + 1) * step; x++) sum += signature[y * from + x];
+      }
+      out[oy * size + ox] = (sum / (step * step)) | 0;
+    }
+  }
+  return out;
+}
+
+/**
+ * How alike two frames are once one is allowed to slide **sideways** — the mean absolute difference
+ * at the best horizontal offset, over the columns the two then share.
+ *
+ * This is what tells the two eyes of one shot from two different photographs, and a plain hash is
+ * not. A dHash compares each cell with its right neighbour, so moving the framing walks content
+ * across cell boundaries and flips bits wholesale: measured on a real pair, sliding one eye by a
+ * tenth of the frame moved its hash distance by 9 of the 16 the tolerance allowed. Most of what that
+ * hash reported was where the photographers had been standing, not what they had photographed.
+ *
+ * Sideways only, deliberately. Two people photographing one moment differ mainly in where they stand
+ * along a line, and allowing a vertical search as well let *wrong* answers slide into alignment
+ * faster than right ones: on the same frames it pulled a different moment of the same scene from 38
+ * down to 12, below a true pair. Freedom given to the search is freedom given to a coincidence.
+ */
+export function alignedSignatureDistance(
+  a: Uint8Array,
+  b: Uint8Array,
+  size = MATCH_SIZE,
+  maxShift = 6,
+): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (let dx = -maxShift; dx <= maxShift; dx++) {
+    let sum = 0;
+    let count = 0;
+    for (let y = 0; y < size; y++) {
+      const row = y * size;
+      for (let x = Math.max(0, -dx); x < Math.min(size, size - dx); x++) {
+        sum += Math.abs(a[row + x] - b[row + x + dx]);
+        count++;
+      }
+    }
+    if (count > 0) best = Math.min(best, sum / count);
+  }
+  return best;
+}
+
+/**
  * Box-downscales a full-resolution RGBA buffer to a SIGNATURE_SIZE² grayscale signature (Rec. 601 luma,
  * row-major). Pure — no canvas — so production (canvas pixels) and tests (decoded-fixture pixels) share
  * one downscale, making the signature reproducible off-browser.

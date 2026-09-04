@@ -12,10 +12,10 @@ import { PreviewStore } from '../../storage/review/preview-store';
 import { splitFileName } from '../../photo';
 import { cameraSerial, isCaptureFrame } from '../../camera-metadata';
 import { AssetMeta } from '../../storage/photokeeper-db';
-import { DetectedGroup, FrameSignature } from '../detectors/detection-types';
+import { DetectedGroup, FrameSignature, StereoRole } from '../detectors/detection-types';
 import { DetectAsset, clusterBursts } from '../detectors/burst';
 import { PanoAsset, clusterPanos } from '../detectors/pano';
-import { StereoAsset, clusterStereo } from '../detectors/stereo';
+import { StereoAsset, clusterStereo, mergeOverlappingSets } from '../detectors/stereo';
 import { DetectionSettingsService } from './detection-settings.service';
 import { ImageHasher } from '../detectors/image-hasher';
 
@@ -64,7 +64,11 @@ export class DetectionScanService {
    * boundary. A per-album cursor (in the manifest) records how far it reached, so the next pass resumes
    * there; the cursor resets and the album re-scans from the start whenever its population changes.
    */
-  async scanAlbum(albumId: string, budget: number, isStereoAlbum = false): Promise<ScanReport> {
+  async scanAlbum(
+    albumId: string,
+    budget: number,
+    stereoRole: StereoRole | null = null,
+  ): Promise<ScanReport> {
     // Capture-time order makes "the next photo" and the group-window peek well-defined.
     const all = (await firstValueFrom(this.svc.getAllAlbumAssets(albumId)))
       .filter((a) => a.subtype === 'image')
@@ -109,7 +113,7 @@ export class DetectionScanService {
     // pass stopped at one, and we extended this one to one), so no group is split. Re-clustering the
     // prefix is cheap — Stage 2 only hashes the new, un-cached candidates.
     const prefix = all.slice(0, end);
-    const { hashed, groups } = await this.detectPrefix(albumId, prefix, isStereoAlbum);
+    const { hashed, groups } = await this.detectPrefix(albumId, prefix, stereoRole);
 
     await this.manifests.record(albumId, all, end);
     return {
@@ -142,20 +146,72 @@ export class DetectionScanService {
   private async detectPrefix(
     albumId: string,
     prefix: PhotoAsset[],
-    isStereoAlbum: boolean,
+    stereoRole: StereoRole | null,
   ): Promise<{ hashed: number; groups: DetectedGroup[] }> {
-    const detectAssets = prefix.map(toDetectAsset);
-    const opts = this.settings.burstOptions();
+    const candidateIds = this.candidateFrames(prefix, stereoRole);
+    // The only step that touches pixels: hash the candidates that lack cached data.
+    const { hashed, hashes, signatures, aspects } = await this.hashCandidates(prefix, candidateIds);
 
-    // Stage 1 — candidates from timestamps alone (no pixels). Lone photos drop out. A stereo set isn't
-    // time-bounded (frames spread out), so a stereo album can't lean on the burst time-cluster gate —
-    // every image in it is a candidate to hash, and clusterStereo finds the sets by hash + GPS.
-    const candidateIds = new Set(
-      clusterBursts(detectAssets, new Map<string, string>(), opts).flatMap((c) => c.memberIds),
+    const groups = this.groupsFor(stereoRole, albumId, prefix, hashes, signatures, aspects);
+    await this.groups.replaceForAlbum(albumId, groups);
+    return { hashed, groups };
+  }
+
+  /**
+   * What counts as a group in this album, which its stereo marking decides outright.
+   *
+   * A **left- or right-eye album has no groups of its own at all**: every frame in it is half of a
+   * shot whose other half is in the *other* album, so anything found within one album is two
+   * different photographs rather than one. Left to the ordinary detectors, two near-identical left
+   * eyes — the same scene shot twice — came back as a burst, and review asked which of two separate
+   * stereographs was the better photograph. Their pairing happens across the two albums, at selection
+   * time (see stereo-pairing.ts).
+   */
+  private groupsFor(
+    stereoRole: StereoRole | null,
+    albumId: string,
+    prefix: PhotoAsset[],
+    hashes: Map<string, string>,
+    signatures: Map<string, FrameSignature>,
+    aspects: Map<string, number>,
+  ): DetectedGroup[] {
+    if (stereoRole === 'left' || stereoRole === 'right') return [];
+    if (stereoRole === 'both') return this.stereoSets(albumId, prefix, hashes, signatures, aspects);
+    return this.mixedGroups(albumId, prefix, hashes, signatures, aspects);
+  }
+
+  /**
+   * Stage 1 — which frames are worth hashing, from timestamps alone (no pixels). Lone photos drop
+   * out.
+   *
+   * **Every image in a stereo album is hashed**, whichever eye it holds, because in a stereo album
+   * the hash is the whole signal and the time-cluster gate would withhold it. Within one album a
+   * stereo set isn't time-bounded (the photographer moves between positions, and may pause for
+   * movement to settle). Across two albums it is worse than that: the frames that pair are in
+   * *different* albums, so nothing in a left-eye album ever forms a time cluster and almost nothing
+   * in it was ever hashed — which left the cross-album matcher with no picture to compare and
+   * nothing to go on but two clocks that were never required to agree.
+   */
+  private candidateFrames(prefix: PhotoAsset[], stereoRole: StereoRole | null): Set<string> {
+    if (stereoRole) return new Set(prefix.map((asset) => asset.id));
+    const timeClusters = clusterBursts(
+      prefix.map(toDetectAsset),
+      new Map<string, string>(),
+      this.settings.burstOptions(),
     );
-    if (isStereoAlbum) for (const a of prefix) candidateIds.add(a.id);
+    return new Set(timeClusters.flatMap((c) => c.memberIds));
+  }
 
-    // Stage 2 — hash only candidate members that lack cached data. The only step that touches pixels.
+  /** Stage 2 — hash/signature/aspect for each candidate that has none cached, and the caches to use. */
+  private async hashCandidates(
+    prefix: PhotoAsset[],
+    candidateIds: ReadonlySet<string>,
+  ): Promise<{
+    hashed: number;
+    hashes: Map<string, string>;
+    signatures: Map<string, FrameSignature>;
+    aspects: Map<string, number>;
+  }> {
     const hashes = await this.hashes.getAll();
     const signatures = await this.signatures.getAll();
     const aspects = await this.aspects.getAll();
@@ -174,32 +230,72 @@ export class DetectionScanService {
       aspects.set(id, aspect);
       hashed++;
     }
+    return { hashed, hashes, signatures, aspects };
+  }
 
-    // Stage 3 — confirm with the hashes. Precedence on shared frames: stereo > burst > pano. In a stereo
-    // album the same near-identical frames would otherwise read as a burst, so stereo claims them first.
-    const stereoGroups = isStereoAlbum
-      ? // Only real captures pair: a derived/combined stereograph the user exported carries no camera
-        // EXIF, so excluding it here keeps it from being mistaken for one eye of a pair.
-        clusterStereo(
-          prefix.filter(isCaptureFrame).map(toStereoAsset),
-          hashes,
-          this.settings.stereoOptions(),
-        ).map((c): DetectedGroup => ({
-          type: 'stereo',
-          sourceAlbumId: albumId,
-          memberIds: c.memberIds,
-        }))
-      : [];
-    const claimed = new Set(stereoGroups.flatMap((g) => g.memberIds));
+  /**
+   * Stage 3 for an album marked as holding both eyes: every group is a **stereo set**, whichever
+   * detector noticed it. No burst, no panorama — every frame in the album is an eye, so a group of
+   * them is a pair or a multi-baseline set, and nothing else.
+   *
+   * The three clusterers are all asking "are these frames the same scene?" and differ only in where
+   * they draw the line: stereo is the strictest on hash — parallax must not merge two scenes — and
+   * adds a GPS guard, while a burst allows a looser hash with no distance check, and a pano matches
+   * a lateral slide. A wide baseline makes exactly the pair they disagree about, a drone's most of
+   * all: too much parallax for the stereo threshold, comfortably inside the burst one. Ranked by
+   * precedence, as they are in an ordinary album, such a pair fell through to the burst detector and
+   * reached review as "which is better, A or B?" — a duel between the two eyes of one photograph,
+   * where the honest answer is neither, and where either verdict loses the other half for good.
+   *
+   * So here they are unioned rather than ranked, and overlapping clusters merged. The album's
+   * marking is the ground truth about what its frames are; the detectors only disagree about a
+   * threshold.
+   */
+  private stereoSets(
+    albumId: string,
+    prefix: PhotoAsset[],
+    hashes: Map<string, string>,
+    signatures: Map<string, FrameSignature>,
+    aspects: Map<string, number>,
+  ): DetectedGroup[] {
+    // Only real captures pair: a derived/combined stereograph the user exported carries no camera
+    // EXIF, and is a finished picture rather than an eye. It is held out of all three clusterers, not
+    // just the stereo one — unioning them would otherwise let the looser burst threshold pull it into
+    // a set that the stereo threshold had deliberately kept it out of.
+    const captures = prefix.filter(isCaptureFrame);
+    const found = [
+      ...clusterStereo(captures.map(toStereoAsset), hashes, this.settings.stereoOptions()),
+      ...clusterBursts(captures.map(toDetectAsset), hashes, this.settings.burstOptions()),
+      ...clusterPanos(
+        captures.map((a) => toPanoAsset(a, aspects.get(a.id))),
+        signatures,
+        hashes,
+        this.settings.panoOptions(),
+      ),
+    ];
+    return mergeOverlappingSets(found.map((cluster) => cluster.memberIds)).map(
+      (memberIds): DetectedGroup => ({ type: 'stereo', sourceAlbumId: albumId, memberIds }),
+    );
+  }
 
-    const burstGroups = clusterBursts(detectAssets, hashes, opts)
-      .filter((c) => !c.memberIds.some((id) => claimed.has(id)))
-      .map((c): DetectedGroup => ({
-        type: 'burst',
-        sourceAlbumId: albumId,
-        memberIds: c.memberIds,
-      }));
-    for (const g of burstGroups) for (const id of g.memberIds) claimed.add(id);
+  /** Stage 3 for an ordinary album: bursts confirmed by hash, then panos over what is left. */
+  private mixedGroups(
+    albumId: string,
+    prefix: PhotoAsset[],
+    hashes: Map<string, string>,
+    signatures: Map<string, FrameSignature>,
+    aspects: Map<string, number>,
+  ): DetectedGroup[] {
+    const burstGroups = clusterBursts(
+      prefix.map(toDetectAsset),
+      hashes,
+      this.settings.burstOptions(),
+    ).map((c): DetectedGroup => ({
+      type: 'burst',
+      sourceAlbumId: albumId,
+      memberIds: c.memberIds,
+    }));
+    const claimed = new Set(burstGroups.flatMap((g) => g.memberIds));
 
     const panoAssets = prefix.map((a): PanoAsset => toPanoAsset(a, aspects.get(a.id)));
     const panoGroups = clusterPanos(panoAssets, signatures, hashes, this.settings.panoOptions())
@@ -211,9 +307,7 @@ export class DetectionScanService {
         orientation: c.orientation,
       }));
 
-    const groups = [...stereoGroups, ...burstGroups, ...panoGroups];
-    await this.groups.replaceForAlbum(albumId, groups);
-    return { hashed, groups };
+    return [...burstGroups, ...panoGroups];
   }
 
   /** Hash + signature + aspect for one asset, from a warmed 2048 preview or a fetched rendition. */

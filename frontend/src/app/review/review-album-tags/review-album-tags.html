@@ -1,7 +1,12 @@
 @if (prefs.stereoEnabled() && album()) {
   <div class="review-tags">
-    <button class="stereo-pill" [class.on]="isStereo()" (click)="toggleStereo()">
-      <span class="pill-dot"></span>{{ isStereo() ? 'Stereo album' : 'Mark as stereo' }}
+    <button
+      class="stereo-pill"
+      [class.on]="isStereo()"
+      title="Tap to cycle: both eyes → left eyes → right eyes → off"
+      (click)="cycleStereo()"
+    >
+      <span class="pill-dot"></span>{{ label() }}
     </button>
   </div>
 }

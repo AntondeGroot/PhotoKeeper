@@ -6,8 +6,10 @@ import { DailyUnitsService } from './daily-units.service';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { GroupStore } from '../../storage/detection/group-store';
 import { GroupOverrideStore } from '../../storage/detection/group-override-store';
+import { AlbumManifestStore } from '../../storage/detection/album-manifest-store';
+import { PreferencesService } from '../../preferences.service';
 import { Album, LightroomService } from '../../lightroom.service';
-import { Burst, ReviewItem } from '../../photo';
+import { Burst, ReviewItem, Stereo } from '../../photo';
 
 const fixedRng = () => 0;
 
@@ -19,6 +21,8 @@ describe('DailyUnitsService', () => {
   let metaStore: AssetMetaStore;
   let groupStore: GroupStore;
   let overrideStore: GroupOverrideStore;
+  let manifestStore: AlbumManifestStore;
+  let prefs: PreferencesService;
   let albums: Album[];
 
   beforeEach(() => {
@@ -31,7 +35,35 @@ describe('DailyUnitsService', () => {
     metaStore = TestBed.inject(AssetMetaStore);
     groupStore = TestBed.inject(GroupStore);
     overrideStore = TestBed.inject(GroupOverrideStore);
+    manifestStore = TestBed.inject(AlbumManifestStore);
+    prefs = TestBed.inject(PreferencesService);
   });
+
+  /**
+   * A both-eyes album of three frames, two of which detection paired. `scanned` is how far the
+   * incremental scan has reached — the only thing that says whether "a3 paired with nothing" is a
+   * fact about the album or just about how much of it has been read.
+   */
+  async function bothEyeAlbumScannedTo(scanned: number): Promise<void> {
+    albums = [{ id: 'alb-1', name: 'Field work' }];
+    prefs.stereoAlbumRoles.set({ 'Field work': 'both' });
+    const ids = ['a1', 'a2', 'a3'];
+    for (const [i, id] of ids.entries()) {
+      await metaStore.put(id, {
+        albumId: 'alb-1',
+        name: `DSC_${id}`,
+        taken: `2026-05-01T10:0${i}:00Z`,
+      });
+    }
+    await groupStore.replaceForAlbum('alb-1', [
+      { type: 'stereo', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] },
+    ]);
+    await manifestStore.record(
+      'alb-1',
+      ids.map((id) => ({ id })),
+      scanned,
+    );
+  }
 
   it('builds an empty queue when nothing has been scanned', async () => {
     expect(await service.buildUnits([], 10, fixedRng)).toEqual([]);
@@ -149,5 +181,52 @@ describe('DailyUnitsService', () => {
 
     expect(units).toHaveLength(3);
     expect(new Set(units.flatMap(idsOf)).size).toBe(3);
+  });
+
+  describe('a both-eyes album', () => {
+    // Marking an album drops its manifest so the next scan re-detects it, but the groups already
+    // stored stay as they are until that scan runs. Until then a pair the burst detector had claimed
+    // would keep arriving as "which is better, A or B?" — a duel between the two eyes of one shot.
+    it('re-types a stored burst as a stereo set, without waiting for the next scan', async () => {
+      albums = [{ id: 'alb-1', name: 'Field work' }];
+      prefs.stereoAlbumRoles.set({ 'Field work': 'both' });
+      await metaStore.put('b1', { albumId: 'alb-1', name: 'DJI_1', taken: '2026-05-01T10:00:00Z' });
+      await metaStore.put('b2', { albumId: 'alb-1', name: 'DJI_2', taken: '2026-05-01T10:00:30Z' });
+      await groupStore.replaceForAlbum('alb-1', [
+        { type: 'burst', sourceAlbumId: 'alb-1', memberIds: ['b1', 'b2'] },
+      ]);
+      await manifestStore.record('alb-1', [{ id: 'b1' }, { id: 'b2' }], 2);
+
+      const units = await service.buildUnits([], 10, fixedRng);
+
+      expect(units.map((u) => u.kind)).toEqual(['stereo']);
+      expect(units.flatMap(idsOf)).not.toContain('b1'); // not a burst: no A-vs-B duel to lose an eye to
+    });
+
+    it('offers a frame that paired with nothing as an incomplete pair, once the album is scanned out', async () => {
+      await bothEyeAlbumScannedTo(3);
+
+      const units = await service.buildUnits([], 10, fixedRng);
+
+      // Two units: the pair detection found, and a3 — which the detector saw and could not pair, so
+      // it is a half, not a photograph. Which eye it is nobody knows: both came out of one album.
+      const incomplete = units.find((u): u is Stereo => u.kind === 'stereo' && !!u.gap);
+      // Found and searched are the same album, so the card offers one place to go and look.
+      const here = { name: 'Field work', id: 'alb-1' };
+      expect(incomplete?.gap).toEqual({ missing: 'unknown', foundIn: here, expectedIn: here });
+      expect(incomplete?.left.map((f) => f.id)).toEqual(['a3']);
+      expect(units.some((u) => u.kind === 'photo')).toBe(false);
+    });
+
+    it('keeps that frame off the deck entirely while the album is still being scanned', async () => {
+      // The cursor has only reached two of the three images. "a3 paired with nothing" is then a
+      // statement about the scan, not about the album, and neither a card nor a photo may claim it.
+      await bothEyeAlbumScannedTo(2);
+
+      const units = await service.buildUnits([], 10, fixedRng);
+
+      expect(units.flatMap(idsOf)).not.toContain('a3');
+      expect(units.every((u) => u.kind === 'stereo' && !u.gap)).toBe(true);
+    });
   });
 });

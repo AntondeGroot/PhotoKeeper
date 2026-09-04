@@ -1,0 +1,97 @@
+<div class="split-shoot">
+  <label>
+    Left eyes
+    <select (change)="leftId.set($any($event.target).value)" [disabled]="running()">
+      <option value="">Select an album…</option>
+      @for (a of albums(); track a.id) {
+        <option [value]="a.id">{{ a.name }}</option>
+      }
+    </select>
+  </label>
+  <label>
+    Right eyes
+    <select (change)="rightId.set($any($event.target).value)" [disabled]="running()">
+      <option value="">Select an album…</option>
+      @for (a of albums(); track a.id) {
+        <option [value]="a.id">{{ a.name }}</option>
+      }
+    </select>
+  </label>
+  <button (click)="pair()" [disabled]="!leftId() || !rightId() || running()">
+    {{ running() ? 'Pairing… ' + progress() : 'Pair the eyes' }}
+  </button>
+</div>
+
+@if (error(); as e) {
+  <p class="split-shoot-error">{{ e }}</p>
+}
+
+@if (report(); as r) {
+  <pre class="split-shoot-summary">{{ r.summary.join('\n') }}</pre>
+
+  @for (row of r.rows; track row.left.id) {
+    <div class="shoot-row" [class.miss]="row.outcome !== 'paired'">
+      <div class="shoot-line">
+        <span class="mark">{{ row.outcome === 'paired' ? '✔' : '✘' }}</span>
+        <span class="frame-name">{{ row.left.name }}</span>
+        @if (row.other) {
+          <span class="arrow">{{ row.outcome === 'paired' ? '→' : 'nearest' }}</span>
+          <span class="frame-name">{{ row.other.name }}</span>
+        }
+        @if (row.distance !== null) {
+          <span class="distance">d={{ row.distance }}</span>
+        }
+        @if (row.note) {
+          <span class="note">{{ row.note }}</span>
+        }
+      </div>
+      <!-- The refusal, shown as the pictures it was made about: a distance on its own cannot say
+           whether refusing them was right, and "taken by a closer match" means nothing until you can
+           see what beat it. -->
+      @if (row.outcome === 'rejected' && row.other) {
+        <!-- Two of these three tiles are left-album frames — this one and its rival — so each says
+             which album it came from. Without that, a row reads as though one left frame had been
+             matched with another. -->
+        <div class="shoot-thumbs">
+          <figure>
+            @if (thumb(row.left.id); as url) {
+              <img [src]="url" alt="" />
+            }
+            <figcaption>
+              <span class="tile-role">unpaired</span>
+              <span class="tile-name">{{ leftAlbumName() }} · {{ row.left.name }}</span>
+            </figcaption>
+          </figure>
+          <figure class="contested">
+            @if (thumb(row.other.id); as url) {
+              <img [src]="url" alt="" />
+            }
+            <figcaption>
+              <span class="tile-role">its nearest · d={{ row.distance }}</span>
+              <span class="tile-name">{{ rightAlbumName() }} · {{ row.other.name }}</span>
+            </figcaption>
+          </figure>
+          @if (row.claimedBy; as winner) {
+            <figure class="winner">
+              @if (thumb(winner.frame.id); as url) {
+                <img [src]="url" alt="" />
+              }
+              <figcaption>
+                <span class="tile-role">which paired with · d={{ winner.distance }}</span>
+                <span class="tile-name">{{ leftAlbumName() }} · {{ winner.frame.name }}</span>
+              </figcaption>
+            </figure>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <p class="split-shoot-summary">
+    unpaired right:
+    {{ r.unpairedRight.length ? '' : '—' }}
+    @for (frame of r.unpairedRight; track frame.id) {
+      <span class="frame-name">{{ frame.name }}</span>
+    }
+  </p>
+}

@@ -1,13 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { PreferencesService } from '../../preferences.service';
-import { CatalogScanService } from '../../detection/scan/catalog-scan.service';
-import { ReviewDecisionsService } from '../review-decisions.service';
+import { STEREO_ROLE_LABEL, StereoAlbumsService } from '../stereo-albums.service';
 
 /**
- * In-review album tags shown above the sort card. Currently the "mark as stereo" control: stereo is an
- * album-level property, so this toggles the *current photo's album* in PreferencesService — the same
- * key the album manager uses, so a mark made here shows there too. Only rendered when the Stereo tools
- * feature is on and the photo has an album.
+ * In-review album tags shown above the sort card. Currently the stereo mark: a stereo role belongs to
+ * the album, so this marks the *current photo's album* — the same key the album manager writes, so a
+ * mark made here shows there too. Only rendered when the Stereo tools feature is on and the photo has
+ * an album.
  */
 @Component({
   selector: 'app-review-album-tags',
@@ -17,30 +16,24 @@ import { ReviewDecisionsService } from '../review-decisions.service';
 })
 export class ReviewAlbumTagsComponent {
   readonly prefs = inject(PreferencesService);
-  private readonly catalogScan = inject(CatalogScanService);
-  private readonly decisions = inject(ReviewDecisionsService);
+  private readonly stereo = inject(StereoAlbumsService);
 
-  /** The current review photo's album name (stereo is keyed by album name). */
+  /** The current review photo's album name (a stereo role is keyed by album name). */
   readonly album = input<string | null>(null);
 
   isStereo(): boolean {
-    const album = this.album();
-    return !!album && this.prefs.stereoAlbums().includes(album);
+    return this.stereo.role(this.album()) !== null;
   }
 
-  toggleStereo(): void {
+  /** What the album is marked as, or the invitation to mark it when it carries no role. */
+  label(): string {
+    const role = this.stereo.role(this.album());
+    return role ? STEREO_ROLE_LABEL[role].long : 'Mark as stereo';
+  }
+
+  /** Steps the album through the stereo roles: none → both eyes → left eyes → right eyes → none. */
+  cycleStereo(): void {
     const album = this.album();
-    if (!album) return;
-    const nowStereo = !this.isStereo();
-    this.prefs.stereoAlbums.update((names) =>
-      names.includes(album) ? names.filter((n) => n !== album) : [...names, album],
-    );
-    // The tag changes which detectors run over the album but none of its assets, so the change gate
-    // would skip it forever. Dropping its manifest is what makes the next scan pass look again.
-    void this.catalogScan.invalidateAlbumByName(album);
-    // Take the album's remaining frames out of today's deck: they are halves of pairs now, and the
-    // re-scan will bring them back linked. Untagging does not put them back — there is nothing to
-    // put back, and the next selection will pick them up as singles again.
-    if (nowStereo) this.decisions.withdrawAlbum(album);
+    if (album) this.stereo.cycle(album);
   }
 }

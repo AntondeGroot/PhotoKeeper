@@ -155,4 +155,170 @@ describe('StereoCardComponent', () => {
       expect(emitted.map((e) => e.leftSerial)).toEqual(['4887374', '4807734']);
     });
   });
+
+  describe('moving on to the next set', () => {
+    // The bug: the card outlives the unit it shows, and baseline keys repeat across sets, so a
+    // verdict left behind reappeared as a choice already made on a pair nobody had looked at — with
+    // "Done with this set" enabled to match.
+    it('starts the next set clean', () => {
+      component.setVerdict('3m', 'keep');
+      component.twoD.set(true);
+
+      component.stereo = { ...stereoFixture(), id: 'stereo2' };
+      component.ngOnChanges();
+
+      expect(component.verdicts()).toEqual({});
+      expect(component.twoD()).toBe(false);
+      expect(component.allChosen()).toBe(false);
+    });
+
+    // The same set is handed back whenever a per-album L/R swap is persisted. Those verdicts were
+    // given to *this* photograph and are still the user's.
+    it('keeps the verdicts when the same set is re-handed after a swap', () => {
+      component.ngOnChanges(); // the card has now seen this set
+      component.setVerdict('3m', 'keep');
+
+      component.stereo = { ...stereoFixture() }; // same id, freshly hydrated
+      component.ngOnChanges();
+
+      expect(component.verdicts()).toEqual({ '3m': 'keep' });
+    });
+  });
+
+  describe('an incomplete pair', () => {
+    const album = (name: string) => ({ name, id: `al-${name.replace(/\s/g, '')}` });
+
+    /** The unit built for a half: the eye that exists, and the gap that names the one that does not. */
+    function incomplete(gap: Stereo['gap']): Stereo {
+      return {
+        ...stereoFixture(),
+        name: 'Stereo pair · right eye missing',
+        left: [{ id: 'L3', name: 'DSC_6003', ext: 'NEF' }],
+        baselines: [{ key: 'b0', label: 'incomplete pair', hint: '1 frame', frames: [] }],
+        gap,
+      };
+    }
+
+    it('names the album the missing eye was looked for in', () => {
+      component.stereo = incomplete({
+        missing: 'right',
+        foundIn: album('Iceland L'),
+        expectedIn: album('Iceland R'),
+      });
+
+      expect(component.gapMessage).toBe(
+        'The right eye is missing — nothing in “Iceland R” matches this frame.',
+      );
+      expect(component.meta).toBe('one eye missing');
+    });
+
+    // The other reason a half turns up: the albums were never linked, so there was nowhere to look.
+    // The message has to say *that*, not blame a search that never happened.
+    it('says the albums are unpaired when no other album was named', () => {
+      component.stereo = incomplete({
+        missing: 'right',
+        foundIn: album('Iceland L'),
+        expectedIn: null,
+      });
+
+      expect(component.gapMessage).toBe(
+        'The right eye is missing — this album is marked as left eyes, but no right-eye album is paired with it.',
+      );
+    });
+
+    // One album holding both eyes: nothing anywhere recorded which side a lone frame is, so the card
+    // must not pick one — it says what is known, and labels the empty slot '?'.
+    it('does not claim a side when both eyes came out of one album', () => {
+      component.stereo = incomplete({
+        missing: 'unknown',
+        foundIn: album('Field work'),
+        expectedIn: album('Field work'),
+      });
+
+      expect(component.gapMessage).toBe(
+        'This frame has no other eye — nothing else in “Field work” pairs with it.',
+      );
+      expect(component.missingLabel).toBe('?');
+    });
+
+    it('labels the empty slot with the eye that is missing when the side is known', () => {
+      component.stereo = incomplete({
+        missing: 'left',
+        foundIn: album('Iceland R'),
+        expectedIn: album('Iceland L'),
+      });
+
+      expect(component.missingLabel).toBe('L');
+    });
+
+    describe('the "go and look in Lightroom" links', () => {
+      beforeEach(() => {
+        component.catalogId = 'cat-1';
+      });
+
+      it('offers both albums for a split shoot: the frame’s own, and the one searched', () => {
+        component.stereo = incomplete({
+          missing: 'right',
+          foundIn: album('Iceland L'),
+          expectedIn: album('Iceland R'),
+        });
+
+        expect(component.gapAlbums).toEqual([
+          {
+            name: 'Iceland L',
+            role: 'this frame',
+            url: 'https://lightroom.adobe.com/libraries/cat-1/albums/al-IcelandL/assets',
+          },
+          {
+            name: 'Iceland R',
+            role: 'the missing eye',
+            url: 'https://lightroom.adobe.com/libraries/cat-1/albums/al-IcelandR/assets',
+          },
+        ]);
+      });
+
+      // A both-eyes album searched itself. Two buttons to the same place would be two ways of
+      // saying the same thing, and neither would tell you which to press.
+      it('offers one album when the frame was searched for in its own', () => {
+        component.stereo = incomplete({
+          missing: 'unknown',
+          foundIn: album('Field work'),
+          expectedIn: album('Field work'),
+        });
+
+        expect(component.gapAlbums.map((link) => link.name)).toEqual(['Field work']);
+        expect(component.gapAlbums[0].role).toBe('this album');
+      });
+
+      it('offers nothing while there is no catalog id to link into', () => {
+        component.catalogId = null;
+        component.stereo = incomplete({
+          missing: 'right',
+          foundIn: album('Iceland L'),
+          expectedIn: album('Iceland R'),
+        });
+
+        expect(component.gapAlbums).toEqual([]);
+      });
+
+      it('offers nothing on a whole pair, which has nothing to check', () => {
+        expect(component.gapAlbums).toEqual([]);
+      });
+
+      // A unit queued before gaps carried album ids: there is no album to link to, and the card must
+      // degrade to saying less rather than to throwing inside a template or printing "undefined".
+      // The upgrade drops these (PhotoKeeperDb v24); this is what happens until it has run.
+      it('survives a stored unit whose gap predates album ids', () => {
+        const legacy = { missing: 'right', expectedIn: 'Iceland R' } as unknown as Stereo['gap'];
+        component.stereo = { ...incomplete(legacy), album: 'Iceland L' };
+
+        expect(component.gapAlbums).toEqual([]);
+        expect(component.gapMessage).not.toContain('undefined');
+      });
+    });
+
+    it('has nothing to explain on a whole pair', () => {
+      expect(component.gapMessage).toBe('');
+    });
+  });
 });

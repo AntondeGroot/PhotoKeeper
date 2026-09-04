@@ -80,6 +80,25 @@ export function clusterStereo(
     .map((memberIds) => ({ memberIds }));
 }
 
+/**
+ * Merges member sets that share a frame into one set each. Members keep first-seen order.
+ *
+ * Exists because a stereo album's sets are the *union* of what the three clusterers found, not the
+ * best-ranked one of them: they are all asking "are these frames the same scene?" with different
+ * tolerances, so one may find a pair and another the same pair plus a third frame. Ranked, the wider
+ * answer is thrown away; unioned without merging, one photograph would reach review as two
+ * overlapping sets. See DetectionScanService.
+ */
+export function mergeOverlappingSets(sets: readonly (readonly string[])[]): string[][] {
+  let merged: string[][] = [];
+  for (const set of sets) {
+    const touching = merged.filter((existing) => existing.some((id) => set.includes(id)));
+    const separate = merged.filter((existing) => !touching.includes(existing));
+    merged = [...separate, [...new Set([...touching.flat(), ...set])]];
+  }
+  return merged;
+}
+
 /** Two frames belong to the same set when they look near-identical AND sit close together (when GPS is known). */
 function sameSet(
   a: StereoAsset,

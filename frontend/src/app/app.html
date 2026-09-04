@@ -198,6 +198,9 @@
                     [stereo]="$any(currentReviewPhoto())"
                     (swiped)="decide($event)"
                     (swapEyes)="swapStereoEyes($event)"
+                    (skipped)="decisions.withdrawCurrentUnit()"
+                    (resolved)="decisions.resolveIncompletePair($event)"
+                    [catalogId]="catalogId()"
                   />
                 }
               }

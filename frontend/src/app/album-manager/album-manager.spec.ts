@@ -97,7 +97,8 @@ describe('AlbumManagerComponent', () => {
 
       const root = fixture.nativeElement as HTMLElement;
       root.querySelector<HTMLButtonElement>('.stereo-pill')?.click();
-      expect(prefs.stereoAlbums()).toContain('Lisbon, May'); // a1's name — stereo is name-keyed
+      // a1's name — a stereo role is name-keyed, and the first tap means "both eyes".
+      expect(prefs.stereoAlbumRoles()['Lisbon, May']).toBe('both');
     });
 
     it('re-detects the album and pulls its frames from today when tagged stereo', () => {
@@ -113,17 +114,20 @@ describe('AlbumManagerComponent', () => {
       expect(withdrawn).toEqual(['Lisbon, May']);
     });
 
-    it('re-detects but withdraws nothing when the stereo tag is removed', () => {
+    it('re-detects and clears the deck when the stereo tag is removed', () => {
       prefs.stereoEnabled.set(true);
-      prefs.stereoAlbums.set(['Lisbon, May']);
+      // The last role in the cycle, so the next tap is the one that unmarks the album.
+      prefs.stereoAlbumRoles.set({ 'Lisbon, May': 'right' });
       fixture.detectChanges();
       const root = fixture.nativeElement as HTMLElement;
 
       root.querySelector<HTMLButtonElement>('.stereo-pill')?.click();
 
-      expect(prefs.stereoAlbums()).not.toContain('Lisbon, May');
+      expect(prefs.stereoAlbumRoles()['Lisbon, May']).toBeUndefined();
       expect(invalidated).toEqual(['Lisbon, May']); // stale stereo groups must not outlive the tag
-      expect(withdrawn).toEqual([]); // nothing to take out of the deck
+      // Withdrawn as well: whatever the album put on the deck was grouped under the old marking, so
+      // unmarking leaves stereo units standing for an album that no longer has any.
+      expect(withdrawn).toEqual(['Lisbon, May']);
     });
 
     it('emits back when the back button is clicked', () => {
@@ -141,6 +145,29 @@ describe('AlbumManagerComponent', () => {
 
       const root = fixture.nativeElement as HTMLElement;
       expect(root.querySelector('.album-empty')?.textContent).toContain('No albums match');
+    });
+  });
+
+  describe('pairing a split shoot', () => {
+    /** The partner picker rendered under the left album's row. */
+    function picker(): HTMLSelectElement | null {
+      const root = fixture.nativeElement as HTMLElement;
+      return root.querySelector<HTMLSelectElement>('.stereo-pair-select');
+    }
+
+    beforeEach(() => {
+      prefs.stereoEnabled.set(true);
+      prefs.stereoAlbumRoles.set({ 'Lisbon, May': 'left', 'Field work': 'right' });
+      fixture.detectChanges();
+    });
+
+    it('shows the album already paired with this one', () => {
+      prefs.stereoPartners.set({ 'Lisbon, May': 'Field work' });
+      fixture.detectChanges();
+
+      // What the pairing *is* has to be visible in the control that sets it: a picker that reads
+      // "pick an album" over a stored pairing is indistinguishable from having lost it.
+      expect(picker()?.value).toBe('Field work');
     });
   });
 });

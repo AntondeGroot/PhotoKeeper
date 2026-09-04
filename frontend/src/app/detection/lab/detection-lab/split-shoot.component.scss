@@ -1,0 +1,116 @@
+.split-shoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 8px 0;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #9a9087;
+  }
+}
+
+.split-shoot-error {
+  color: #c9685a;
+  font-size: 12px;
+}
+
+.split-shoot-summary {
+  margin: 8px 0;
+  padding: 12px;
+  background: #131110;
+  border: 1px solid #2a2724;
+  border-radius: 8px;
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  color: #d8d2c8;
+  white-space: pre-wrap;
+}
+
+.shoot-row {
+  padding: 6px 12px;
+  border-left: 2px solid transparent;
+
+  &.miss {
+    border-left-color: #c9685a;
+    background: rgba(201, 104, 90, 0.05);
+  }
+}
+
+.shoot-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font:
+    12px/1.6 ui-monospace,
+    monospace;
+  color: #d8d2c8;
+}
+
+.mark {
+  width: 1em;
+}
+
+.frame-name {
+  color: #d8d2c8;
+}
+
+.arrow,
+.distance {
+  color: #9a9087;
+}
+
+.note {
+  color: #c9685a;
+}
+
+// The two pictures a refusal was made about, side by side at a size you can actually judge.
+.shoot-thumbs {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 10px 1.6em;
+
+  figure {
+    margin: 0;
+    flex: 0 1 220px;
+  }
+
+  // The frame that was refused, and the one that beat it to the candidate between them.
+  .contested img {
+    border-color: #c9685a;
+  }
+
+  .winner img {
+    border-color: #7fa87f;
+  }
+
+  img {
+    display: block;
+    width: 100%;
+    border-radius: 6px;
+    border: 1px solid #2a2724;
+  }
+
+  figcaption {
+    margin-top: 3px;
+    font:
+      10px/1.4 ui-monospace,
+      monospace;
+    color: #9a9087;
+  }
+
+  .tile-role {
+    display: block;
+    color: #d8d2c8;
+  }
+
+  .tile-name {
+    display: block;
+  }
+}

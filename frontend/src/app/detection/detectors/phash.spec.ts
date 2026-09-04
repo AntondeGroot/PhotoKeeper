@@ -1,4 +1,8 @@
 import {
+  MATCH_SIZE,
+  SIGNATURE_SIZE,
+  alignedSignatureDistance,
+  reduceSignature,
   dhash,
   hammingDistance,
   lumaHammingDistance,
@@ -114,5 +118,54 @@ describe('lumaHammingDistance', () => {
 
   it('measures only the luma portion', () => {
     expect(lumaHammingDistance('000000000000000f00000000', '0000000000000000ffffffff')).toBe(4);
+  });
+});
+
+describe('alignedSignatureDistance', () => {
+  /** A signature whose content starts `shift` columns in — one scene, seen from a step aside. */
+  function scene(shift: number): Uint8Array {
+    const out = new Uint8Array(SIGNATURE_SIZE * SIGNATURE_SIZE);
+    for (let y = 0; y < SIGNATURE_SIZE; y++) {
+      for (let x = 0; x < SIGNATURE_SIZE; x++) {
+        let h = (Math.imul(x + shift, 19349663) ^ Math.imul(y, 83492791)) >>> 0;
+        h = Math.imul(h ^ (h >>> 13), 2654435761) >>> 0;
+        out[y * SIGNATURE_SIZE + x] = (h ^ (h >>> 16)) & 0xff;
+      }
+    }
+    return out;
+  }
+
+  // The reason the whole matcher was rebuilt around this: two eyes of one shot differ by *where the
+  // photographers stood*, and a measurement that counts that against them is measuring the wrong
+  // thing. Slid back into place, the same scene costs nothing at all.
+  it('charges nothing for a shift it can slide out', () => {
+    const distance = alignedSignatureDistance(
+      reduceSignature(scene(0)),
+      reduceSignature(scene(4 * (SIGNATURE_SIZE / MATCH_SIZE))),
+    );
+
+    expect(distance).toBe(0);
+  });
+
+  it('still separates two different scenes, which no shift brings together', () => {
+    const other = new Uint8Array(SIGNATURE_SIZE * SIGNATURE_SIZE);
+    for (let i = 0; i < other.length; i++) other[i] = (i * 37) % 256;
+
+    const distance = alignedSignatureDistance(reduceSignature(scene(0)), reduceSignature(other));
+
+    expect(distance).toBeGreaterThan(25); // the matcher's tolerance
+  });
+
+  // A shift beyond the search range must not be silently rewarded: the range is what stops the
+  // search finding an alignment for two frames that have nothing to do with each other.
+  it('does not slide further than it is allowed to', () => {
+    const far = alignedSignatureDistance(
+      reduceSignature(scene(0)),
+      reduceSignature(scene(64)),
+      MATCH_SIZE,
+      2,
+    );
+
+    expect(far).toBeGreaterThan(0);
   });
 });

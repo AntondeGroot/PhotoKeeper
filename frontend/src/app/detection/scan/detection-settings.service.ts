@@ -2,6 +2,7 @@ import { Injectable, computed, signal } from '@angular/core';
 import { BurstOptions } from '../detectors/burst';
 import { PanoOptions } from '../detectors/pano';
 import { StereoOptions } from '../detectors/stereo';
+import { DEFAULT_EYE_PAIR_OPTIONS, EyePairOptions } from '../detectors/stereo-pairs';
 
 const STORAGE_KEY = 'detection-burst-options';
 
@@ -65,6 +66,14 @@ export class DetectionSettingsService {
 
   /** Stereo thresholds for `clusterStereo`. Fixed defaults for now (no UI tuning yet). */
   readonly stereoOptions = computed<StereoOptions>(() => DEFAULT_STEREO_OPTIONS);
+
+  /**
+   * Thresholds for `pairEyes`, the cross-album matcher. Not derived from `stereoOptions`, though the
+   * question is the same one: within an album the eyes are found by hash distance, and across two
+   * they are found by how alike the frames are once the difference in framing is taken out. Two
+   * different measurements on two different scales — a shared number would only look tidy.
+   */
+  readonly eyePairOptions = computed<EyePairOptions>(() => DEFAULT_EYE_PAIR_OPTIONS);
 
   constructor() {
     this.load();

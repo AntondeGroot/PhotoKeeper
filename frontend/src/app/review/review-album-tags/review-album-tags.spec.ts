@@ -67,10 +67,10 @@ describe('ReviewAlbumTagsComponent', () => {
   });
 
   describe('tagging the album', () => {
-    it("marks the current photo's album, by name", () => {
+    it("marks the current photo's album, by name, as holding both eyes", () => {
       pill()?.click();
 
-      expect(prefs.stereoAlbums()).toEqual([ALBUM]);
+      expect(prefs.stereoAlbumRoles()).toEqual({ [ALBUM]: 'both' });
     });
 
     it('re-detects the album and pulls its remaining frames out of today', () => {
@@ -87,13 +87,14 @@ describe('ReviewAlbumTagsComponent', () => {
       fixture.detectChanges();
 
       expect(component.isStereo()).toBe(true);
-      expect(pill()?.textContent).toContain('Stereo album');
+      expect(pill()?.textContent).toContain('Stereo · both eyes');
     });
   });
 
   describe('removing the tag', () => {
     beforeEach(() => {
-      prefs.stereoAlbums.set([ALBUM]);
+      // The last role in the cycle, so the next tap is the one that unmarks the album.
+      prefs.stereoAlbumRoles.set({ [ALBUM]: 'right' });
       fixture.detectChanges();
       invalidated = [];
       withdrawn = [];
@@ -102,7 +103,7 @@ describe('ReviewAlbumTagsComponent', () => {
     it('untags the album', () => {
       pill()?.click();
 
-      expect(prefs.stereoAlbums()).toEqual([]);
+      expect(prefs.stereoAlbumRoles()).toEqual({});
     });
 
     it('re-detects it too, so the stereo groups do not outlive the tag', () => {
@@ -111,19 +112,19 @@ describe('ReviewAlbumTagsComponent', () => {
       expect(invalidated).toEqual([ALBUM]);
     });
 
-    it('withdraws nothing — there is nothing to take out of the deck', () => {
+    it('withdraws the album too — its units were grouped under the mark being removed', () => {
       pill()?.click();
 
-      expect(withdrawn).toEqual([]);
+      expect(withdrawn).toEqual([ALBUM]);
     });
   });
 
   it('leaves the tags on other albums alone', () => {
-    prefs.stereoAlbums.set(['Lisbon, May']);
+    prefs.stereoAlbumRoles.set({ 'Lisbon, May': 'left' });
     fixture.detectChanges();
 
     pill()?.click();
 
-    expect(prefs.stereoAlbums()).toEqual(['Lisbon, May', ALBUM]);
+    expect(prefs.stereoAlbumRoles()).toEqual({ 'Lisbon, May': 'left', [ALBUM]: 'both' });
   });
 });
