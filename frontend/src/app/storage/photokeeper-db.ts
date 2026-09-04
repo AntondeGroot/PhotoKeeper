@@ -158,6 +158,30 @@ const STALE_AT: readonly (readonly [number, readonly StaleStore[]])[] = [
   // without this the change stays invisible until every unit built under the old rules is worked
   // through. The queue simply rebuilds itself.
   [21, ['reviewBuffer', 'dailyFeed']],
+  // v23: two ways a stereo album's frames used to reach the deck as something they are not — a lone
+  // eye as a plain photo, and a wide-baseline pair as a burst, duelling one eye against the other.
+  // Units built under either rule sit in the queue two hundred deep and would outlive the fix by
+  // weeks, so they go and are rebuilt as the pairs they actually are.
+  [23, ['reviewBuffer', 'dailyFeed']],
+  // v24: an incomplete pair now names its albums by id as well as name, so the card can link into
+  // Lightroom. Units queued under v23 carry the old shape — a bare album name — and render the
+  // missing album as "undefined" with no links, so they go the same way.
+  [24, ['reviewBuffer', 'dailyFeed']],
+  // v25: a left- or right-eye album was never treated as a stereo album by the scan, so almost
+  // nothing in one was ever hashed — an all-left album forms no time clusters, every frame in it
+  // being a different scene — and the cross-album matcher had no picture to compare. Manifests go so
+  // every album is looked at again and the eyes finally get hashed; the queue and decks go with them
+  // because they were sampled from a library that had never been read properly.
+  [25, ['albumManifest', 'reviewBuffer', 'dailyFeed']],
+  // v26: the eyes of a split shoot are matched on an *aligned* signature rather than a hash, which
+  // pairs shots the hash had been refusing — most of that hash distance was where the two
+  // photographers stood. Every queued unit was drawn under the old matcher, so the halves it failed
+  // to pair are sitting in there as incomplete pairs that are not incomplete at all.
+  [26, ['reviewBuffer', 'dailyFeed']],
+  // v27: the matcher's cheap first pass was a hash, and a hash distance is mostly framing — so it
+  // was dropping real pairs before the careful pass could measure them. It is now a coarse version
+  // of the same measurement. Queued units were drawn under the old one.
+  [27, ['reviewBuffer', 'dailyFeed']],
 ];
 
 type StaleStore = 'albumManifest' | 'assetHash' | 'reviewBuffer' | 'dailyFeed';
@@ -177,9 +201,14 @@ export class PhotoKeeperDb {
     // the same picture). v20 added 'reviewBuffer' (units selected ahead of being needed). v21 clears
     // the queued units + stored decks, which were assembled before edits were folded into their
     // originals. v22 added 'groupMembers' (the frames a group actually has, after "this pano is
-    // missing frames").
+    // missing frames"). v23 clears the queued units + stored decks again: they were built before a
+    // stereo eye with no partner became an incomplete pair rather than a photograph. v24 clears them
+    // once more, for the album ids an incomplete pair now carries. v25 drops every manifest so each
+    // album re-scans: a left/right-eye album used not to be hashed at all. v26 clears the queue once
+    // more, for the aligned-signature matcher that pairs eyes the hash refused. v27 clears it again:
+    // the matcher's cheap first pass was still a hash, and still dropping real pairs.
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 22, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 27, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
