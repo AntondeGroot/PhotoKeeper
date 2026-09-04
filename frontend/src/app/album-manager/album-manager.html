@@ -22,25 +22,55 @@
   <div class="album-list">
     @for (album of filteredAlbums(); track album.id) {
       <div class="album-row">
-        <span class="album-name">{{ album.name }}</span>
-        <div class="album-pills">
-          @if (prefs.stereoEnabled()) {
+        <div class="album-row-main">
+          <span class="album-name">{{ album.name }}</span>
+          <div class="album-pills">
+            @if (prefs.stereoEnabled()) {
+              <button
+                class="stereo-pill"
+                [class.on]="isStereo(album.name)"
+                title="Tap to cycle: both eyes → left eyes → right eyes → off"
+                (click)="cycleStereo(album.name)"
+              >
+                <span class="pill-dot"></span>{{ stereoLabel(album.name) }}
+              </button>
+            }
             <button
-              class="stereo-pill"
-              [class.on]="isStereo(album.name)"
-              (click)="toggleStereo(album.name)"
+              class="vacation-pill"
+              [class.on]="isVacation(album.id)"
+              (click)="toggleVacation(album.id)"
             >
-              <span class="pill-dot"></span>Stereo
+              <span class="pill-dot"></span>Vacation
             </button>
-          }
-          <button
-            class="vacation-pill"
-            [class.on]="isVacation(album.id)"
-            (click)="toggleVacation(album.id)"
-          >
-            <span class="pill-dot"></span>Vacation
-          </button>
+          </div>
         </div>
+
+        <!-- A split pair needs its other half named: on its own, "left eyes" says what the album
+             holds but not what to pair it against. -->
+        @if (stereoRole(album.name) === 'left') {
+          <label class="stereo-pair">
+            <span class="stereo-pair-label">Right eyes in</span>
+            <!-- The chosen album is marked on the option, not by binding the select's value: the
+                 options are created by the loop below, so a value set on the select lands before
+                 they exist and silently falls back to the placeholder. -->
+            <select class="stereo-pair-select" (change)="onPartner(album.name, $event)">
+              <option value="" [selected]="partner(album.name) === null">— pick an album —</option>
+              @for (candidate of rightAlbums(); track candidate) {
+                <option [value]="candidate" [selected]="candidate === partner(album.name)">
+                  {{ candidate }}
+                </option>
+              }
+            </select>
+          </label>
+        } @else if (stereoRole(album.name) === 'right') {
+          <p class="stereo-pair-note">
+            @if (claimant(album.name); as left) {
+              Left eyes in {{ left }}
+            } @else {
+              No left album points here yet
+            }
+          </p>
+        }
       </div>
     } @empty {
       <div class="album-empty">
