@@ -65,6 +65,8 @@ export class StereoCardComponent implements OnChanges {
   viewerBaseline = signal<string | null>(null);
   /** Local left/right flip for immediate feedback; the persisted per-album choice rides swapEyes. */
   private readonly swapped = signal(false);
+  /** Which set the state above belongs to, so a new one starts clean — see ngOnChanges. */
+  private shownUnitId: string | null = null;
 
   /** A twin-DSLR set carries two body serials → offer the swap; drone/cha-cha sets don't. */
   get canSwap(): boolean {
@@ -169,6 +171,11 @@ export class StereoCardComponent implements OnChanges {
    */
   ngOnChanges(): void {
     this.swapped.set(false);
+    if (this.stereo.id === this.shownUnitId) return;
+    this.shownUnitId = this.stereo.id;
+    this.verdicts.set({});
+    this.twoD.set(false);
+    this.viewerBaseline.set(null);
   }
 
   /** Flip the left/right eye, and tell the host which serial is now the left one (to persist per album). */

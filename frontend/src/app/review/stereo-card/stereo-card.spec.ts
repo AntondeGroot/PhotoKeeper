@@ -156,6 +156,35 @@ describe('StereoCardComponent', () => {
     });
   });
 
+  describe('moving on to the next set', () => {
+    // The bug: the card outlives the unit it shows, and baseline keys repeat across sets, so a
+    // verdict left behind reappeared as a choice already made on a pair nobody had looked at — with
+    // "Done with this set" enabled to match.
+    it('starts the next set clean', () => {
+      component.setVerdict('3m', 'keep');
+      component.twoD.set(true);
+
+      component.stereo = { ...stereoFixture(), id: 'stereo2' };
+      component.ngOnChanges();
+
+      expect(component.verdicts()).toEqual({});
+      expect(component.twoD()).toBe(false);
+      expect(component.allChosen()).toBe(false);
+    });
+
+    // The same set is handed back whenever a per-album L/R swap is persisted. Those verdicts were
+    // given to *this* photograph and are still the user's.
+    it('keeps the verdicts when the same set is re-handed after a swap', () => {
+      component.ngOnChanges(); // the card has now seen this set
+      component.setVerdict('3m', 'keep');
+
+      component.stereo = { ...stereoFixture() }; // same id, freshly hydrated
+      component.ngOnChanges();
+
+      expect(component.verdicts()).toEqual({ '3m': 'keep' });
+    });
+  });
+
   describe('an incomplete pair', () => {
     const album = (name: string) => ({ name, id: `al-${name.replace(/\s/g, '')}` });
 
