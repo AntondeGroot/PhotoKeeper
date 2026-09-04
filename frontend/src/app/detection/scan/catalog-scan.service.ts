@@ -81,8 +81,12 @@ export class CatalogScanService {
       completed: true,
     };
 
-    // Stereo detection runs only over albums the user marked as stereo (kept by name; see PreferencesService).
-    const stereoAlbums = new Set(this.prefs.stereoAlbums());
+    // The album's stereo marking (by name; see PreferencesService) decides how it is scanned: a
+    // both-eyes album is clustered into stereo sets, while a left- or right-eye album gets no groups
+    // of its own and is paired against its partner album at selection time. Every stereo album,
+    // whichever eye, has all of its images hashed — across two albums the picture is the only signal
+    // there is, since two bodies are under no obligation to agree about the time.
+    const roles = this.prefs.stereoAlbumRoles();
 
     let remaining = imageBudget;
     for (const album of albums) {
@@ -92,7 +96,7 @@ export class CatalogScanService {
       }
       summary.processed++;
       try {
-        const report = await this.scan.scanAlbum(album.id, remaining, stereoAlbums.has(album.name));
+        const report = await this.scan.scanAlbum(album.id, remaining, roles[album.name] ?? null);
         summary.scannedImages += report.scanned;
         summary.hashed += report.hashed;
         summary.groups += report.groups;
