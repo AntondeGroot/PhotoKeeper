@@ -148,7 +148,11 @@ export class ReviewFeedService {
     // Drop previews + stored selections from earlier days. Today's deck is kept, and so is the
     // buffer's warm front — those previews were fetched precisely so the next batch opens without
     // a wait, and evicting them here would undo that work on every start.
-    const keep = new Set(withVerdicts.map((p) => p.id));
+    //
+    // Expanded to *frames*, not units. Previews are keyed by asset, while a burst or a stereo pair
+    // is one unit under a synthetic id, so keeping the unit ids kept nothing at all for a group: its
+    // frames were evicted on every load and downloaded again the moment the deck reached them.
+    const keep = new Set(withVerdicts.flatMap(unitAssetIds));
     this.buffer.warmedIds().forEach((id) => keep.add(id));
     void this.previews.evictDurableExcept(keep);
     void this.reviewStore.pruneDailyFeedExcept(new Set([today]));

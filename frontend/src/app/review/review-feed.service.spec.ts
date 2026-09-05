@@ -26,6 +26,7 @@ describe('ReviewFeedService', () => {
   let service: ReviewFeedService;
   let dailyFeed: Map<string, ReviewItem[]>;
   let today: ReturnType<typeof signal<string>>;
+  let kept: Set<string> | null;
   let prefs: {
     dailyGoal: () => number;
     vacationAlbumIds: () => string[];
@@ -36,6 +37,7 @@ describe('ReviewFeedService', () => {
   beforeEach(() => {
     dailyFeed = new Map();
     today = signal(todayKey());
+    kept = null;
     prefs = {
       dailyGoal: () => 15,
       vacationAlbumIds: () => [],
@@ -61,7 +63,10 @@ describe('ReviewFeedService', () => {
         {
           provide: PreviewCacheService,
           useValue: {
-            evictDurableExcept: () => Promise.resolve(),
+            evictDurableExcept: (keep: Set<string>) => {
+              kept = keep;
+              return Promise.resolve();
+            },
             warmDurable: () => Promise.resolve(),
           },
         },
@@ -109,6 +114,30 @@ describe('ReviewFeedService', () => {
     expect(ids).toContain('lr-1'); // Lightroom photo kept
     expect(ids.some((id) => id.startsWith('DEV_'))).toBe(true);
   });
+
+  // Previews are keyed by asset, while a burst is one unit under a synthetic id. Keeping unit ids
+  // therefore kept nothing at all for a group: its frames were evicted on every load and downloaded
+  // again the moment the deck reached them.
+  it('keeps the previews of a group unit’s frames, not its unit id', async () => {
+    const burstUnit: ReviewItem = {
+      id: 'burst:alb-1:f1',
+      name: 'Burst · 2 frames',
+      album: 'Trip',
+      taken: '2026-01-01',
+      status: 'backlog',
+      kind: 'burst',
+      photos: [
+        { id: 'f1', name: 'f1' },
+        { id: 'f2', name: 'f2' },
+      ],
+    };
+    dailyFeed.set(todayKey(), [burstUnit, photo('a')]);
+
+    await service.loadToday();
+
+    expect([...(kept ?? [])].sort((a, b) => a.localeCompare(b))).toEqual(['a', 'f1', 'f2']);
+  });
+
   // An app left open overnight went on showing the previous day's finished deck: everything the
   // review screen shows is scoped to a day, and all of it was decided once at boot.
   it('reloads the deck when the day turns over under an open app', async () => {
