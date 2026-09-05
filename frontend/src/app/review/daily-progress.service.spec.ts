@@ -99,4 +99,34 @@ describe('DailyProgressService', () => {
 
     expect(progress.reviews()).toBe(4);
   });
+
+  // Stored state comes from outside the program — an older version, a hand-edit, a clobbered key —
+  // so a record that is not one has to read as "no progress" rather than flow into the tally.
+  it.each([
+    { what: 'a missing field', stored: '{"day":"2026-06-14","reviews":3,"edits":0}' },
+    {
+      what: 'a day that is not a day',
+      stored: '{"day":"yesterday","reviews":3,"edits":0,"tags":0}',
+    },
+    { what: 'a negative count', stored: '{"day":"2026-06-14","reviews":-3,"edits":0,"tags":0}' },
+    { what: 'a fractional count', stored: '{"day":"2026-06-14","reviews":2.5,"edits":0,"tags":0}' },
+    { what: 'a null', stored: 'null' },
+    { what: 'a string', stored: '"15"' },
+    { what: 'nonsense', stored: 'not json at all' },
+  ])('ignores stored progress that is $what', ({ stored }) => {
+    localStorage.setItem('daily-progress', stored);
+
+    expect(build().reviews()).toBe(0);
+  });
+
+  // A null tally was already rejected — kept as a statement of what the predicate promises, since
+  // it is the shape a JSON-encoded NaN or Infinity actually arrives as.
+  it('ignores a tally that is not a number at all', () => {
+    localStorage.setItem(
+      'daily-progress',
+      '{"day":"2026-06-14","reviews":null,"edits":0,"tags":0}',
+    );
+
+    expect(build().reviews()).toBe(0);
+  });
 });

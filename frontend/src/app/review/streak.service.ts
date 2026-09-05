@@ -1,10 +1,9 @@
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
-import { dateKey } from './day';
+import { dateKey, isDayKey } from './day';
 import { DayService } from './day.service';
 import { BacklogStatusService } from './backlog-status.service';
 
 const STORAGE_KEY = 'review-streak';
-const DAY_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Freezes held at once, and the run length that earns another. */
 export const MAX_FREEZES = 3;
@@ -159,8 +158,7 @@ function isStreakState(value: unknown): value is StreakState {
     candidate.days >= 0 &&
     (candidate.freezes === undefined ||
       (Number.isInteger(candidate.freezes) && candidate.freezes >= 0)) &&
-    typeof candidate.lastDay === 'string' &&
-    DAY_KEY_PATTERN.test(candidate.lastDay)
+    isDayKey(candidate.lastDay)
   );
 }
 

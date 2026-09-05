@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { PreferencesService } from '../preferences.service';
+import { isDayKey } from './day';
 import { DayService } from './day.service';
 
 const STORAGE_KEY = 'daily-progress';
@@ -110,9 +111,21 @@ function isProgress(value: unknown): value is Progress {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Partial<Progress>;
   return (
-    typeof candidate.day === 'string' &&
-    typeof candidate.reviews === 'number' &&
-    typeof candidate.edits === 'number' &&
-    typeof candidate.tags === 'number'
+    isDayKey(candidate.day) &&
+    isCount(candidate.reviews) &&
+    isCount(candidate.edits) &&
+    isCount(candidate.tags)
   );
+}
+
+/**
+ * A tally: a whole number of things done, none of them negative.
+ *
+ * Stricter than `typeof x === 'number'`, which admits a negative or a fraction — neither of which is
+ * a number of photographs, and a negative one would put the day quietly out of reach of its goal.
+ * (It also admits NaN, whose every comparison is false; JSON cannot carry a NaN, so that one is
+ * guarding the predicate rather than this storage path.)
+ */
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }

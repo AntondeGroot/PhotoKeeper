@@ -10,6 +10,17 @@ export function dateKey(d: Date): string {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
+/**
+ * Whether a value is a day key of the shape {@link dateKey} produces.
+ *
+ * Lives here rather than beside either of the things that validate stored state, because both are
+ * asking the same question about the same format, and a second copy of the pattern is a second thing
+ * to get wrong when the format changes.
+ */
+export function isDayKey(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export function todayKey(): string {
   return dateKey(new Date());
 }
