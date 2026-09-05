@@ -3,7 +3,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { StreakService, StreakState } from './streak.service';
 import { BacklogStatusService } from './backlog-status.service';
-import { todayKey } from './review-feed.service';
+import { todayKey } from './day';
 import { previousDay } from './streak.service';
 
 /** The stored run, as it would be found on disk when the app opens. */

@@ -13,6 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { Album, isAuthFailure, LightroomService } from './lightroom.service';
 import { PreviewCacheService } from './review/preview-cache.service';
 import { ReviewFeedService } from './review/review-feed.service';
+import { DayService } from './review/day.service';
 import { ReviewDecisionsService } from './review/review-decisions.service';
 import { ReviewStatsService } from './review/review-stats.service';
 import { FullscreenViewerService } from './review/fullscreen-viewer.service';
@@ -87,6 +88,8 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly svc = inject(LightroomService);
   private readonly previews = inject(PreviewCacheService);
   readonly feed = inject(ReviewFeedService); // public: the template reads feed.todayLabel
+  // public: the header's date line reads day.label, and it must follow the day turning over
+  readonly day = inject(DayService);
   private readonly catalogScan = inject(CatalogScanService);
   private readonly detectionSettings = inject(DetectionSettingsService);
   private readonly scan = inject(BackgroundScanService);

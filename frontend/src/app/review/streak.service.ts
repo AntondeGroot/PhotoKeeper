@@ -1,5 +1,6 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
-import { dateKey, todayKey } from './review-feed.service';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { dateKey } from './day';
+import { DayService } from './day.service';
 import { BacklogStatusService } from './backlog-status.service';
 
 const STORAGE_KEY = 'review-streak';
@@ -173,10 +174,11 @@ function isStreakState(value: unknown): value is StreakState {
 @Injectable({ providedIn: 'root' })
 export class StreakService {
   private readonly backlog = inject(BacklogStatusService);
+  private readonly day = inject(DayService);
   private readonly state = signal<StreakState | null>(readState());
 
   /** Consecutive days the goal has been met; 0 once a whole day has gone by without it. */
-  readonly days = computed(() => streakOn(this.state(), todayKey()));
+  readonly days = computed(() => streakOn(this.state(), this.day.today()));
 
   /**
    * Whether today's goal has been met yet.
@@ -184,7 +186,7 @@ export class StreakService {
    * A run stays alive through the day after it last reached, so the count on screen is the same
    * before and after today's session — this is what separates "still standing" from "kept up".
    */
-  readonly metToday = computed(() => this.state()?.lastMet === todayKey());
+  readonly metToday = computed(() => this.state()?.lastMet === this.day.today());
 
   /** Freezes banked and available to cover a missed day. */
   readonly freezes = computed(() => this.state()?.freezes ?? 0);
@@ -205,12 +207,19 @@ export class StreakService {
   }
 
   constructor() {
-    this.hydrate();
-  }
-
-  // Sync wrapper keeps the async call out of the constructor body (which sonarjs flags).
-  private hydrate(): void {
-    void this.settleOnOpen();
+    // Settling belongs to the day, not to the session: a run is brought up to date when the app is
+    // opened *and* when the day turns over under an app that was already open. Without the second,
+    // an app left running overnight showed yesterday's streak, still lit, indefinitely.
+    effect(() => {
+      this.day.today();
+      // Untracked, because settling *writes* the run it reads: tracked, the effect would depend on
+      // the very state it persists and re-trigger itself. The day is the only thing that should
+      // bring it round again.
+      //
+      // Nothing awaits this either, so it must not be able to reject: the streak is a nicety and a
+      // storage failure has to cost it silently rather than surface as an unhandled rejection.
+      void untracked(() => this.settleOnOpen().catch(() => {}));
+    });
   }
 
   /**
@@ -225,7 +234,7 @@ export class StreakService {
     // where the optimistic guess would silently stop streaks ever breaking. Best-effort either way —
     // this runs fire-and-forget from the constructor, so a rejection would go nowhere.
     const workWaiting = await this.backlog.hasWorkWaiting().catch(() => true);
-    const settled = settleStreak(current, todayKey(), workWaiting);
+    const settled = settleStreak(current, this.day.today(), workWaiting);
     if (settled.state === current) return;
 
     this.persist(settled.state);
@@ -240,7 +249,7 @@ export class StreakService {
    */
   recordGoalMet(): boolean {
     const before = this.freezes();
-    this.persist(extendStreak(this.state(), todayKey()));
+    this.persist(extendStreak(this.state(), this.day.today()));
     return this.freezes() > before;
   }
 

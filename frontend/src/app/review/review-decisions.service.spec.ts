@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { ReviewDecisionsService } from './review-decisions.service';
-import { ReviewFeedService, todayKey } from './review-feed.service';
+import { ReviewFeedService } from './review-feed.service';
+import { todayKey } from './day';
 import { ReviewStore } from '../storage/review/review-store';
 import { GroupOverrideStore } from '../storage/detection/group-override-store';
 import { BackgroundScanService } from '../detection/scan/background-scan.service';
@@ -484,7 +485,10 @@ describe('ReviewDecisionsService', () => {
         { provide: ReviewStore, useValue: { setVerdict: () => Promise.resolve() } },
         { provide: GroupOverrideStore, useValue: {} },
         { provide: BackgroundScanService, useValue: { scheduleRefill: () => {} } },
-        { provide: PreferencesService, useValue: { dailyGoal: () => 1 } },
+        {
+          provide: PreferencesService,
+          useValue: { dailyGoal: () => 1, editGoal: () => 3, tagGoal: () => 15 },
+        },
       ],
     });
     service = TestBed.inject(ReviewDecisionsService);
@@ -492,6 +496,7 @@ describe('ReviewDecisionsService', () => {
 
     service.decide('kept'); // 1 done, goal is 1
     await Promise.resolve();
+    TestBed.tick(); // the celebration is raised by an effect watching the day's tally
     expect(service.celebration()?.title).toContain('daily goal done');
     expect(localStorage.getItem('celebratedGoal')).toBe(todayKey());
   });
