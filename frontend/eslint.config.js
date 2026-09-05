@@ -108,6 +108,7 @@ export default tseslint.config(
             'src/app/review/selection/unit-selection.ts',
             'src/app/review/selection/stereo-pairing.ts',
             'src/app/review/review-buffer-target.ts',
+            'src/app/review/day.ts',
             'src/app/review/pano-frames.ts',
             'src/app/review/fullscreen-viewer/viewer-image.ts',
             'src/app/prints/prints.types.ts',

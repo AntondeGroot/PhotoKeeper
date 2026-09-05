@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../lightroom.service';
@@ -9,6 +9,7 @@ import { DailyUnitsService } from './selection/daily-units.service';
 import { PreviewCacheService } from './preview-cache.service';
 import { PreferencesService } from '../preferences.service';
 import { ReviewBufferService } from './review-buffer.service';
+import { DayService } from './day.service';
 import {
   DEVICE_PHOTOS,
   MOCK_BURST,
@@ -21,38 +22,6 @@ import {
   splitFileName,
   unitAssetIds,
 } from '../photo';
-
-/** Local-date key (YYYY-MM-DD), so the daily selection doesn't flip a day early/late at UTC midnight. */
-export function dateKey(d: Date): string {
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${month}-${day}`;
-}
-
-export function todayKey(): string {
-  return dateKey(new Date());
-}
-
-export function tomorrowKey(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return dateKey(d);
-}
-
-/**
- * The header's date line, e.g. "Tuesday 9 June".
- *
- * <p>Fixed to en-GB rather than the device locale: the rest of the interface is written in English,
- * and a Dutch weekday under an English wordmark reads as a bug rather than as localisation. When the
- * app is actually translated, this should follow whatever that chooses.
- */
-export function dayLabel(d: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  }).format(d);
-}
 
 /**
  * Owns the review deck and how it's filled: today's selection (cached or freshly sampled on-device,
@@ -70,13 +39,29 @@ export class ReviewFeedService {
   private readonly prefs = inject(PreferencesService);
   /** public: the header shows how full the queue is when it falls behind */
   readonly buffer = inject(ReviewBufferService);
+  private readonly day = inject(DayService);
+  /** The day the deck in hand belongs to — see the rollover effect below. */
+  private dayOfDeck = this.day.today();
+
+  constructor() {
+    // Reload the deck when the day turns over under an app that was left open. Everything the review
+    // screen shows is scoped to a day, and all of it used to be decided once at boot: an app left
+    // running overnight went on showing yesterday's finished deck and an "all caught up" that had
+    // stopped being true hours ago.
+    //
+    // Guarded on `loaded`, which is only true once a deck has been fetched — so this reloads a
+    // session that was under way and never starts one that was not.
+    effect(() => {
+      const day = this.day.today();
+      if (day === this.dayOfDeck) return;
+      this.dayOfDeck = day;
+      if (this.loaded()) void this.loadToday().catch(() => {});
+    });
+  }
 
   // The review queue, starting on mock data until real photos load. The cursor, whether photos have
   // loaded, and whether more can be sampled.
   readonly photos = signal<ReviewItem[]>([...MOCK_PHOTOS, MOCK_BURST, MOCK_PANO, MOCK_STEREO]);
-  // The day the review belongs to, spelled out for the header. This service already decides where a
-  // day starts (see dateKey), so it is the one place that should answer "which day is this".
-  readonly todayLabel = dayLabel(new Date());
   readonly index = signal(0);
   readonly loaded = signal(false);
   readonly canLoadMore = signal(true);
@@ -130,7 +115,7 @@ export class ReviewFeedService {
    * Throws on failure — the caller surfaces the error.
    */
   async loadToday(): Promise<void> {
-    const today = todayKey();
+    const today = this.day.today();
     let photos = await this.reviewStore.getDailyFeed(today);
     if (!photos) {
       // Off the buffer, whose front was warmed during the last session — that is what makes the
@@ -191,7 +176,7 @@ export class ReviewFeedService {
     // Insert ahead of any device photos, and persist only the Lightroom feed (device is rebuilt).
     const base = this.photos().filter((p) => !isDevicePhoto(p));
     const newBase = [...base, ...more];
-    void this.reviewStore.setDailyFeed(todayKey(), newBase);
+    void this.reviewStore.setDailyFeed(this.day.today(), newBase);
     this.photos.set(newBase);
     await this.refreshDeviceDeck();
     const next = this.photos().findIndex((p) => p.status === 'backlog');

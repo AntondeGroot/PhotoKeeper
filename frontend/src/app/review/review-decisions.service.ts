@@ -1,11 +1,13 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { ReviewStore } from '../storage/review/review-store';
 import { StoredVerdict } from '../storage/photokeeper-db';
 import { GroupOverrideStore } from '../storage/detection/group-override-store';
 import { BackgroundScanService } from '../detection/scan/background-scan.service';
 import { PreferencesService } from '../preferences.service';
-import { ReviewFeedService, todayKey } from './review-feed.service';
+import { ReviewFeedService } from './review-feed.service';
+import { DayService } from './day.service';
 import { StreakService } from './streak.service';
+import { DailyProgressService, DailyTask } from './daily-progress.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
 import { Burst, Pano, PanoFrame, ReviewItem, isDevicePhoto, unitAssetIds } from '../photo';
 
@@ -19,11 +21,12 @@ function retypedId(type: 'burst' | 'pano', id: string): string {
   return `${type}:${id.replace(/^(?:burst:|pano:)+/, '')}`;
 }
 
-/** The everyday "you're done for today" banner. */
-function goalDone(goal: number): HeadsUp {
+/** The everyday "you're done for today" banner, whichever pass finished the day. */
+function goalDone(task: DailyTask, goal: number): HeadsUp {
+  const what = { reviews: 'sorted', edits: 'edited', tags: 'tagged' }[task];
   return {
     icon: '🎉',
-    title: `That's ${goal} — daily goal done`,
+    title: `That's ${goal} ${what} — daily goal done`,
     text: 'Lovely work. Everything from here is a bonus.',
   };
 }
@@ -82,6 +85,11 @@ export class ReviewDecisionsService {
   private readonly scan = inject(BackgroundScanService);
   private readonly prefs = inject(PreferencesService);
   private readonly streak = inject(StreakService);
+  private readonly progress = inject(DailyProgressService);
+  // The day is read from the service rather than the clock, so every per-day record — the stored
+  // deck, the once-a-day celebration, the tally — agrees about which day it is even in the seconds
+  // around midnight when the two would briefly disagree.
+  private readonly day = inject(DayService);
 
   /** The current in-app celebration heads-up (or null). Celebrations only — earned, in-the-moment wins. */
   readonly celebration = signal<HeadsUp | null>(null);
@@ -101,6 +109,18 @@ export class ReviewDecisionsService {
   readonly editedToday = signal(0);
 
   private isAuthenticated: () => boolean = () => false;
+
+  constructor() {
+    // Watched rather than called from each pass: sorting, editing and tagging all finish a day, and
+    // the tag pass does not go through this service at all. One watcher means a new way of finishing
+    // the day cannot forget to announce itself.
+    effect(() => {
+      const task = this.progress.taskDone();
+      // Untracked past this point: announcing the day writes the streak, and reading a freeze count
+      // back inside a tracked effect would make the announcement depend on its own side effect.
+      if (task) untracked(() => this.celebrateDayDone(task));
+    });
+  }
 
   acknowledgeFreezeUse(): void {
     this.streak.acknowledgeFreezeUse();
@@ -243,7 +263,7 @@ export class ReviewDecisionsService {
    */
   private persistDay(): void {
     void this.reviewStore.setDailyFeed(
-      todayKey(),
+      this.day.today(),
       this.feed.photos().filter((item) => !isDevicePhoto(item)),
     );
   }
@@ -322,6 +342,7 @@ export class ReviewDecisionsService {
     this.setStatus(id, 'toPrint');
     void this.persistVerdict(id);
     this.editedToday.update((n) => n + 1);
+    this.progress.recordEdit();
   }
 
   private setStatus(id: string, status: ReviewItem['status']): void {
@@ -355,7 +376,7 @@ export class ReviewDecisionsService {
     // A review decision shrinks the scanned-ahead buffer — top it back up (debounced).
     this.scan.scheduleRefill(this.isAuthenticated);
     // A decision may have just carried the day's count over the sorting goal — celebrate it.
-    this.maybeCelebrateGoal();
+    this.recordReviewProgress();
   }
 
   private async recordAbsorbed(unit: ReviewItem): Promise<void> {
@@ -396,20 +417,43 @@ export class ReviewDecisionsService {
     }
   }
 
-  // Fires the "goal hit" celebration the moment the day's reviewed count reaches the sorting goal —
-  // once per day (persisted), so reopening the app after finishing doesn't re-congratulate you. The
-  // same moment is what the streak counts, so today is recorded here rather than tracked separately.
-  private maybeCelebrateGoal(): void {
+  /**
+   * Hands the day's review count to the tally, which is what decides whether the day is done.
+   *
+   * The count comes off the deck rather than being incremented per verdict, so going back and
+   * changing an answer cannot inflate it.
+   */
+  private recordReviewProgress(): void {
     if (!this.feed.loaded()) return;
-    const goal = this.prefs.dailyGoal();
-    const done = this.feed.photos().filter((p) => p.status !== 'backlog').length;
-    if (goal <= 0 || done < goal) return;
-    const today = todayKey();
+    this.progress.recordReviews(this.feed.photos().filter((p) => p.status !== 'backlog').length);
+  }
+
+  /**
+   * Celebrates the day's work being done, and records it for the streak — once per day, whichever
+   * pass finished it.
+   *
+   * <p>Any one of the three passes counts. Sorting used to be the only one that did, so a day spent
+   * entirely on edits or on tagging was a day the streak treated as missed, however much work went
+   * into it.
+   *
+   * <p>Only a *finished* pass counts, never partial progress: the goal is the unit of a day's work,
+   * and a streak that advanced on a single swipe would be measuring that the app was opened.
+   */
+  private celebrateDayDone(task: DailyTask): void {
+    const today = this.day.today();
     if (localStorage.getItem('celebratedGoal') === today) return;
     localStorage.setItem('celebratedGoal', today);
     // Unlocking a freeze outranks the daily goal: it happens once every sixty days, and the banner
     // is the only place the mechanic is ever explained.
     const unlockedFreeze = this.streak.recordGoalMet();
-    this.celebration.set(unlockedFreeze ? freezeUnlocked(this.streak.freezes()) : goalDone(goal));
+    this.celebration.set(
+      unlockedFreeze ? freezeUnlocked(this.streak.freezes()) : goalDone(task, this.goalFor(task)),
+    );
+  }
+
+  private goalFor(task: DailyTask): number {
+    if (task === 'edits') return this.prefs.editGoal();
+    if (task === 'tags') return this.prefs.tagGoal();
+    return this.prefs.dailyGoal();
   }
 }

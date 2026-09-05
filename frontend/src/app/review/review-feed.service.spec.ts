@@ -1,6 +1,9 @@
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { of } from 'rxjs';
-import { ReviewFeedService, dayLabel, todayKey } from './review-feed.service';
+import { ReviewFeedService } from './review-feed.service';
+import { dayLabel, todayKey } from './day';
+import { DayService } from './day.service';
 import { LightroomService } from '../lightroom.service';
 import { ReviewStore } from '../storage/review/review-store';
 import { DailyUnitsService } from './selection/daily-units.service';
@@ -22,6 +25,7 @@ const photo = (id: string, status: Photo['status'] = 'backlog'): Photo => ({
 describe('ReviewFeedService', () => {
   let service: ReviewFeedService;
   let dailyFeed: Map<string, ReviewItem[]>;
+  let today: ReturnType<typeof signal<string>>;
   let prefs: {
     dailyGoal: () => number;
     vacationAlbumIds: () => string[];
@@ -31,6 +35,7 @@ describe('ReviewFeedService', () => {
 
   beforeEach(() => {
     dailyFeed = new Map();
+    today = signal(todayKey());
     prefs = {
       dailyGoal: () => 15,
       vacationAlbumIds: () => [],
@@ -61,6 +66,7 @@ describe('ReviewFeedService', () => {
           },
         },
         { provide: PreferencesService, useValue: prefs },
+        { provide: DayService, useValue: { today } },
       ],
     });
     service = TestBed.inject(ReviewFeedService);
@@ -102,6 +108,34 @@ describe('ReviewFeedService', () => {
     const ids = service.photos().map((p) => p.id);
     expect(ids).toContain('lr-1'); // Lightroom photo kept
     expect(ids.some((id) => id.startsWith('DEV_'))).toBe(true);
+  });
+  // An app left open overnight went on showing the previous day's finished deck: everything the
+  // review screen shows is scoped to a day, and all of it was decided once at boot.
+  it('reloads the deck when the day turns over under an open app', async () => {
+    dailyFeed.set(todayKey(), [photo('a', 'kept')]);
+    await service.loadToday();
+    expect(service.photos().map((p) => p.id)).toEqual(['a']);
+
+    dailyFeed.set('2026-12-25', [photo('b')]);
+    today.set('2026-12-25');
+    TestBed.tick(); // the reload is raised by an effect watching the day
+
+    // Waited for rather than flushed by hand: the reload is several awaits deep, and counting
+    // microtasks would pin the test to the shape of loadToday rather than to what it achieves.
+    await vi.waitFor(() => expect(service.photos().map((p) => p.id)).toEqual(['b']));
+  });
+
+  // ...but it must not start a session that was never under way, or a deck would be fetched for a
+  // user who has not opened the review screen at all.
+  it('leaves an unloaded feed alone when the day turns over', async () => {
+    dailyFeed.set('2026-12-25', [photo('b')]);
+
+    today.set('2026-12-25');
+    TestBed.tick();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(service.loaded()).toBe(false);
   });
 });
 

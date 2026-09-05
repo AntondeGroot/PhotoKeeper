@@ -4,6 +4,7 @@ import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewStore } from '../storage/review/review-store';
 import { PreviewCacheService } from '../review/preview-cache.service';
 import { PreferencesService } from '../preferences.service';
+import { DailyProgressService } from '../review/daily-progress.service';
 import { TagState } from './tag-state.service';
 import { ASSIGNABLE_DIRS, NO_TAG_DIR, NO_TAG_ID, SwipeDir, TagDirections } from './tags';
 import { Photo, ReviewStatus } from '../photo';
@@ -45,6 +46,7 @@ export class TagReviewService {
   private readonly previews = inject(PreviewCacheService);
   private readonly tagState = inject(TagState);
   private readonly prefs = inject(PreferencesService);
+  private readonly progress = inject(DailyProgressService);
 
   /** Cursor over the keepers pool while in the Tag step. */
   readonly cursor = signal(0);
@@ -175,7 +177,10 @@ export class TagReviewService {
     if (!tagId) return;
     const wasUntagged = !this.tagState.tagsFor(photo.id).length;
     this.tagState.apply(photo.id, tagId);
-    if (wasUntagged) this.taggedCount.update((n) => n + 1);
+    if (wasUntagged) {
+      this.taggedCount.update((n) => n + 1);
+      this.progress.recordTag();
+    }
     this.next();
   }
 
@@ -205,6 +210,7 @@ export class TagReviewService {
     this.tagState.toggle(photo.id, tagId);
     if (wasUntagged && this.tagState.tagsFor(photo.id).length) {
       this.taggedCount.update((n) => n + 1);
+      this.progress.recordTag();
     }
   }
 
