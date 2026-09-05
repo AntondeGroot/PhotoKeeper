@@ -11,6 +11,8 @@ import {
 import { DeviceSourceComponent } from '../device-source/device-source';
 import { PreferencesService } from '../preferences.service';
 import { BatteryOptimizationService } from '../notifications/battery-optimization.service';
+import { StorageUsageService } from '../storage/storage-usage.service';
+import { formatBytes } from '../storage/storage-usage';
 
 @Component({
   selector: 'app-settings',
@@ -23,9 +25,28 @@ export class SettingsComponent implements OnInit {
   /** Android's background restriction — shown here because it decides whether reminders arrive. */
   readonly battery = inject(BatteryOptimizationService);
 
+  /** What the app is keeping on the device, per kind of thing. */
+  readonly storage = inject(StorageUsageService);
+
   ngOnInit(): void {
     // Re-read on open: the exemption is granted in a system dialog, so the app never sees it change.
     void this.battery.refresh();
+    // Measured on open rather than kept live: it walks every stored record, which is far too much
+    // work to be doing behind a screen nobody is looking at.
+    void this.storage.measure();
+  }
+
+  protected readonly bytes = formatBytes;
+
+  /** Record counts with thousands separators — "12,043" reads as a quantity, "12043" as an id. */
+  protected count(records: number): string {
+    return records.toLocaleString('en-GB');
+  }
+
+  /** How much of the total a group accounts for, for the bar under each row. */
+  protected share(bytes: number): number {
+    const total = this.storage.usage()?.total ?? 0;
+    return total > 0 ? Math.round((bytes / total) * 100) : 0;
   }
 
   // Persisted preferences are read and written straight on PreferencesService — the host no longer

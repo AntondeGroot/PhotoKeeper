@@ -83,6 +83,12 @@ export default tseslint.config(
       // alongside element types rather than replacing them, so it does not express this either.
       // Left on `mode` deliberately until the plugin offers a real equivalent.
       'boundaries/elements': [
+        // Two files under storage/ that are not stores. A `.service.ts` there is a service like any
+        // other — it reads the stores and hands a component a read-model — and storage-usage.ts is
+        // pure logic with no database in it at all. Listed first, because the folder rule below
+        // would otherwise claim them and leave the settings screen unable to show what it stores.
+        { type: 'service', mode: 'full', pattern: 'src/app/storage/**/*.service.ts' },
+        { type: 'domain', mode: 'full', pattern: 'src/app/storage/storage-usage.ts' },
         { type: 'store', mode: 'full', pattern: 'src/app/storage/**/*' },
         {
           type: 'service',

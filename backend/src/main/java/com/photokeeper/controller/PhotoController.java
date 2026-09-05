@@ -96,6 +96,13 @@ public class PhotoController {
         MediaType contentType = upstream.getHeaders().getContentType();
         headers.setContentType(contentType != null ? contentType : MediaType.IMAGE_JPEG);
 
+
+        // The client keeps its own durable copy of every rendition it asks for, with its own
+        // eviction policy, so a second copy in the WebView's HTTP cache is duplication that nothing
+        // reads and nothing manages. Measured on a device it was the larger copy by far: 307 MB of
+        // cache against 49 MB of app data. Without a header the cache stores the response anyway
+        // and revalidates it later, so declining has to be explicit.
+
         // Pass the upstream status through rather than stamping 200 on everything. Lightroom does
         // not always have a rendition ready for an asset — RAW originals especially — and answering
         // "200, zero bytes" told the client it had a picture when it had nothing, which it then

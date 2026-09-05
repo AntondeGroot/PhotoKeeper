@@ -325,6 +325,46 @@
     </div>
   </div>
 
+  <div class="settings-section-label">Storage</div>
+  <div class="storage-card">
+    @if (storage.measuring()) {
+      <p class="storage-note">Measuring…</p>
+    } @else if (storage.failed()) {
+      <p class="storage-note">Couldn’t read the device store.</p>
+    } @else if (storage.usage(); as usage) {
+      <div class="storage-total">
+        <span class="storage-total-value">{{ bytes(usage.total) }}</span>
+        <span class="storage-total-label">kept on this device</span>
+      </div>
+
+      @for (group of usage.groups; track group.group) {
+        <div class="storage-row">
+          <div class="storage-row-head">
+            <span class="storage-row-title">{{ group.title }}</span>
+            <span class="storage-row-bytes">{{ bytes(group.bytes) }}</span>
+          </div>
+          <div class="storage-bar">
+            <div class="storage-bar-fill" [style.width.%]="share(group.bytes)"></div>
+          </div>
+          <div class="storage-row-detail">
+            {{ count(group.records) }} items · {{ group.detail }}
+          </div>
+        </div>
+      }
+
+      <p class="storage-note">
+        Sizes are measured from what is stored, and exclude the database’s own overhead.
+        @if (usage.reported !== null) {
+          The browser reports {{ bytes(usage.reported) }} in total for this app
+          @if (usage.quota !== null) {
+            , of about {{ bytes(usage.quota) }} allowed
+          }
+          .
+        }
+      </p>
+    }
+  </div>
+
   <div class="settings-section-label">Detection</div>
 
   <div class="settings-card">
