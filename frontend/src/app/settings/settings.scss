@@ -373,3 +373,75 @@
   line-height: 1.7;
   margin: 4px 0 0;
 }
+
+// Storage — what the app is keeping on the device, and which of it is safe to lose.
+.storage-card {
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.storage-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.storage-total-value {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--c-text);
+}
+
+.storage-total-label {
+  font-size: 12px;
+  color: var(--c-dim);
+}
+
+.storage-row {
+  margin-bottom: 12px;
+}
+
+.storage-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--c-text);
+}
+
+.storage-row-bytes {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-dim);
+}
+
+.storage-bar {
+  height: 4px;
+  margin: 5px 0 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.storage-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--c-amber);
+}
+
+.storage-row-detail {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--c-dim);
+}
+
+.storage-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--c-dim);
+}
