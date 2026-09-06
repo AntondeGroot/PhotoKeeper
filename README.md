@@ -96,6 +96,13 @@ both KeeperEdit and KeeperPrint. PhotoKeeper files the current verdict's album b
 the alternative — not re-filing — would leave promoted photos missing from KeeperPrint,
 which is worse than an untidy inbox you empty as you work.
 
+So Settings carries a **Tidy up Lightroom** section listing the photos left behind, with
+a link that opens their album showing only them — select all, remove, done. The web app
+scopes a search to one album with `albumFilter` and takes a comma-separated list of
+filenames as an OR; both were established by trying them against a real catalog, since
+neither route is documented. (`OR` between terms works too; a pipe does not.) The app
+cannot undo its own filing, but it can put you in front of exactly what needs undoing.
+
 **Adding is also not idempotent.** A photo already in the album is refused with
 `403 ResourceExistsError "already in album"`, and one such member fails the whole write
 with nothing applied. PhotoKeeper reads that refusal as success for a single-photo call,

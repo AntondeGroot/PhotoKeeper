@@ -445,3 +445,28 @@
   line-height: 1.45;
   color: var(--c-dim);
 }
+
+// Tidy-up links: one per batch of photos, since the filenames ride in the URL.
+.tidy-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+
+  .open-album {
+    flex: 1 1 auto;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(229, 160, 69, 0.35);
+    background: rgba(229, 160, 69, 0.08);
+    color: var(--c-amber);
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .open-album:hover {
+    background: rgba(229, 160, 69, 0.14);
+  }
+}

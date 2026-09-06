@@ -5,6 +5,7 @@ import { KeeperAlbumsService } from '../keeper-albums.service';
 import { LightroomService } from '../lightroom.service';
 import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
+import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { FiledRecord, StoredVerdict } from '../storage/photokeeper-db';
 
 const verdict = (status: StoredVerdict['status']): StoredVerdict => ({
@@ -22,6 +23,8 @@ describe('KeeperFilingService', () => {
   let failNext: boolean;
   /** Assets Lightroom refuses outright — a stack answers 403, and only ever fails. */
   let unfilable: Set<string>;
+  /** Asset metadata, which is where the filenames a tidy-up search matches on come from. */
+  let names: Map<string, { name: string }>;
 
   beforeEach(() => {
     verdicts = new Map();
@@ -29,6 +32,11 @@ describe('KeeperFilingService', () => {
     sent = [];
     failNext = false;
     unfilable = new Set();
+    names = new Map([
+      ['a', { name: 'DSC_0001' }],
+      ['b', { name: 'DSC_0002' }],
+      ['c', { name: 'DSC_0003' }],
+    ]);
     albumIds = new Map([
       ['KeeperDelete', 'al-del'],
       ['KeeperEdit', 'al-edit'],
@@ -58,6 +66,7 @@ describe('KeeperFilingService', () => {
           },
         },
         { provide: ReviewStore, useValue: { getVerdicts: () => Promise.resolve(verdicts) } },
+        { provide: AssetMetaStore, useValue: { getAll: () => Promise.resolve(names) } },
         {
           provide: KeeperFilingStore,
           useValue: {
@@ -178,5 +187,36 @@ describe('KeeperFilingService', () => {
 
     expect(filed.has('stack')).toBe(false);
     expect(filing.lastFiled()).toBe(0);
+  });
+
+  // The residue of a one-way API: filing adds and can never remove, so a photo that moves on stays
+  // in its old album for good. The app cannot tidy that up, but it knows exactly what needs it.
+  it('reports a photo left behind in an album its verdict has moved on from', async () => {
+    verdicts.set('a', verdict('toEdit'));
+    await filing.sweep();
+
+    verdicts.set('a', verdict('toPrint'));
+    await filing.sweep();
+
+    expect(await filing.staleFilings()).toEqual(new Map([['KeeperEdit', ['DSC_0001']]]));
+  });
+
+  it('reports nothing stale while a photo is where its verdict says', async () => {
+    verdicts.set('a', verdict('rejected'));
+    await filing.sweep();
+
+    expect(await filing.staleFilings()).toEqual(new Map());
+  });
+
+  // The search matches on filenames, so a photo the scan has never described cannot be searched for
+  // — listing it would produce a link that silently finds nothing.
+  it('leaves out a photo whose name is not known', async () => {
+    verdicts.set('a', verdict('toEdit'));
+    await filing.sweep();
+    verdicts.set('a', verdict('toPrint'));
+    await filing.sweep();
+    names.delete('a');
+
+    expect(await filing.staleFilings()).toEqual(new Map());
   });
 });

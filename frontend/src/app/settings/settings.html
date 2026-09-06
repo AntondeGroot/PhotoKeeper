@@ -325,6 +325,31 @@
     </div>
   </div>
 
+  @if (tidyUp().length) {
+    <div class="settings-section-label">Tidy up Lightroom</div>
+    <div class="storage-card">
+      <p class="storage-note">
+        Lightroom lets PhotoKeeper put photos into an album, but never take them out again. These
+        have moved on since they were filed — open a link and remove them there.
+      </p>
+      @for (row of tidyUp(); track row.album) {
+        <div class="storage-row">
+          <div class="storage-row-head">
+            <span class="storage-row-title">{{ row.album }}</span>
+            <span class="storage-row-bytes">{{ count(row.count) }} to remove</span>
+          </div>
+          <div class="tidy-links">
+            @for (link of row.links; track link; let i = $index) {
+              <a class="open-album" [href]="link" target="_blank" rel="noopener">
+                Open in Lightroom{{ row.links.length > 1 ? ' · part ' + (i + 1) : '' }} ↗
+              </a>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+
   <div class="settings-section-label">Storage</div>
   <div class="storage-card">
     @if (storage.measuring()) {

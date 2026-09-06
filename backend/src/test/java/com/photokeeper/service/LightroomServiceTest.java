@@ -266,13 +266,45 @@ class LightroomServiceTest {
      * that the write as a whole was refused. The client splits it and retries one at a time.
      */
     @Test
-    void lettesABatchFailSoTheCallerCanSplitIt() {
+    void letsABatchFailSoTheCallerCanSplitIt() {
         server.expect(requestTo(LR_API_BASE + "/catalogs/cat-1/albums/al-1/assets"))
                 .andRespond(withStatus(HttpStatus.FORBIDDEN)
                         .body("{\"errors\":[{\"errors\":{\"asset\":[\"already in album\"]}}]}")
                         .contentType(MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> service.addAssetsToAlbum("tok", "cat-1", "al-1", List.of("a1", "a2")))
+                .isInstanceOf(RestClientResponseException.class);
+    }
+
+    /**
+     * The same refusal arrives two ways: a human-readable "already in album" and the machine code
+     * {@code ResourceExistsError}. Both mean filed, and only the second appears when Lightroom
+     * answers in its structured form.
+     */
+    @Test
+    void readsAlreadyFiledFromTheErrorCodeToo() {
+        server.expect(requestTo(LR_API_BASE + "/catalogs/cat-1/albums/al-1/assets"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .body("{\"errors\":[{\"code\":1002,\"description\":\"ResourceExistsError\"}]}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        service.addAssetsToAlbum("tok", "cat-1", "al-1", List.of("a1"));
+
+        server.verify();
+    }
+
+    /**
+     * Only "already there" is tolerated. Any other refusal — a revoked scope, a stack, a bad album —
+     * has to reach the caller, or a sweep would mark photos filed that Lightroom never accepted.
+     */
+    @Test
+    void rethrowsARefusalThatIsNotAboutTheAlbum() {
+        server.expect(requestTo(LR_API_BASE + "/catalogs/cat-1/albums/al-1/assets"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .body("{\"errors\":[{\"code\":403000,\"description\":\"Forbidden\"}]}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.addAssetsToAlbum("tok", "cat-1", "al-1", List.of("a1")))
                 .isInstanceOf(RestClientResponseException.class);
     }
 

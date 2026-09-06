@@ -58,24 +58,14 @@ public class LightroomWriteSpikeController {
                         "error", "Both '" + from + "' and '" + to
                                 + "' must exist in Lightroom before this can run."));
             }
-            String asset = (assetId != null && !assetId.isBlank())
-                    ? assetId
-                    : writeSpike.firstAssetId(authToken, catalogId);
+            String asset = chooseAsset(authToken, catalogId, assetId);
             if (asset == null) {
                 return ResponseEntity.ok(Map.of("ok", false, "error", "No asset to move."));
             }
 
             String addFailure = addTolerantly(authToken, catalogId, fromId, asset);
             if (addFailure != null) {
-                return ResponseEntity.ok(Map.of(
-                        "spike", "move",
-                        "ok", false,
-                        "asset", asset,
-                        "step", "add to " + from,
-                        "error", addFailure,
-                        "note", "Could not put the asset in the album, so removal is still unknown."
-                                + " If this says 'cannot be a stack', pass a plain image via assetId"
-                                + " — analyse an album in the lab first and it uses that frame."));
+                return ResponseEntity.ok(addBlockedReport(from, asset, addFailure));
             }
 
             List<Map<String, String>> removal =
@@ -85,19 +75,7 @@ public class LightroomWriteSpikeController {
             // earlier run, and that must not discard the removal answer we just paid for.
             String moveFailure = addTolerantly(authToken, catalogId, toId, asset);
 
-            boolean removed = removal.stream().anyMatch(a -> "ok".equals(a.get("result")));
-            return ResponseEntity.ok(Map.of(
-                    "spike", "move",
-                    "ok", true,
-                    "asset", asset,
-                    "addedTo", List.of(from, to),
-                    "addToDestination", moveFailure == null ? "ok" : moveFailure,
-                    "removalWorks", removed,
-                    "removalAttempts", removal,
-                    "note", removed
-                            ? "Removal works — a verdict change can move a photo rather than copy it."
-                            : "Removal failed every way. The asset is now in BOTH albums; take it out"
-                                    + " of '" + from + "' by hand."));
+            return ResponseEntity.ok(moveReport(from, to, asset, removal, moveFailure));
         } catch (RestClientResponseException e) {
             return ResponseEntity.ok(Map.of(
                     "spike", "album",
@@ -105,6 +83,50 @@ public class LightroomWriteSpikeController {
                     "status", e.getStatusCode().value(),
                     "error", e.getResponseBodyAsString()));
         }
+    }
+
+    /** The asset asked for, or any asset from the catalogue so the spike stays one-click. */
+    @Nullable
+    private String chooseAsset(String authToken, String catalogId, @Nullable String assetId) {
+        if (assetId != null && !assetId.isBlank()) {
+            return assetId;
+        }
+        return writeSpike.firstAssetId(authToken, catalogId);
+    }
+
+    /** Nothing was moved, because the asset never reached the source album — removal stays unknown. */
+    private Map<String, Object> addBlockedReport(String from, String asset, String failure) {
+        return Map.of(
+                "spike", "move",
+                "ok", false,
+                "asset", asset,
+                "step", "add to " + from,
+                "error", failure,
+                "note", "Could not put the asset in the album, so removal is still unknown."
+                        + " If this says 'cannot be a stack', pass a plain image via assetId"
+                        + " — analyse an album in the lab first and it uses that frame.");
+    }
+
+    /** What every removal shape answered, and what state that leaves the asset in. */
+    private Map<String, Object> moveReport(
+            String from,
+            String to,
+            String asset,
+            List<Map<String, String>> removal,
+            @Nullable String moveFailure) {
+        boolean removed = removal.stream().anyMatch(a -> "ok".equals(a.get("result")));
+        return Map.of(
+                "spike", "move",
+                "ok", true,
+                "asset", asset,
+                "addedTo", List.of(from, to),
+                "addToDestination", moveFailure == null ? "ok" : moveFailure,
+                "removalWorks", removed,
+                "removalAttempts", removal,
+                "note", removed
+                        ? "Removal works — a verdict change can move a photo rather than copy it."
+                        : "Removal failed every way. The asset is now in BOTH albums; take it out"
+                                + " of '" + from + "' by hand.");
     }
 
     /**
@@ -144,10 +166,7 @@ public class LightroomWriteSpikeController {
                         "error", "No album named '" + name
                                 + "' found — create it in Lightroom first (a normal album), then retry."));
             }
-            // Use the supplied asset if any, else just grab one from the catalog so the spike is one-click.
-            String asset = (assetId != null && !assetId.isBlank())
-                    ? assetId
-                    : writeSpike.firstAssetId(authToken, catalogId);
+            String asset = chooseAsset(authToken, catalogId, assetId);
             if (asset != null) {
                 writeSpike.addAssetsToAlbum(authToken, catalogId, albumId, List.of(asset));
             }
@@ -209,9 +228,7 @@ public class LightroomWriteSpikeController {
             @RequestParam(defaultValue = "5") int rating,
             @RequestParam(defaultValue = "pick") String flag) {
         try {
-            String asset = (assetId != null && !assetId.isBlank())
-                    ? assetId
-                    : writeSpike.firstAssetId(authToken, catalogId);
+            String asset = chooseAsset(authToken, catalogId, assetId);
             if (asset == null) {
                 return ResponseEntity.ok(Map.of("ok", false, "error", "Catalog has no assets to write to."));
             }

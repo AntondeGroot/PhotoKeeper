@@ -258,6 +258,7 @@
           />
         } @else {
           <app-settings
+            [catalogId]="catalogId()"
             [burstWindowSeconds]="burstWindowSeconds()"
             [lightroomConnected]="authenticated()"
             [lightroomConnecting]="connecting()"

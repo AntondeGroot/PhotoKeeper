@@ -5,6 +5,7 @@ import { KeeperAlbumsService } from '../keeper-albums.service';
 import { albumForVerdict } from '../keeper-albums';
 import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
+import { AssetMetaStore } from '../storage/review/asset-meta-store';
 
 /** How many assets go into one write. Adobe takes a batch; a whole backlog in one call is rude. */
 const BATCH = 50;
@@ -38,6 +39,7 @@ export class KeeperFilingService {
   private readonly albums = inject(KeeperAlbumsService);
   private readonly reviews = inject(ReviewStore);
   private readonly filed = inject(KeeperFilingStore);
+  private readonly meta = inject(AssetMetaStore);
 
   /** Photos filed in the last sweep, for the settings line that says what happened. */
   readonly lastFiled = signal(0);
@@ -91,6 +93,36 @@ export class KeeperFilingService {
     } finally {
       this.running = false;
     }
+  }
+
+  /**
+   * Photos sitting in an album their verdict has moved on from — album name → their filenames.
+   *
+   * The residue of a one-way API. Filing adds and can never remove, so a photo sent to edit and then
+   * promoted to print stays in KeeperEdit for good as far as this app is concerned. It cannot tidy
+   * that up, but it knows exactly what needs tidying, and a search link can put the user in front of
+   * precisely those photos.
+   *
+   * Filenames rather than ids, because the search matches on names — which is also why a photo whose
+   * metadata has not been scanned is left out: without a name there is nothing to search for.
+   */
+  async staleFilings(): Promise<Map<string, string[]>> {
+    const [verdicts, filed, meta] = await Promise.all([
+      this.reviews.getVerdicts(),
+      this.filed.getAll(),
+      this.meta.getAll(),
+    ]);
+    const byAlbum = new Map<string, string[]>();
+    for (const [assetId, record] of filed) {
+      const belongs = albumForVerdict(verdicts.get(assetId)?.status ?? 'backlog');
+      const name = meta.get(assetId)?.name;
+      if (!name) continue;
+      for (const album of record.albums) {
+        if (album === belongs) continue;
+        byAlbum.set(album, [...(byAlbum.get(album) ?? []), name]);
+      }
+    }
+    return byAlbum;
   }
 
   /** What each album is still owed: decided photos not already filed *there*. */

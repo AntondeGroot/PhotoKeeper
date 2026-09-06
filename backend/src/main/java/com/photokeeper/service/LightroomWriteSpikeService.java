@@ -200,7 +200,7 @@ public class LightroomWriteSpikeService {
 
     @Nullable
     private String lrDelete(String path, @Nullable Object body, String accessToken) {
-        var request = restClient
+        RestClient.RequestBodySpec request = restClient
                 .method(HttpMethod.DELETE)
                 .uri(LR_API_BASE + path)
                 .header("Authorization", "Bearer " + accessToken)

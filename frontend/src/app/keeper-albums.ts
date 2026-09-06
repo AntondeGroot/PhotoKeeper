@@ -51,3 +51,29 @@ export const REQUIRED_ALBUMS: readonly RequiredAlbum[] = [
 export function lightroomAlbumUrl(catalogId: string, albumId: string): string {
   return `https://lightroom.adobe.com/libraries/${catalogId}/albums/${albumId}/assets`;
 }
+
+/** How many filenames one tidy-up link carries, so the URL stays inside what browsers accept. */
+export const SEARCH_TERMS_PER_LINK = 40;
+
+/**
+ * Deep-link into an album showing only the photos whose names are listed.
+ *
+ * The web app scopes a search to one album with `albumFilter`, and takes a comma-separated list of
+ * terms as an OR — both established by trying them against a real catalogue rather than by reading
+ * documentation, which does not cover these routes. (`OR` works too; a pipe does not.)
+ *
+ * This is what makes tidying up possible at all. The partner scope cannot remove a photo from an
+ * album, so the app cannot undo its own filing — but it can put the user in front of exactly the
+ * photos that need removing, where two clicks does the lot.
+ */
+export function lightroomAlbumSearchUrl(
+  catalogId: string,
+  albumId: string,
+  names: readonly string[],
+): string {
+  const query = encodeURIComponent(names.join(','));
+  return (
+    `https://lightroom.adobe.com/libraries/${catalogId}/search/assets` +
+    `?albumFilter=${albumId}&q=${query}&tab=photos`
+  );
+}

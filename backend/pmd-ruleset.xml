@@ -56,6 +56,9 @@
     <exclude name="SingularField"/>
     <!-- Test classes intentionally have many small @Test methods; splitting adds no value -->
     <exclude name="TooManyMethods"/>
+    <!-- Needs packages/classes properties to mean anything; PMD drops it unconfigured, so it was
+         checking nothing while warning on every build. ArchitectureTest covers coupling instead. -->
+    <exclude name="LoosePackageCoupling"/>
   </rule>
 
   <rule ref="category/java/errorprone.xml">
