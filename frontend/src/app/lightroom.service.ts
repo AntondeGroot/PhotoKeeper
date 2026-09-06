@@ -212,6 +212,19 @@ export class LightroomService {
     });
   }
 
+  /**
+   * Files photos into a Keeper album — the one durable write-back the partner scope allows.
+   *
+   * Not idempotent, despite looking it: a photo already in the album is refused with a 403 rather
+   * than accepted quietly. The backend reads that one refusal as success for a single-asset call,
+   * which is what makes retrying safe — see `LightroomService.addAssetsToAlbum`.
+   */
+  addToAlbum(albumId: string, assetIds: readonly string[]): Observable<void> {
+    return this.http.post<void>(`api/albums/${albumId}/assets`, assetIds, {
+      headers: this.authHeaders(),
+    });
+  }
+
   logout(): Observable<void> {
     return this.http.delete<void>('api/auth/logout');
   }
@@ -230,6 +243,16 @@ export class LightroomService {
     const params: Record<string, string> = { name };
     if (assetId) params['assetId'] = assetId;
     return this.http.post('api/keeper/spike', null, { headers: this.authHeaders(), params });
+  }
+
+  /**
+   * Write-spike: add an asset to `from`, try every way of taking it out again, then add it to `to`.
+   * Settles whether a changed verdict can *move* a photo between Keeper albums or only copy it.
+   */
+  runMoveSpike(from: string, to: string, assetId?: string): Observable<unknown> {
+    const params: Record<string, string> = { from, to };
+    if (assetId) params['assetId'] = assetId;
+    return this.http.post('api/keeper/spike/move', null, { headers: this.authHeaders(), params });
   }
 
   /**

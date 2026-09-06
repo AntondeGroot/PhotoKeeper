@@ -5,13 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photokeeper.config.AdobeConfig;
 import jakarta.annotation.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Throwaway (lightroom-write-back): all the write calls behind the detection lab's write-spike buttons.
@@ -47,12 +50,20 @@ public class LightroomWriteSpikeService {
     /** The id of any one asset in the catalog (the first the API returns), or null if the catalog is empty. */
     @Nullable
     public String firstAssetId(String accessToken, String catalogId) {
-        Map<String, Object> parsed = parseJson(lrGet("/catalogs/" + catalogId + "/assets?limit=1", accessToken));
-        if (parsed.get("resources") instanceof List<?> resources
-                && !resources.isEmpty()
-                && resources.get(0) instanceof Map<?, ?> first
-                && first.get("id") instanceof String id) {
-            return id;
+        Map<String, Object> parsed =
+                parseJson(lrGet("/catalogs/" + catalogId + "/assets?limit=25", accessToken));
+        if (!(parsed.get("resources") instanceof List<?> resources)) {
+            return null;
+        }
+        // Skipping anything that is not a plain image, because the first asset in a catalogue is
+        // quite often a *stack* — and a stack answers 403 AddStackToAlbumRedirectError on the album
+        // assets endpoint, which stopped the move spike before it could ask its actual question.
+        for (Object item : resources) {
+            if (item instanceof Map<?, ?> asset
+                    && "image".equals(asset.get("subtype"))
+                    && asset.get("id") instanceof String id) {
+                return id;
+            }
         }
         return null;
     }
@@ -133,6 +144,71 @@ public class LightroomWriteSpikeService {
             payload.put("pick", flag);
         }
         lrPut("/catalogs/" + catalogId + "/assets/" + assetId, Map.of("payload", payload), accessToken);
+    }
+
+    /**
+     * Probes whether an asset can be taken *out* of an album, by trying each plausible shape and
+     * reporting what each one said.
+     *
+     * <p>The question this settles: filing currently accumulates. A photo sent to KeeperEdit and
+     * later promoted to print reaches KeeperPrint but stays in KeeperEdit, because nothing has ever
+     * established whether removal is possible. Guessing one endpoint and reporting "cannot" would be
+     * worse than not asking — hence three candidates, each with its raw error kept.
+     *
+     * <p>Returns one entry per attempt: the shape tried, and either "ok" or the error verbatim.
+     */
+    public List<Map<String, String>> probeRemoval(
+            String accessToken, String catalogId, String albumId, String assetId) {
+        String assets = "/catalogs/" + catalogId + "/albums/" + albumId + "/assets";
+        List<Map<String, String>> attempts = new ArrayList<>();
+        attempts.add(attempt(
+                "DELETE with a resources body",
+                () -> lrDelete(assets, Map.of("resources", List.of(Map.of("id", assetId))), accessToken)));
+        attempts.add(attempt(
+                "DELETE with the ids as a query parameter",
+                () -> lrDelete(assets + "?ids=" + assetId, null, accessToken)));
+        // Adobe marks other things deleted by writing a subtype rather than by removing them, so a
+        // PUT that says "this association is gone" is worth one attempt before concluding anything.
+        // The most conventional shape of all, and the one the first round missed: addressing the
+        // single membership rather than the collection it belongs to.
+        attempts.add(attempt(
+                "DELETE on the individual membership",
+                () -> lrDelete(assets + "/" + assetId, null, accessToken)));
+        attempts.add(attempt(
+                "PUT marking the association removed",
+                () -> lrPut(
+                        assets,
+                        Map.of("resources", List.of(Map.of("id", assetId, "subtype", "removed"))),
+                        accessToken)));
+        return attempts;
+    }
+
+    private Map<String, String> attempt(String shape, Runnable call) {
+        try {
+            call.run();
+            return Map.of("shape", shape, "result", "ok");
+        } catch (RestClientResponseException e) {
+            return Map.of(
+                    "shape",
+                    shape,
+                    "result",
+                    e.getStatusCode().value() + " " + e.getResponseBodyAsString());
+        } catch (RuntimeException e) {
+            return Map.of("shape", shape, "result", String.valueOf(e.getMessage()));
+        }
+    }
+
+    @Nullable
+    private String lrDelete(String path, @Nullable Object body, String accessToken) {
+        RestClient.RequestBodySpec request = restClient
+                .method(HttpMethod.DELETE)
+                .uri(LR_API_BASE + path)
+                .header("Authorization", "Bearer " + accessToken)
+                .header("X-API-Key", config.getClientId());
+        if (body != null) {
+            request.contentType(MediaType.APPLICATION_JSON).body(body);
+        }
+        return request.retrieve().body(String.class);
     }
 
     @Nullable

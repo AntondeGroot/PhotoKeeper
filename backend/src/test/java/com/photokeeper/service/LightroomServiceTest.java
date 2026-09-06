@@ -25,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 class LightroomServiceTest {
 
@@ -241,5 +242,76 @@ class LightroomServiceTest {
         assertThatThrownBy(() -> service.getCatalog("access-1"))
                 .isInstanceOf(LightroomApiException.class)
                 .hasMessageContaining("Failed to parse");
+    }
+
+    /**
+     * Adding is not idempotent, which is the easy thing to assume and wrong: Lightroom answers 403
+     * {@code ResourceExistsError} for a photo already in the album. Treated as a failure, every
+     * already-filed photo would be retried on every sweep, for ever, and never recorded as done.
+     */
+    @Test
+    void treatsAnAlreadyFiledPhotoAsFiled() {
+        server.expect(requestTo(LR_API_BASE + "/catalogs/cat-1/albums/al-1/assets"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .body("{\"errors\":[{\"errors\":{\"asset\":[\"already in album\"]}}]}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        service.addAssetsToAlbum("tok", "cat-1", "al-1", List.of("a1"));
+
+        server.verify(); // no throw: the photo is where the caller wanted it
+    }
+
+    /**
+     * A batch is left to fail, because the response cannot say which of its members were new — only
+     * that the write as a whole was refused. The client splits it and retries one at a time.
+     */
+    @Test
+    void letsABatchFailSoTheCallerCanSplitIt() {
+        server.expect(requestTo(LR_API_BASE + "/catalogs/cat-1/albums/al-1/assets"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .body("{\"errors\":[{\"errors\":{\"asset\":[\"already in album\"]}}]}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.addAssetsToAlbum("tok", "cat-1", "al-1", List.of("a1", "a2")))
+                .isInstanceOf(RestClientResponseException.class);
+    }
+
+    /**
+     * The same refusal arrives two ways: a human-readable "already in album" and the machine code
+     * {@code ResourceExistsError}. Both mean filed, and only the second appears when Lightroom
+     * answers in its structured form.
+     */
+    @Test
+    void readsAlreadyFiledFromTheErrorCodeToo() {
+        server.expect(requestTo(LR_API_BASE + "/catalogs/cat-1/albums/al-1/assets"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .body("{\"errors\":[{\"code\":1002,\"description\":\"ResourceExistsError\"}]}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        service.addAssetsToAlbum("tok", "cat-1", "al-1", List.of("a1"));
+
+        server.verify();
+    }
+
+    /**
+     * Only "already there" is tolerated. Any other refusal — a revoked scope, a stack, a bad album —
+     * has to reach the caller, or a sweep would mark photos filed that Lightroom never accepted.
+     */
+    @Test
+    void rethrowsARefusalThatIsNotAboutTheAlbum() {
+        server.expect(requestTo(LR_API_BASE + "/catalogs/cat-1/albums/al-1/assets"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .body("{\"errors\":[{\"code\":403000,\"description\":\"Forbidden\"}]}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.addAssetsToAlbum("tok", "cat-1", "al-1", List.of("a1")))
+                .isInstanceOf(RestClientResponseException.class);
+    }
+
+    @Test
+    void doesNotCallLightroomForAnEmptyBatch() {
+        service.addAssetsToAlbum("tok", "cat-1", "al-1", List.of());
+
+        server.verify(); // no request expected, and none made
     }
 }

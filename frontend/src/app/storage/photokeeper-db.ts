@@ -137,6 +137,28 @@ export interface PhotoKeeperSchema extends DBSchema {
   celebrationLog: { key: string; value: ShownRecord };
   celebrationCurrent: { key: string; value: CurrentPick };
   reviewBuffer: { key: string; value: ReviewItem[] };
+  keeperFiling: { key: string; value: FiledRecord };
+}
+
+/**
+ * That an asset has been filed into a Keeper album, and which one.
+ *
+ * Kept apart from the verdict rather than folded into it, because the two answer different questions
+ * and change at different times: the verdict is what the user decided, this is what Lightroom has
+ * been told. Written into {@link StoredVerdict} it would be overwritten by the next verdict write,
+ * and the app would file the same photo again on every launch.
+ */
+export interface FiledRecord {
+  /**
+   * Every album this photo has been filed into — not just the last one.
+   *
+   * All of them, because Lightroom's partner scope cannot take a photo *out* of an album (see the
+   * README). A photo sent to edit and later promoted to print is in both, and the only way to tidy
+   * that up is for the user to remove it by hand — which they can only do if the app remembers where
+   * it has put things.
+   */
+  albums: string[];
+  at: number;
 }
 
 /** Opens (once) and hands out the app's IndexedDB database. */
@@ -206,9 +228,10 @@ export class PhotoKeeperDb {
     // once more, for the album ids an incomplete pair now carries. v25 drops every manifest so each
     // album re-scans: a left/right-eye album used not to be hashed at all. v26 clears the queue once
     // more, for the aligned-signature matcher that pairs eyes the hash refused. v27 clears it again:
-    // the matcher's cheap first pass was still a hash, and still dropping real pairs.
+    // the matcher's cheap first pass was still a hash, and still dropping real pairs. v28 added
+    // 'keeperFiling' (which verdicts have been written back to a Lightroom album).
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 27, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 28, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -237,6 +260,7 @@ export class PhotoKeeperDb {
           'celebrationLog',
           'celebrationCurrent',
           'reviewBuffer',
+          'keeperFiling',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

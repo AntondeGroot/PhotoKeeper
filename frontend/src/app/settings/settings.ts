@@ -12,6 +12,9 @@ import { DeviceSourceComponent } from '../device-source/device-source';
 import { PreferencesService } from '../preferences.service';
 import { BatteryOptimizationService } from '../notifications/battery-optimization.service';
 import { StorageUsageService } from '../storage/storage-usage.service';
+import { KeeperFilingService } from '../review/keeper-filing.service';
+import { KeeperAlbumsService } from '../keeper-albums.service';
+import { SEARCH_TERMS_PER_LINK, lightroomAlbumSearchUrl } from '../keeper-albums';
 import { formatBytes } from '../storage/storage-usage';
 
 @Component({
@@ -27,6 +30,19 @@ export class SettingsComponent implements OnInit {
 
   /** What the app is keeping on the device, per kind of thing. */
   readonly storage = inject(StorageUsageService);
+  private readonly filing = inject(KeeperFilingService);
+  private readonly keeperAlbums = inject(KeeperAlbumsService);
+
+  /** Lightroom catalog id, for the tidy-up deep links. */
+  @Input() catalogId: string | null = null;
+
+  /**
+   * Albums holding photos whose verdict has moved on, each with links that isolate them.
+   *
+   * One link per {@link SEARCH_TERMS_PER_LINK} photos rather than one for the lot: the search terms
+   * ride in the URL, and a few hundred filenames would make one long enough for a browser to refuse.
+   */
+  protected readonly tidyUp = signal<{ album: string; count: number; links: string[] }[]>([]);
 
   ngOnInit(): void {
     // Re-read on open: the exemption is granted in a system dialog, so the app never sees it change.
@@ -34,6 +50,35 @@ export class SettingsComponent implements OnInit {
     // Measured on open rather than kept live: it walks every stored record, which is far too much
     // work to be doing behind a screen nobody is looking at.
     void this.storage.measure();
+    void this.loadTidyUp();
+  }
+
+  private async loadTidyUp(): Promise<void> {
+    const catalogId = this.catalogId;
+    if (!catalogId) return;
+    await this.keeperAlbums.ensure();
+    const stale = await this.filing.staleFilings();
+    const rows = [...stale]
+      .map(([album, names]) => ({
+        album,
+        count: names.length,
+        links: this.linksFor(catalogId, album, names),
+      }))
+      .filter((row) => row.links.length > 0);
+    this.tidyUp.set(rows);
+  }
+
+  /** One link per batch of names, or none when the album is not in the catalogue to link to. */
+  private linksFor(catalogId: string, album: string, names: string[]): string[] {
+    const albumId = this.keeperAlbums.idFor(album);
+    if (!albumId) return [];
+    const links: string[] = [];
+    for (let i = 0; i < names.length; i += SEARCH_TERMS_PER_LINK) {
+      links.push(
+        lightroomAlbumSearchUrl(catalogId, albumId, names.slice(i, i + SEARCH_TERMS_PER_LINK)),
+      );
+    }
+    return links;
   }
 
   protected readonly bytes = formatBytes;

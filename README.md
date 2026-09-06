@@ -74,6 +74,41 @@ create-only: trying to update an existing asset returns
 existing album.** PhotoKeeper cannot create albums either (the partner API blocks
 creating normal user albums), but it _can_ add photos to an album you made yourself.
 
+**Adding is one-way: a photo cannot be taken out again.** Every removal shape was
+probed against a real catalog:
+
+| attempt                                | result                     |
+| -------------------------------------- | -------------------------- |
+| `DELETE /albums/{id}/assets` + body    | `403000 Forbidden`         |
+| `DELETE /albums/{id}/assets?ids=`      | `403000 Forbidden`         |
+| `DELETE /albums/{id}/assets/{assetId}` | `404 Resource not found`   |
+| `PUT` marking the association removed  | ignored; treated as an add |
+
+`403000` is the same generic code the rating write returns, so the endpoint exists
+and this scope is simply not allowed to call it — a licensing boundary rather than a
+missing feature, and one a different scope might lift. The 404 shows the per-membership
+path is not the API's shape at all. Editing membership from the asset side is closed
+too: any asset `PUT` is create-only.
+
+**What that means in practice:** a photo whose verdict changes is _added_ to its new
+album and stays in the old one. Sent to edit and later promoted to print, it appears in
+both KeeperEdit and KeeperPrint. PhotoKeeper files the current verdict's album because
+the alternative — not re-filing — would leave promoted photos missing from KeeperPrint,
+which is worse than an untidy inbox you empty as you work.
+
+So Settings carries a **Tidy up Lightroom** section listing the photos left behind, with
+a link that opens their album showing only them — select all, remove, done. The web app
+scopes a search to one album with `albumFilter` and takes a comma-separated list of
+filenames as an OR; both were established by trying them against a real catalog, since
+neither route is documented. (`OR` between terms works too; a pipe does not.) The app
+cannot undo its own filing, but it can put you in front of exactly what needs undoing.
+
+**Adding is also not idempotent.** A photo already in the album is refused with
+`403 ResourceExistsError "already in album"`, and one such member fails the whole write
+with nothing applied. PhotoKeeper reads that refusal as success for a single-photo call,
+and splits a rejected batch to retry one at a time — otherwise a single already-filed
+photo would block its album for good.
+
 ### Recommended setup: make these albums in Lightroom first
 
 So PhotoKeeper can route your decisions somewhere durable, create these albums in

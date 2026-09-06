@@ -9,6 +9,7 @@ import { PreviewStore } from './storage/review/preview-store';
 import { StoredVerdict } from './storage/photokeeper-db';
 import { DailyUnitsService } from './review/selection/daily-units.service';
 import { CatalogScanService } from './detection/scan/catalog-scan.service';
+import { KeeperFilingService } from './review/keeper-filing.service';
 import { DetectionSettingsService } from './detection/scan/detection-settings.service';
 import { TagStore } from './storage/tags/tag-store';
 import { AssetTagStore } from './storage/tags/asset-tag-store';
@@ -68,6 +69,12 @@ describe('App', () => {
         // path these tests already drive. The background scan is made inert.
         { provide: DailyUnitsService, useValue: { buildUnits: () => Promise.resolve([]) } },
         { provide: CatalogScanService, useValue: { scanAllAlbums: () => Promise.resolve() } },
+        // Write-back is inert here: these tests are about which photos are selected, and a sweep
+        // would fetch the album list a second time to find out where to file them.
+        {
+          provide: KeeperFilingService,
+          useValue: { sweep: () => Promise.resolve(), scheduleSweep: () => {} },
+        },
         { provide: TagStore, useValue: { getAll: () => Promise.resolve([]) } },
         {
           provide: AssetTagStore,

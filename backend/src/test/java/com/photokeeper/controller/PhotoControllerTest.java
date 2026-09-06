@@ -1,8 +1,10 @@
 package com.photokeeper.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -116,6 +118,23 @@ class PhotoControllerTest {
                         .header("X-Catalog-Id", "cat-123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resources").isArray());
+    }
+
+    /**
+     * Where a sorted verdict finally becomes something outside this app. Album membership is the only
+     * durable write the partner scope allows — ratings and flags answer 403 — so this one call is the
+     * whole of the write-back surface.
+     */
+    @Test
+    void filesAssetsIntoAnAlbum() throws Exception {
+        mockMvc.perform(post("/api/albums/album-9/assets")
+                        .header("X-Auth-Token", "acc")
+                        .header("X-Catalog-Id", "cat-123")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[\"a1\",\"a2\"]"))
+                .andExpect(status().isNoContent());
+
+        verify(lightroomService).addAssetsToAlbum("acc", "cat-123", "album-9", List.of("a1", "a2"));
     }
 
     @Test

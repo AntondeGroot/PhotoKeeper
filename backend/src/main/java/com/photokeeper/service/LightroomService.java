@@ -5,14 +5,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photokeeper.config.AdobeConfig;
 import com.photokeeper.model.AlbumSummary;
 import jakarta.annotation.Nullable;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Service
 public class LightroomService {
@@ -145,6 +148,58 @@ public class LightroomService {
                 .header("X-API-Key", config.getClientId())
                 .retrieve()
                 .toEntity(byte[].class);
+    }
+
+    /**
+     * Files assets into an album — the only durable write the partner scope allows.
+     *
+     * <p>Ratings and flags cannot be written at all: the asset {@code PUT} is create-only and answers
+     * 403 "duplicate asset already exists" (see {@code LightroomWriteSpikeService}, which reproduces
+     * that boundary on demand). Album membership is therefore the whole of what a sorted verdict can
+     * become in Lightroom, and it is enough — an album of photos to delete is the point of an
+     * evening's sorting.
+     *
+     * <p>Adding is <em>not</em> idempotent, which is easy to assume and wrong: a photo already in the
+     * album answers 403 {@code ResourceExistsError, "already in album"}, and one such member fails
+     * the whole write with nothing applied. So a single-asset call that comes back with that error is
+     * treated as done — the photo is in the album, which is the state the caller wanted — while a
+     * batch is left to fail, because the response cannot say which of its members were new. The
+     * client splits a failed batch and retries one at a time, and each of those gets a clean answer.
+     */
+    public void addAssetsToAlbum(
+            String accessToken, String catalogId, String albumId, List<String> assetIds) {
+        if (assetIds.isEmpty()) {
+            return;
+        }
+        String now = Instant.now().toString();
+        List<Map<String, Object>> resources = assetIds.stream()
+                .map(id -> Map.<String, Object>of(
+                        "id", id, "payload", Map.of("userCreated", now, "userUpdated", now)))
+                .toList();
+        try {
+            restClient
+                    .put()
+                    .uri(LR_CATALOGS + "/{catalogId}/albums/{albumId}/assets", catalogId, albumId)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("X-API-Key", config.getClientId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("resources", resources))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            if (assetIds.size() == 1 && isAlreadyInAlbum(e)) {
+                log.debug("Asset {} was already in album {}", assetIds.getFirst(), albumId);
+                return;
+            }
+            throw e;
+        }
+        log.info("Filed {} asset(s) into album {}", assetIds.size(), albumId);
+    }
+
+    /** Whether a rejection was Lightroom saying the photo is already where we were putting it. */
+    private static boolean isAlreadyInAlbum(RestClientResponseException e) {
+        String body = e.getResponseBodyAsString();
+        return body.contains("ResourceExistsError") || body.contains("already in album");
     }
 
     private String lrGet(String path, String accessToken) {

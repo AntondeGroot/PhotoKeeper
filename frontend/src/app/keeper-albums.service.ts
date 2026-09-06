@@ -33,6 +33,11 @@ export class KeeperAlbumsService {
   /** The id of the KeeperEdit album, or null when the catalog hasn't got one (or wasn't read). */
   readonly editAlbumId = computed(() => this.idsByName()?.get(KEEPER_EDIT_ALBUM) ?? null);
 
+  /** The catalogue's id for a Keeper album, or null while it has not been read — or does not exist. */
+  idFor(name: string): string | null {
+    return this.idsByName()?.get(name) ?? null;
+  }
+
   /** Reads the catalog once per session. Repeated calls join the first read instead of re-asking. */
   ensure(): Promise<void> {
     this.pending ??= this.load();

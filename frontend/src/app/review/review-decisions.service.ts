@@ -8,6 +8,7 @@ import { ReviewFeedService } from './review-feed.service';
 import { DayService } from './day.service';
 import { StreakService } from './streak.service';
 import { DailyProgressService, DailyTask } from './daily-progress.service';
+import { KeeperFilingService } from './keeper-filing.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
 import { Burst, Pano, PanoFrame, ReviewItem, isDevicePhoto, unitAssetIds } from '../photo';
 
@@ -86,6 +87,7 @@ export class ReviewDecisionsService {
   private readonly prefs = inject(PreferencesService);
   private readonly streak = inject(StreakService);
   private readonly progress = inject(DailyProgressService);
+  private readonly filing = inject(KeeperFilingService);
   // The day is read from the service rather than the clock, so every per-day record — the stored
   // deck, the once-a-day celebration, the tally — agrees about which day it is even in the seconds
   // around midnight when the two would briefly disagree.
@@ -375,6 +377,8 @@ export class ReviewDecisionsService {
     }
     // A review decision shrinks the scanned-ahead buffer — top it back up (debounced).
     this.scan.scheduleRefill(this.isAuthenticated);
+    // And it is a decision worth writing back to Lightroom (also debounced — see scheduleSweep).
+    this.filing.scheduleSweep();
     // A decision may have just carried the day's count over the sorting goal — celebrate it.
     this.recordReviewProgress();
   }

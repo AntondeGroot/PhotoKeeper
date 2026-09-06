@@ -14,6 +14,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -81,6 +83,24 @@ public class PhotoController {
                         .collect(Collectors.toSet());
         List<Object> assets = photoFeedService.buildFeed(authToken, catalogId, vacationIds, limit);
         return ResponseEntity.ok(Map.of("resources", assets));
+    }
+
+    /**
+     * Files photos into one of the Keeper albums — where a sorted verdict finally becomes something
+     * outside this app.
+     *
+     * <p>Retrying is safe but not free: Lightroom refuses a photo already in the album with a 403
+     * rather than accepting it quietly, so a single-asset call that says "already in album" is
+     * reported as success. A batch is not — its response cannot say which members were new.
+     */
+    @PostMapping("/albums/{albumId}/assets")
+    public ResponseEntity<Void> fileIntoAlbum(
+            @RequestHeader("X-Auth-Token") String authToken,
+            @RequestHeader("X-Catalog-Id") String catalogId,
+            @PathVariable String albumId,
+            @RequestBody List<String> assetIds) {
+        lightroomService.addAssetsToAlbum(authToken, catalogId, albumId, assetIds);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/photos/{assetId}/rendition")
