@@ -6,6 +6,7 @@ import { albumForVerdict } from '../keeper-albums';
 import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
+import { ReviewUndoService } from './review-undo.service';
 
 /** How many assets go into one write. Adobe takes a batch; a whole backlog in one call is rude. */
 const BATCH = 50;
@@ -40,6 +41,7 @@ export class KeeperFilingService {
   private readonly reviews = inject(ReviewStore);
   private readonly filed = inject(KeeperFilingStore);
   private readonly meta = inject(AssetMetaStore);
+  private readonly undoStack = inject(ReviewUndoService);
 
   /** Photos filed in the last sweep, for the settings line that says what happened. */
   readonly lastFiled = signal(0);
@@ -125,11 +127,20 @@ export class KeeperFilingService {
     return byAlbum;
   }
 
-  /** What each album is still owed: decided photos not already filed *there*. */
+  /**
+   * What each album is still owed: decided photos not already filed *there*, and not still undoable.
+   *
+   * <p>A decision the user can still take back is deliberately held out. Album membership cannot be
+   * removed once written, so filing one of those would make undo a half-truth — the app would forget
+   * the verdict and Lightroom would keep it for good. The undo stack is in memory, so it is empty by
+   * the next app start and the sweep that runs on loading a day files everything it was holding.
+   */
   private async outstanding(): Promise<Map<string, string[]>> {
     const [verdicts, filed] = await Promise.all([this.reviews.getVerdicts(), this.filed.getAll()]);
+    const undoable = this.undoStack.heldAssetIds();
     const byAlbum = new Map<string, string[]>();
     for (const [assetId, verdict] of verdicts) {
+      if (undoable.has(assetId)) continue;
       const album = albumForVerdict(verdict.status);
       // Compared by album, not by "has it been filed at all": a photo that went to KeeperEdit and is
       // later sent to print has to reach KeeperPrint too.

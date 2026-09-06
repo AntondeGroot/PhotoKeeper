@@ -68,6 +68,9 @@ describe('ReviewFeedService', () => {
               return Promise.resolve();
             },
             warmDurable: () => Promise.resolve(),
+            // The recent-decisions list pins its thumbnails while it is open (see the pin effect).
+            pin: () => undefined,
+            ensure: () => Promise.resolve(),
           },
         },
         { provide: PreferencesService, useValue: prefs },

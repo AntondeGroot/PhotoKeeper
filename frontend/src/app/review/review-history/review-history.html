@@ -1,0 +1,41 @@
+<!-- No click-to-dismiss on the scrim: a keyboard cannot reach it, and a stray tap while scrolling a
+     list you are working through costs more than the extra press on the close button. -->
+<div class="history-scrim">
+  <div class="history-panel" role="dialog" aria-labelledby="history-title">
+    <header>
+      <h2 id="history-title">Recent decisions</h2>
+      <button class="close" (click)="closed.emit()" aria-label="Close">✕</button>
+    </header>
+
+    <ul class="history-list">
+      @for (entry of entries; track entry.unit.id) {
+        <li>
+          @if (thumbnail(entry.unit); as url) {
+            <img [src]="url" alt="" />
+          } @else {
+            <div class="no-preview"></div>
+          }
+          <div class="what">
+            <span class="name">{{ entry.unit.name }}</span>
+            <span class="where">
+              {{ entry.unit.album ?? 'No album' }}
+              @if (frameCount(entry.unit) > 1) {
+                · {{ frameCount(entry.unit) }} frames
+              }
+            </span>
+          </div>
+          <span class="chip chip-{{ tone(entry.outcome) }}">{{ label(entry.outcome) }}</span>
+          <button class="take-back" (click)="undone.emit(entry)">Undo</button>
+        </li>
+      } @empty {
+        <li class="empty">Nothing to take back yet.</li>
+      }
+    </ul>
+
+    <!-- Said plainly rather than left as a mystery: the list is short because filing is one-way. -->
+    <p class="foot">
+      Older decisions have been filed into your Keeper albums, and Lightroom cannot take a photo
+      back out of an album.
+    </p>
+  </div>
+</div>

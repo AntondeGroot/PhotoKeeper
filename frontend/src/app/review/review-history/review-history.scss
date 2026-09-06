@@ -1,0 +1,148 @@
+.history-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(10, 9, 7, 0.72);
+}
+
+// A sheet rather than a centred card: the list is the point, so it gets the height, and rising from
+// the bottom keeps it under the thumb on a phone.
+.history-panel {
+  width: 100%;
+  max-width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px 18px 0 0;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-bottom: none;
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 10px;
+    border-bottom: 1px solid var(--c-line);
+
+    h2 {
+      margin: 0;
+      font-size: 15px;
+      color: var(--c-text);
+    }
+  }
+
+  .close {
+    background: none;
+    border: none;
+    color: var(--c-dim);
+    font-size: 16px;
+    cursor: pointer;
+  }
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--c-line);
+  }
+
+  img,
+  .no-preview {
+    width: 48px;
+    height: 48px;
+    flex: none;
+    object-fit: cover;
+    border-radius: 6px;
+    background: var(--c-panel2);
+  }
+
+  .what {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .name,
+  .where {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .name {
+    font-size: 13px;
+    color: var(--c-text);
+  }
+
+  .where {
+    font-size: 11px;
+    color: var(--c-faint);
+  }
+
+  .empty {
+    justify-content: center;
+    color: var(--c-faint);
+    font-size: 13px;
+    padding: 24px 16px;
+  }
+}
+
+.take-back {
+  flex: none;
+  background: none;
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--c-dim);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--c-text);
+    border-color: var(--c-dim);
+  }
+}
+
+// The verdict colours the rest of the app already uses, so a row reads the same way a card does.
+.chip-keep {
+  color: var(--c-keep);
+  border-color: rgba(143, 174, 126, 0.35);
+}
+
+.chip-reject {
+  color: var(--c-reject);
+  border-color: rgba(201, 104, 90, 0.35);
+}
+
+.chip-print {
+  color: var(--c-print);
+  border-color: rgba(127, 168, 160, 0.35);
+}
+
+.chip-maybe {
+  color: var(--c-maybe);
+  border-color: rgba(142, 155, 176, 0.35);
+}
+
+.foot {
+  margin: 0;
+  padding: 10px 16px 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--c-faint);
+}

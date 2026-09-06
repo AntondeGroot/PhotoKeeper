@@ -11,6 +11,7 @@ import { PreferencesService } from '../preferences.service';
 import { ReviewBufferService } from './review-buffer.service';
 import { DayService } from './day.service';
 import { KeeperFilingService } from './keeper-filing.service';
+import { ReviewUndoService } from './review-undo.service';
 import {
   DEVICE_PHOTOS,
   MOCK_BURST,
@@ -42,10 +43,20 @@ export class ReviewFeedService {
   readonly buffer = inject(ReviewBufferService);
   private readonly day = inject(DayService);
   private readonly filing = inject(KeeperFilingService);
+  private readonly undoStack = inject(ReviewUndoService);
   /** The day the deck in hand belongs to — see the rollover effect below. */
   private dayOfDeck = this.day.today();
 
   constructor() {
+    // Keep the recent-decisions list's thumbnails alive while it is open. Every photo in it sits
+    // *behind* the review cursor, and the prefetch window only ever looks ahead — so without the pin
+    // they would be evicted by the next decision and the list would empty itself as it was used.
+    effect(() => {
+      const shown = this.undoStack.listOpen() ? this.undoStack.shownAssetIds() : new Set<string>();
+      this.previews.pin(shown);
+      for (const id of shown) void this.previews.ensure(id);
+    });
+
     // Reload the deck when the day turns over under an app that was left open. Everything the review
     // screen shows is scoped to a day, and all of it used to be decided once at boot: an app left
     // running overnight went on showing yesterday's finished deck and an "all caught up" that had
@@ -118,6 +129,9 @@ export class ReviewFeedService {
    */
   async loadToday(): Promise<void> {
     const today = this.day.today();
+    // The undo snapshots describe the deck being replaced. Kept across the swap they would put back
+    // units the new selection does not contain — yesterday's deck over today's, after a rollover.
+    this.undoStack.clear();
     let photos = await this.reviewStore.getDailyFeed(today);
     if (!photos) {
       // Off the buffer, whose front was warmed during the last session — that is what makes the

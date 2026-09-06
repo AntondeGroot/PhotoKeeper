@@ -9,6 +9,7 @@ import { DayService } from './day.service';
 import { StreakService } from './streak.service';
 import { DailyProgressService, DailyTask } from './daily-progress.service';
 import { KeeperFilingService } from './keeper-filing.service';
+import { DecisionOutcome, ReviewUndoService, UndoEntry, bringBack } from './review-undo.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
 import { Burst, Pano, PanoFrame, ReviewItem, isDevicePhoto, unitAssetIds } from '../photo';
 
@@ -88,6 +89,7 @@ export class ReviewDecisionsService {
   private readonly streak = inject(StreakService);
   private readonly progress = inject(DailyProgressService);
   private readonly filing = inject(KeeperFilingService);
+  private readonly undoStack = inject(ReviewUndoService);
   // The day is read from the service rather than the clock, so every per-day record — the stored
   // deck, the once-a-day celebration, the tally — agrees about which day it is even in the seconds
   // around midnight when the two would briefly disagree.
@@ -128,6 +130,40 @@ export class ReviewDecisionsService {
     this.streak.acknowledgeFreezeUse();
   }
 
+  /** The decisions still open to being taken back, and whether the list is on screen. */
+  readonly recentDecisions = this.undoStack.recent;
+  readonly canUndo = this.undoStack.canUndo;
+  readonly undoListOpen = this.undoStack.listOpen;
+
+  openUndoList(): void {
+    this.undoStack.openList();
+  }
+
+  closeUndoList(): void {
+    this.undoStack.closeList();
+  }
+
+  /**
+   * Takes back the last decision: the verdicts it wrote and the deck it left behind.
+   *
+   * <p>The unit comes back to the cursor rather than to where it was, so it is the next photo judged.
+   * The list reaches decisions made twenty photos ago, and sending the cursor back to one of those
+   * would replay everything in between.
+   *
+   * <p>What is not reversed: the streak and the day's celebration. A day already earned is not
+   * revoked and a banner already seen is not un-shown. The review tally needs no help — it is
+   * counted off the deck, so putting the deck back corrects it.
+   */
+  async undo(entry: UndoEntry): Promise<void> {
+    const taken = await this.undoStack.take(entry);
+    if (!taken) return;
+    const restored = bringBack(this.feed.photos(), this.feed.index(), taken.unit);
+    this.feed.photos.set(restored.deck);
+    this.feed.index.set(restored.index);
+    this.persistDay();
+    this.recordReviewProgress();
+  }
+
   /** Lets the host supply the session check the scan refill reads at fire time. */
   bindAuth(isAuthenticated: () => boolean): void {
     this.isAuthenticated = isAuthenticated;
@@ -136,6 +172,7 @@ export class ReviewDecisionsService {
   decide(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {
     const current = this.feed.current();
     if (!current) return;
+    this.capture(verdict, [current.id]);
     this.setStatus(current.id, verdict);
     void this.persistVerdict(current.id);
     this.feed.advance();
@@ -166,6 +203,10 @@ export class ReviewDecisionsService {
     const current = this.feed.current();
     if (current?.kind !== 'burst') return;
     const kept = new Set(keptIds);
+    this.capture(kept.size > 0 ? 'kept' : 'rejected', [
+      current.id,
+      ...current.photos.map((p) => p.id),
+    ]);
     this.setStatus(current.id, kept.size > 0 ? 'kept' : 'rejected');
     void this.persistVerdict(current.id); // burst unit itself: done, survives reload
     for (const frame of current.photos) {
@@ -178,6 +219,7 @@ export class ReviewDecisionsService {
   rejectBurst(): void {
     const current = this.feed.current();
     if (!current) return;
+    this.capture('rejected', [current.id]);
     this.setStatus(current.id, 'rejected');
     void this.persistVerdict(current.id);
     this.feed.advance();
@@ -216,6 +258,7 @@ export class ReviewDecisionsService {
   resolveIncompletePair(verdict: 'kept' | 'rejected'): void {
     const current = this.feed.current();
     if (current?.kind !== 'stereo' || !current.gap) return;
+    this.capture(verdict, [current.id, ...unitAssetIds(current)]);
     this.setStatus(current.id, verdict);
     void this.persistVerdict(current.id);
     for (const id of unitAssetIds(current)) {
@@ -235,6 +278,9 @@ export class ReviewDecisionsService {
   withdrawCurrentUnit(): void {
     const current = this.feed.current();
     if (!current) return;
+    // No verdict to put back — skipping deliberately leaves none — but the unit itself has to come
+    // back onto the deck, and that lives in the snapshot rather than in any stored value.
+    this.capture('skipped', []);
     this.withdraw((item) => item.id === current.id);
   }
 
@@ -345,6 +391,15 @@ export class ReviewDecisionsService {
     void this.persistVerdict(id);
     this.editedToday.update((n) => n + 1);
     this.progress.recordEdit();
+  }
+
+  /**
+   * Records the state a decision is about to overwrite — the deck, the cursor, and the verdicts of
+   * the assets it will write. Called before the decision, never after.
+   */
+  private capture(outcome: DecisionOutcome, assetIds: string[]): void {
+    const unit = this.feed.current();
+    if (unit) this.undoStack.capture(outcome, unit, assetIds);
   }
 
   private setStatus(id: string, status: ReviewItem['status']): void {

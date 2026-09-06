@@ -97,6 +97,8 @@ describe('App', () => {
     function stubReviewStore(): void {
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
           getDailyFeed: () => Promise.resolve(undefined),
@@ -127,6 +129,25 @@ describe('App', () => {
       const { app } = bootOnboarded();
 
       expect(app.reconnect.showing()).toBe(false);
+    });
+
+    /**
+     * A placement test, because that is where this went wrong: the panel was first nested inside the
+     * streak-freeze notice's block, so it rendered only on the rare day a freeze had been spent and
+     * the button did nothing on every other day. Nothing about the undo *logic* could catch that.
+     */
+    it('renders the recent-decisions panel when the list is opened', () => {
+      localStorage.setItem('onboarded', 'true');
+      stubReviewStore();
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('app-review-history')).toBeNull();
+
+      fixture.componentInstance.decisions.openUndoList();
+      fixture.detectChanges();
+
+      expect(root.querySelector('app-review-history')).not.toBeNull();
     });
 
     it('stops treating Lightroom as available the moment a session is lost mid-session', async () => {
@@ -279,6 +300,8 @@ describe('App', () => {
       const saved: { id: string; verdict: StoredVerdict }[] = [];
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: (id: string, verdict: StoredVerdict) => {
             saved.push({ id, verdict });
             return Promise.resolve();
@@ -303,6 +326,8 @@ describe('App', () => {
       ]);
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(stored),
           getDailyFeed: () => Promise.resolve(undefined), // no stored selection → sample fresh
@@ -360,6 +385,8 @@ describe('App', () => {
       });
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
           getDailyFeed: () => Promise.resolve(undefined), // nothing stored → build on-device
@@ -393,6 +420,8 @@ describe('App', () => {
       localStorage.setItem('dailyGoal', '8'); // ngOnInit reads this into the dailyGoal signal
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
           getDailyFeed: () => Promise.resolve(undefined), // sample fresh (buildUnits stub → [])
@@ -426,6 +455,8 @@ describe('App', () => {
       const saved = new Map<string, StoredVerdict>();
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: (id: string, v: StoredVerdict) => {
             saved.set(id, v);
             return Promise.resolve();
@@ -466,6 +497,8 @@ describe('App', () => {
       });
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
           setDailyFeed: () => Promise.resolve(),
         },
@@ -488,6 +521,8 @@ describe('App', () => {
       });
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
           setDailyFeed: () => Promise.resolve(),
         },
@@ -538,6 +573,8 @@ describe('App', () => {
       const selection = [photo('p1'), photo('p2')];
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
           getDailyFeed: () => Promise.resolve(selection), // already chosen today
@@ -573,6 +610,8 @@ describe('App', () => {
       ]);
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(verdicts),
           getDailyFeed: () => Promise.resolve(selection),
@@ -605,6 +644,8 @@ describe('App', () => {
       const puts: string[] = [];
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
+          loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          removeVerdict: () => Promise.resolve(),
           setVerdict: () => Promise.resolve(),
           getVerdicts: () => Promise.resolve(new Map<string, StoredVerdict>()),
           getDailyFeed: (date: string) => Promise.resolve(dailyFeedStub(date)),

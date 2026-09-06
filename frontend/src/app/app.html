@@ -1,5 +1,12 @@
 <div class="app" [class.splashing]="loading()">
   <app-heads-up [message]="decisions.celebration()" (dismissed)="decisions.celebration.set(null)" />
+  @if (decisions.undoListOpen()) {
+    <app-review-history
+      [entries]="decisions.recentDecisions()"
+      (undone)="decisions.undo($event)"
+      (closed)="decisions.closeUndoList()"
+    />
+  }
   @if (decisions.freezesJustUsed() > 0) {
     <app-streak-frozen-notice
       [daysCovered]="decisions.freezesJustUsed()"
@@ -162,6 +169,13 @@
               </div>
             } @else if (!stats.sessionDone()) {
               <app-review-album-tags [album]="currentReviewPhoto().album" />
+              @if (decisions.canUndo()) {
+                <div class="undo-bar">
+                  <button class="undo-btn" (click)="decisions.openUndoList()">
+                    ↩ Recent decisions ({{ decisions.recentDecisions().length }})
+                  </button>
+                </div>
+              }
               @switch (currentReviewPhoto().kind) {
                 @case ('photo') {
                   <app-review-sort
@@ -179,7 +193,7 @@
                     [burst]="$any(currentReviewPhoto())"
                     [imageUrls]="currentUnitImageUrls()"
                     (resolved)="resolveBurst($event)"
-                    (rejectedAll)="rejectBurst()"
+                    (rejectedAll)="decisions.rejectBurst()"
                     (reclassified)="markBurstAsPano()"
                     (compare)="openBurstCompare($event)"
                   />
