@@ -18,15 +18,15 @@ const group = (album: string, ...photos: Photo[]): AlbumGroup => ({ album, photo
 
 describe('PrintsComponent', () => {
   let ordered: string[];
-  let placed: string[];
+  let done: string[];
 
   /**
    * The component class against a recording service. Built rather than rendered: what is under test
-   * is which action an album's one button takes, and rendering would drag in preview fetching.
+   * is which step each button records, and rendering would drag in preview fetching.
    */
   function make(): PrintsComponent {
     ordered = [];
-    placed = [];
+    done = [];
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -34,13 +34,20 @@ describe('PrintsComponent', () => {
           provide: PrintsService,
           useValue: {
             toPrint: signal([]),
+            ordered: signal([]),
             done: signal([]),
+            binState: signal([]),
+            nextBin: signal(null),
+            binsKnown: signal(true),
+            binsInUse: signal([]),
+            sending: signal(false),
+            binHolding: () => null,
             refresh: () => Promise.resolve(),
             markOrdered: (album: string) => {
               ordered.push(album);
             },
-            markPlaced: (album: string) => {
-              placed.push(album);
+            markDone: (album: string) => {
+              done.push(album);
             },
           },
         },
@@ -49,17 +56,39 @@ describe('PrintsComponent', () => {
     return TestBed.runInInjectionContext(() => new PrintsComponent());
   }
 
-  it('orders an album with prints chosen, and completes one with none outright', () => {
+  /**
+   * The three steps are separate records, and only the first of them touches Lightroom. Ordering in
+   * particular moves nothing: the photos stay in the print album until it is emptied by hand.
+   */
+  it('records ordering and receiving as two different steps', () => {
     const component = make();
 
-    component.settle(group('Trip', photo('a'), photo('b', true)));
-    expect(ordered).toEqual(['Trip']);
+    component.markOrdered('Trip');
+    expect([ordered, done]).toEqual([['Trip'], []]);
 
-    // Every photo set aside means there is nothing to order, so "I've ordered these" would be a
-    // lie and Done the wrong lane. Ordering is the only thing that ever clears an album, so
-    // without completing it here the album would sit in To print for good.
-    component.settle(group('Home', photo('c', true)));
-    expect(placed).toEqual(['Home']);
-    expect(ordered).toEqual(['Trip']);
+    component.markReceived('Trip');
+    expect([ordered, done]).toEqual([['Trip'], ['Trip']]);
+  });
+
+  /**
+   * An album of nothing but keepsakes is finished without a print ever being ordered, which is why
+   * the end state is 'done' rather than 'received'. Without a way out here it would sit in the first
+   * lane for good, since ordering is the only other thing that moves one on.
+   */
+  it('completes an all-keepsakes album, without claiming it was ordered', () => {
+    const component = make();
+
+    component.completeUnprinted('Home');
+
+    expect([ordered, done]).toEqual([[], ['Home']]);
+  });
+
+  /** The photos of a group, minus the ones set aside — what every lane's stack shows. */
+  it('counts only the chosen photos as the album\u2019s prints', () => {
+    const component = make();
+
+    const chosen = component.chosen(group('Trip', photo('a'), photo('b', true)));
+
+    expect(chosen.map((p) => p.id)).toEqual(['a']);
   });
 });

@@ -136,3 +136,66 @@
   font-size: 11.5px;
   cursor: pointer;
 }
+
+// The send step. Set apart from "Choose prints" because it is the irreversible one: a photo can be
+// moved in and out of the chosen set all day, but reaching the Lightroom album is one-way.
+.album-send {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--c-print);
+  background: transparent;
+  color: var(--c-print);
+  font-size: 13px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.bin-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-faint);
+}
+
+.bin-note-sent {
+  color: var(--c-print);
+
+  strong {
+    font-weight: 600;
+  }
+}
+
+.bin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--c-line);
+}
+
+// Each occupied bin named on its own line: the point of the notice is which album you have to go
+// and empty, and that is lost in a run-on sentence.
+.bin-holds {
+  display: block;
+  margin: 2px 0;
+
+  strong {
+    color: var(--c-dim);
+    font-weight: 600;
+  }
+}
+
+// A step button under the card, where the head used to carry the album's one action. The steps read
+// top to bottom now — choose, send, order, receive — so the button belongs at the end of that.
+.album-card > .album-pill {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+}

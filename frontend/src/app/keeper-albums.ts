@@ -17,29 +17,54 @@ export interface RequiredAlbum {
 /** The album the Edit step sends you to — where everything flagged "to edit" is filed. */
 export const KEEPER_EDIT_ALBUM = 'KeeperEdit';
 
+/**
+ * The album a confirmed print set is sent to, and the prefix that makes another one.
+ *
+ * There is always at least this one bin, because setup asks for it. Anything else the user names
+ * after it — "KeeperPrint 2", "KeeperPrint December" — is another bin, so having more than one order
+ * in flight costs a new album in Lightroom and no setting here. Discovered rather than configured:
+ * the API cannot create albums, so the catalogue is the only thing that knows how many there are.
+ */
+export const KEEPER_PRINT_ALBUM = 'KeeperPrint';
+
+/** Whether an album is one of the print bins. */
+export function isPrintBin(name: string): boolean {
+  return name.startsWith(KEEPER_PRINT_ALBUM);
+}
+
+/** The catalogue's print bins, in name order — which is the order they are filled. */
+export function printBinsIn(names: Iterable<string>): string[] {
+  return [...names].filter(isPrintBin).sort((a, b) => a.localeCompare(b));
+}
+
 /** The album a decided photo belongs in, or null when the verdict files nowhere. */
 export function albumForVerdict(status: string): string | null {
   return VERDICT_ALBUMS[status] ?? null;
 }
 
 /**
- * Where each verdict is filed.
+ * Where each verdict is filed automatically.
  *
  * `kept` deliberately files nowhere: keeping a photograph *is* leaving it where it is, and an album
  * of "photos I decided to keep" would be a copy of the catalogue. `maybe` files nowhere for the
  * opposite reason — it is the absence of a decision, and writing it out would put an undecided photo
  * somewhere that looks decided.
+ *
+ * `toPrint` files nowhere *now*. It used to go to KeeperPrint the moment a photo was promoted while
+ * editing, which is several steps before the print set is known: the set is chosen on the Prints tab
+ * afterwards, over a finished album, and includes kept photos as well as promoted ones. Since a
+ * photo cannot be taken out of an album again, every one promoted and later set aside as "just save"
+ * was stuck in KeeperPrint for good. The print set is now sent deliberately, once, from that tab.
  */
 const VERDICT_ALBUMS: Record<string, string> = {
   rejected: 'KeeperDelete',
   toEdit: KEEPER_EDIT_ALBUM,
-  toPrint: 'KeeperPrint',
 };
 
 export const REQUIRED_ALBUMS: readonly RequiredAlbum[] = [
   { name: KEEPER_EDIT_ALBUM, purpose: 'photos you want to edit' },
   { name: 'KeeperDelete', purpose: 'photos you want to delete' },
-  { name: 'KeeperPrint', purpose: 'photos you want to print' },
+  { name: KEEPER_PRINT_ALBUM, purpose: 'photos you want to print' },
 ];
 
 /**

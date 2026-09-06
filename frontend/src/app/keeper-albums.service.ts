@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService } from './lightroom.service';
-import { KEEPER_EDIT_ALBUM, REQUIRED_ALBUMS } from './keeper-albums';
+import { KEEPER_EDIT_ALBUM, REQUIRED_ALBUMS, printBinsIn } from './keeper-albums';
 
 /**
  * Which of the {@link REQUIRED_ALBUMS} the connected catalog actually has.
@@ -32,6 +32,15 @@ export class KeeperAlbumsService {
 
   /** The id of the KeeperEdit album, or null when the catalog hasn't got one (or wasn't read). */
   readonly editAlbumId = computed(() => this.idsByName()?.get(KEEPER_EDIT_ALBUM) ?? null);
+
+  /**
+   * The print bins the catalogue has, in fill order.
+   *
+   * Read off the catalogue rather than configured, because the API cannot create albums: how many
+   * bins there are is whatever the user has made, and making another one in Lightroom is the whole
+   * of the setup for having two orders in flight at once.
+   */
+  readonly printBins = computed(() => printBinsIn(this.idsByName()?.keys() ?? []));
 
   /** The catalogue's id for a Keeper album, or null while it has not been read — or does not exist. */
   idFor(name: string): string | null {

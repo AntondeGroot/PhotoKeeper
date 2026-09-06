@@ -1,11 +1,11 @@
 import { Injectable, inject } from '@angular/core';
-import { AlbumPrintState } from '../../prints/prints.types';
+import { AlbumPrintState, normalisePrintState } from '../../prints/prints.types';
 import { PhotoKeeperDb } from '../photokeeper-db';
 
 /**
- * Device-local record of each album's print-fulfilment state (album name → ordered/placed), so the
- * Prints tab remembers what's been ordered and what's been placed across reloads. Absent = still "To
- * print"; a 'placed' album is complete and never shown or nudged about again.
+ * Device-local record of each album's print-fulfilment state (album name → ordered/received), so the
+ * Prints tab remembers where each album is in the journey across reloads. Absent = not ordered yet.
+ * Read back through {@link normalisePrintState}, which speaks the older vocabulary too.
  */
 @Injectable({ providedIn: 'root' })
 export class AlbumPrintStore {
@@ -17,7 +17,7 @@ export class AlbumPrintStore {
     const keys = await db.getAllKeys('albumPrint');
     const values = await db.getAll('albumPrint');
     const map = new Map<string, AlbumPrintState>();
-    keys.forEach((key, i) => map.set(key, values[i]));
+    keys.forEach((key, i) => map.set(key, normalisePrintState(values[i])));
     return map;
   }
 

@@ -29,13 +29,15 @@ const USAGE_GROUPS: TypedGroupSpec[] = [
   {
     group: 'work',
     title: 'Your decisions',
-    detail: 'Verdicts, tags, album marks and print state.',
+    detail: 'Verdicts, tags, album marks, print orders, and what has reached Lightroom.',
     rebuildable: false,
     stores: [
       'verdicts',
       'tags',
       'assetTags',
       'albumPrint',
+      'printBins',
+      'keeperFiling',
       'albumTags',
       'groupOverrides',
       'groupReclass',
