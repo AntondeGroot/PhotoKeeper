@@ -38,6 +38,21 @@ export class PreviewCacheService {
   // Ids whose preview could not be fetched, so the card can say so instead of rendering blank.
   private readonly failed = signal<ReadonlySet<string>>(new Set());
 
+  /**
+   * Ids held against eviction whatever the prefetch window says.
+   *
+   * For previews something on screen is showing from *outside* that window — the recent-decisions
+   * list, whose photos all sit behind the review cursor, while the window only ever looks ahead.
+   * Without this they would be evicted the moment the next decision re-ran the prefetch effect, and
+   * the list would empty itself of thumbnails as you used it.
+   */
+  private pinned: ReadonlySet<string> = new Set();
+
+  /** Holds a set of previews against eviction, replacing any previous pin. Empty set clears it. */
+  pin(ids: ReadonlySet<string>): void {
+    this.pinned = ids;
+  }
+
   /** Whether this asset's preview was tried and failed, as opposed to simply not loaded yet. */
   unavailable(assetId: string): boolean {
     return this.failed().has(assetId);
@@ -95,15 +110,16 @@ export class PreviewCacheService {
   }
 
   /**
-   * Drops in-memory previews outside `keep`, revoking their object URLs so memory doesn't grow without
-   * bound. Read untracked so it never re-triggers the caller's prefetch effect.
+   * Drops in-memory previews outside `keep` and outside the {@link pin}, revoking their object URLs
+   * so memory doesn't grow without bound. Read untracked so it never re-triggers the caller's
+   * prefetch effect.
    */
   evictOutside(keep: Set<string>): void {
     const cache = untracked(() => this.cache());
     const next = new Map(cache);
     let changed = false;
     for (const [id, preview] of cache) {
-      if (!keep.has(id)) {
+      if (!keep.has(id) && !this.pinned.has(id)) {
         URL.revokeObjectURL(preview.objectUrl);
         next.delete(id);
         changed = true;

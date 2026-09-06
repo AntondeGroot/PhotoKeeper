@@ -45,6 +45,30 @@ export class ReviewStore {
   }
 
   /**
+   * The verdicts already in hand, or null when nothing has read them yet.
+   *
+   * For the one caller that cannot wait: undo has to record what a verdict *was* in the same tick as
+   * the decision that overwrites it, because {@link setVerdict} writes through to the cached map and
+   * an awaited read would come back holding the new value. Null in practice never happens — a deck
+   * cannot exist before {@link ReviewFeedService#loadToday} has awaited the verdicts to apply them —
+   * and undo simply declines to record rather than guessing if it ever does.
+   */
+  loadedVerdicts(): ReadonlyMap<string, StoredVerdict> | null {
+    return this.verdicts;
+  }
+
+  /**
+   * Takes a verdict away entirely, returning the photo to the backlog.
+   *
+   * Deleted rather than stored as 'backlog': the two are the same to the review flow but not to the
+   * Lightroom sweep, which reads every stored verdict, nor to the storage report, which counts them.
+   */
+  async removeVerdict(assetId: string): Promise<void> {
+    await (await this.db.open()).delete('verdicts', assetId);
+    this.verdicts?.delete(assetId);
+  }
+
+  /**
    * Flips one photo's "keep it, don't print it" choice, leaving the rest of its verdict untouched.
    *
    * A photo with no verdict is ignored rather than given one: the choice is made on the Prints tab,

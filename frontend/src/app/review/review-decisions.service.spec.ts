@@ -49,6 +49,8 @@ describe('ReviewDecisionsService', () => {
   let index: ReturnType<typeof signal<number>>;
   let loaded: ReturnType<typeof signal<boolean>>;
   let verdicts: { id: string; verdict: StoredVerdict }[];
+  /** What is stored right now, so undo can be checked against it rather than against the call log. */
+  let stored: Map<string, StoredVerdict>;
   let dailyFeeds: Map<string, ReviewItem[]>;
   let dissolves: { memberIds: string[] }[];
   let reclassifies: { memberIds: string[]; type: string; orientation?: string }[];
@@ -60,6 +62,7 @@ describe('ReviewDecisionsService', () => {
     index = signal(0);
     loaded = signal(true);
     verdicts = [];
+    stored = new Map();
     dailyFeeds = new Map();
     dissolves = [];
     reclassifies = [];
@@ -88,8 +91,14 @@ describe('ReviewDecisionsService', () => {
           useValue: {
             setVerdict: (id: string, verdict: StoredVerdict) => {
               verdicts.push({ id, verdict });
+              stored.set(id, verdict);
               return Promise.resolve();
             },
+            removeVerdict: (id: string) => {
+              stored.delete(id);
+              return Promise.resolve();
+            },
+            loadedVerdicts: () => stored,
             setDailyFeed: (k: string, v: ReviewItem[]) => {
               dailyFeeds.set(k, v);
               return Promise.resolve();
@@ -130,6 +139,139 @@ describe('ReviewDecisionsService', () => {
       { id: 'a', verdict: { status: 'kept', starred: false, saveOnly: false } },
     ]);
     expect(refillCalls).toBe(1); // every decision tops up the scan buffer
+  });
+
+  describe('undo', () => {
+    /** Takes back the most recent decision — what the list's top row does. */
+    const undoLatest = () => service.undo(service.recentDecisions()[0]);
+
+    it('offers nothing until a decision has been made', () => {
+      expect(service.canUndo()).toBe(false);
+      expect(service.recentDecisions()).toEqual([]);
+    });
+
+    it('puts the unit, the cursor and the verdict back', async () => {
+      service.decide('kept');
+      await Promise.resolve();
+
+      await undoLatest();
+
+      expect(photos()[0].status).toBe('backlog');
+      expect(index()).toBe(0);
+      // Removed, not stored as 'backlog': the sweep reads every stored verdict, so a placeholder
+      // would be filed as though the photo had been decided.
+      expect(stored.has('a')).toBe(false);
+      expect(service.canUndo()).toBe(false);
+    });
+
+    it('lists what was decided, most recent first', async () => {
+      service.decide('kept');
+      service.decide('rejected');
+      await Promise.resolve();
+
+      expect(service.recentDecisions().map((e) => [e.unit.id, e.outcome])).toEqual([
+        ['b', 'rejected'],
+        ['a', 'kept'],
+      ]);
+    });
+
+    /**
+     * Changing an answer twice must land on the first answer, not on "undecided". A photo can be
+     * re-decided once it has been brought back, and undoing that has to restore what was there.
+     */
+    it('restores an earlier verdict rather than clearing it', async () => {
+      stored.set('a', { status: 'rejected', starred: false, saveOnly: false });
+
+      service.decide('kept');
+      await Promise.resolve();
+      await undoLatest();
+
+      expect(stored.get('a')).toEqual({ status: 'rejected', starred: false, saveOnly: false });
+    });
+
+    /**
+     * A burst writes a verdict per frame as well as one for the unit, so undoing it has to clear all
+     * of them — a frame left rejected would keep it out of every later selection.
+     */
+    it('puts back every frame verdict a burst duel wrote', async () => {
+      photos.set([burst('b1', ['f1', 'f2', 'f3'])]);
+      index.set(0);
+
+      service.resolveBurst(['f1']);
+      await Promise.resolve();
+      expect(stored.size).toBe(4); // the unit and its three frames
+
+      await undoLatest();
+
+      expect(stored.size).toBe(0);
+      expect(photos()[0].status).toBe('backlog');
+    });
+
+    /** Skipping writes no verdict at all, so only the recorded unit can bring it back. */
+    it('brings back a unit that was skipped off the deck', async () => {
+      service.withdrawCurrentUnit();
+      expect(photos().map((p) => p.id)).toEqual(['b', 'c']);
+
+      await undoLatest();
+
+      expect(photos().map((p) => p.id)).toEqual(['a', 'b', 'c']);
+      expect(index()).toBe(0);
+    });
+
+    /**
+     * Undo takes back one decision, not everything that happened since. The unit is put back on its
+     * own for exactly this: rolling the whole deck back would quietly discard the star, and the
+     * photo would then disagree with its own stored verdict.
+     */
+    it('leaves alone what was done to other photos afterwards', async () => {
+      service.decide('kept'); // decides 'a', cursor moves to 'b'
+      service.toggleStar(); // stars 'b', which is nobody's undo
+      await Promise.resolve();
+
+      await undoLatest();
+
+      expect((photos().find((p) => p.id === 'b') as Photo).starred).toBe(true);
+      expect(photos()[0].status).toBe('backlog');
+    });
+
+    /**
+     * The whole point of a list: reaching past the last decision. Entries describe one unit each, so
+     * they do not overlap and taking one back says nothing about the ones above it.
+     */
+    it('takes back a decision from further up the list, leaving the rest decided', async () => {
+      service.decide('kept'); // a
+      service.decide('rejected'); // b
+      await Promise.resolve();
+
+      await service.undo(service.recentDecisions()[1]); // the older of the two
+
+      const byId = new Map(photos().map((p) => [p.id, p.status]));
+      expect(byId.get('a')).toBe('backlog');
+      expect(byId.get('b')).toBe('rejected');
+      expect(service.recentDecisions()).toHaveLength(1);
+    });
+
+    it('brings the photo it took back to the cursor, so it is judged next', async () => {
+      service.decide('kept'); // a
+      service.decide('rejected'); // b
+      await Promise.resolve();
+
+      await service.undo(service.recentDecisions()[1]); // 'a', two photos ago
+
+      expect(photos()[index()].id).toBe('a');
+    });
+
+    it('ignores an entry that has already been taken back', async () => {
+      service.decide('kept');
+      await Promise.resolve();
+      const entry = service.recentDecisions()[0];
+
+      await service.undo(entry);
+      await service.undo(entry);
+
+      expect(photos()[0].status).toBe('backlog');
+      expect(service.recentDecisions()).toEqual([]);
+    });
   });
 
   it('toggleStar() flips the star without advancing', () => {
@@ -482,7 +624,14 @@ describe('ReviewDecisionsService', () => {
             back: () => {},
           },
         },
-        { provide: ReviewStore, useValue: { setVerdict: () => Promise.resolve() } },
+        {
+          provide: ReviewStore,
+          useValue: {
+            setVerdict: () => Promise.resolve(),
+            removeVerdict: () => Promise.resolve(),
+            loadedVerdicts: () => new Map<string, StoredVerdict>(),
+          },
+        },
         { provide: GroupOverrideStore, useValue: {} },
         { provide: BackgroundScanService, useValue: { scheduleRefill: () => {} } },
         {

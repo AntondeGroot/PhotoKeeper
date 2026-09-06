@@ -6,6 +6,7 @@ import { LightroomService } from '../lightroom.service';
 import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
+import { ReviewUndoService } from './review-undo.service';
 import { FiledRecord, StoredVerdict } from '../storage/photokeeper-db';
 
 const verdict = (status: StoredVerdict['status']): StoredVerdict => ({
@@ -25,6 +26,8 @@ describe('KeeperFilingService', () => {
   let unfilable: Set<string>;
   /** Asset metadata, which is where the filenames a tidy-up search matches on come from. */
   let names: Map<string, { name: string }>;
+  /** Assets whose decision the user can still take back, which the sweep must leave alone. */
+  let undoable: Set<string>;
 
   beforeEach(() => {
     verdicts = new Map();
@@ -32,6 +35,7 @@ describe('KeeperFilingService', () => {
     sent = [];
     failNext = false;
     unfilable = new Set();
+    undoable = new Set();
     names = new Map([
       ['a', { name: 'DSC_0001' }],
       ['b', { name: 'DSC_0002' }],
@@ -67,6 +71,7 @@ describe('KeeperFilingService', () => {
         },
         { provide: ReviewStore, useValue: { getVerdicts: () => Promise.resolve(verdicts) } },
         { provide: AssetMetaStore, useValue: { getAll: () => Promise.resolve(names) } },
+        { provide: ReviewUndoService, useValue: { heldAssetIds: () => undoable } },
         {
           provide: KeeperFilingStore,
           useValue: {
@@ -99,6 +104,34 @@ describe('KeeperFilingService', () => {
       { albumId: 'al-edit', assetIds: ['b'] },
       { albumId: 'al-print', assetIds: ['c'] },
     ]);
+  });
+
+  /**
+   * Undo comes first, because filing cannot be undone. Album membership is a one-way write, so a
+   * decision filed while it is still on the undo stack would leave the photo in KeeperDelete even
+   * after the user took the decision back — the app would forget and Lightroom would not.
+   */
+  it('holds back a decision the user can still undo', async () => {
+    verdicts.set('a', verdict('rejected'));
+    verdicts.set('b', verdict('rejected'));
+    undoable.add('a');
+
+    await filing.sweep();
+
+    expect(sent).toEqual([{ albumId: 'al-del', assetIds: ['b'] }]);
+  });
+
+  /** Once it falls off the stack — or the app restarts, which empties it — the next sweep files it. */
+  it('files it as soon as it can no longer be undone', async () => {
+    verdicts.set('a', verdict('rejected'));
+    undoable.add('a');
+    await filing.sweep();
+    expect(sent).toEqual([]);
+
+    undoable.clear();
+    await filing.sweep();
+
+    expect(sent).toEqual([{ albumId: 'al-del', assetIds: ['a'] }]);
   });
 
   // Keeping a photograph *is* leaving it where it is, and "maybe" is the absence of a decision.

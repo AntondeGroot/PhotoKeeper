@@ -24,6 +24,7 @@ import { PanoFrame, Photo, ReviewItem, isDevicePhoto, unitAssetIds } from './pho
 import { ReviewSortComponent } from './review/review-sort/review-sort';
 import { ReviewAlbumTagsComponent } from './review/review-album-tags/review-album-tags';
 import { StreakFrozenNoticeComponent } from './review/streak-frozen-notice/streak-frozen-notice';
+import { ReviewHistoryComponent } from './review/review-history/review-history';
 import { SessionDoneComponent } from './review/session-done/session-done';
 import { ReviewEditComponent } from './review/review-edit/review-edit';
 import { PrintsComponent } from './prints/prints';
@@ -63,6 +64,7 @@ const SPLASH_MIN_MS = 1800;
     ReviewAlbumTagsComponent,
     SessionDoneComponent,
     StreakFrozenNoticeComponent,
+    ReviewHistoryComponent,
     ReviewEditComponent,
     PrintsComponent,
     SettingsComponent,
@@ -520,10 +522,6 @@ export class AppComponent implements OnInit, OnDestroy {
   /** The burst's outcome: the frames to keep (everything else in it is rejected). Delegated. */
   resolveBurst(keptIds: string[]): void {
     this.decisions.resolveBurst(keptIds);
-  }
-
-  rejectBurst(): void {
-    this.decisions.rejectBurst();
   }
 
   /** "This is actually a pano" — relabel the current burst (delegated). */
