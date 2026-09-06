@@ -1,6 +1,7 @@
 package com.photokeeper.controller;
 
 import com.photokeeper.service.LightroomWriteSpikeService;
+import jakarta.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,100 @@ public class LightroomWriteSpikeController {
 
     public LightroomWriteSpikeController(LightroomWriteSpikeService writeSpike) {
         this.writeSpike = writeSpike;
+    }
+
+    /**
+     * Runs the move a real verdict change would need: add to {@code from}, take it out again, add to
+     * {@code to} — and reports what each step said.
+     *
+     * <p>Filing currently accumulates. A photo sent to KeeperEdit and later promoted to print reaches
+     * KeeperPrint but stays in KeeperEdit, because nothing has established whether an asset can be
+     * taken out of an album at all. Each plausible removal shape is tried and its raw error kept, so
+     * the answer is "none of these work, here is what each said" rather than one guess.
+     *
+     * <p>It writes to the real catalogue. If every removal shape fails the asset is left in
+     * {@code from} as well as {@code to}, and the report says so — remove it by hand.
+     */
+    @PostMapping("/keeper/spike/move")
+    public ResponseEntity<Map<String, Object>> moveSpike(
+            @RequestHeader("X-Auth-Token") String authToken,
+            @RequestHeader("X-Catalog-Id") String catalogId,
+            @RequestParam(defaultValue = "SpikeA") String from,
+            @RequestParam(defaultValue = "SpikeB") String to,
+            @RequestParam(required = false) String assetId) {
+        try {
+            String fromId = writeSpike.findAlbumByName(authToken, catalogId, from);
+            String toId = writeSpike.findAlbumByName(authToken, catalogId, to);
+            if (fromId == null || toId == null) {
+                return ResponseEntity.ok(Map.of(
+                        "ok", false,
+                        "error", "Both '" + from + "' and '" + to
+                                + "' must exist in Lightroom before this can run."));
+            }
+            String asset = (assetId != null && !assetId.isBlank())
+                    ? assetId
+                    : writeSpike.firstAssetId(authToken, catalogId);
+            if (asset == null) {
+                return ResponseEntity.ok(Map.of("ok", false, "error", "No asset to move."));
+            }
+
+            String addFailure = addTolerantly(authToken, catalogId, fromId, asset);
+            if (addFailure != null) {
+                return ResponseEntity.ok(Map.of(
+                        "spike", "move",
+                        "ok", false,
+                        "asset", asset,
+                        "step", "add to " + from,
+                        "error", addFailure,
+                        "note", "Could not put the asset in the album, so removal is still unknown."
+                                + " If this says 'cannot be a stack', pass a plain image via assetId"
+                                + " — analyse an album in the lab first and it uses that frame."));
+            }
+
+            List<Map<String, String>> removal =
+                    writeSpike.probeRemoval(authToken, catalogId, fromId, asset);
+
+            // Tolerated rather than guarded: the asset may already be in the destination from an
+            // earlier run, and that must not discard the removal answer we just paid for.
+            String moveFailure = addTolerantly(authToken, catalogId, toId, asset);
+
+            boolean removed = removal.stream().anyMatch(a -> "ok".equals(a.get("result")));
+            return ResponseEntity.ok(Map.of(
+                    "spike", "move",
+                    "ok", true,
+                    "asset", asset,
+                    "addedTo", List.of(from, to),
+                    "addToDestination", moveFailure == null ? "ok" : moveFailure,
+                    "removalWorks", removed,
+                    "removalAttempts", removal,
+                    "note", removed
+                            ? "Removal works — a verdict change can move a photo rather than copy it."
+                            : "Removal failed every way. The asset is now in BOTH albums; take it out"
+                                    + " of '" + from + "' by hand."));
+        } catch (RestClientResponseException e) {
+            return ResponseEntity.ok(Map.of(
+                    "spike", "album",
+                    "ok", false,
+                    "status", e.getStatusCode().value(),
+                    "error", e.getResponseBodyAsString()));
+        }
+    }
+
+    /**
+     * Adds the asset, treating "already in album" as the state we wanted rather than a failure.
+     *
+     * Returns null when the asset is in the album afterwards, or the raw error when it is not — a
+     * stack, most often, which says nothing about removal.
+     */
+    @Nullable
+    private String addTolerantly(String authToken, String catalogId, String albumId, String asset) {
+        try {
+            writeSpike.addAssetsToAlbum(authToken, catalogId, albumId, List.of(asset));
+            return null;
+        } catch (RestClientResponseException e) {
+            String body = e.getResponseBodyAsString();
+            return body.contains("already in album") ? null : e.getStatusCode().value() + " " + body;
+        }
     }
 
     /**
@@ -64,6 +159,7 @@ public class LightroomWriteSpikeController {
                     "assetId", asset != null ? asset : ""));
         } catch (RestClientResponseException e) {
             return ResponseEntity.ok(Map.of(
+                    "spike", "create-album",
                     "ok", false,
                     "status", e.getStatusCode().value(),
                     "error", e.getResponseBodyAsString()));
@@ -92,6 +188,7 @@ public class LightroomWriteSpikeController {
                     "landedSubtype", landed != null ? landed : ""));
         } catch (RestClientResponseException e) {
             return ResponseEntity.ok(Map.of(
+                    "spike", "review",
                     "ok", false,
                     "status", e.getStatusCode().value(),
                     "error", e.getResponseBodyAsString()));
@@ -130,6 +227,7 @@ public class LightroomWriteSpikeController {
                     "afterPayload", after.getOrDefault("payload", Map.of())));
         } catch (RestClientResponseException e) {
             return ResponseEntity.ok(Map.of(
+                    "spike", "move",
                     "ok", false,
                     "status", e.getStatusCode().value(),
                     "error", e.getResponseBodyAsString()));

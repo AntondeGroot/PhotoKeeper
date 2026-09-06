@@ -48,6 +48,19 @@ import { LightroomService } from '../../../lightroom.service';
         </p>
       </div>
 
+      <div class="spike__group">
+        <span class="spike__label">Moving between albums — unknown</span>
+        <div class="spike__row">
+          <button (click)="move()" [disabled]="busy()">SpikeA → SpikeB (move probe)</button>
+        </div>
+        <p class="spike__hint">
+          Adds the asset to KeeperEdit, tries every way of taking it out again, then adds it to
+          KeeperPrint. Settles whether a changed verdict can move a photo or only copy it. Writes to
+          the real catalogue — if every removal shape fails, the asset is left in both albums and
+          the report says so.
+        </p>
+      </div>
+
       @if (result(); as r) {
         <pre class="spike__out">{{ r }}</pre>
       }
@@ -159,6 +172,21 @@ export class AlbumSpikeComponent {
   readonly assetId = input('');
   readonly busy = signal(false);
   readonly result = signal('');
+
+  async move(): Promise<void> {
+    this.busy.set(true);
+    this.result.set('Running…');
+    try {
+      const report = await firstValueFrom(
+        this.svc.runMoveSpike('SpikeA', 'SpikeB', this.assetId()),
+      );
+      this.result.set(JSON.stringify(report, null, 2));
+    } catch {
+      this.result.set('Move spike failed — check auth / network / backend log.');
+    } finally {
+      this.busy.set(false);
+    }
+  }
 
   async run(): Promise<void> {
     this.busy.set(true);

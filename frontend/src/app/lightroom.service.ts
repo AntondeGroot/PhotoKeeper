@@ -246,6 +246,16 @@ export class LightroomService {
   }
 
   /**
+   * Write-spike: add an asset to `from`, try every way of taking it out again, then add it to `to`.
+   * Settles whether a changed verdict can *move* a photo between Keeper albums or only copy it.
+   */
+  runMoveSpike(from: string, to: string, assetId?: string): Observable<unknown> {
+    const params: Record<string, string> = { from, to };
+    if (assetId) params['assetId'] = assetId;
+    return this.http.post('api/keeper/spike/move', null, { headers: this.authHeaders(), params });
+  }
+
+  /**
    * Write-spike: ask the backend to create a brand-new album via the API (as subtype "collection") and
    * report the subtype that actually stuck — to confirm whether an API-created album shows up as a normal
    * user album. Returns the backend's report.
