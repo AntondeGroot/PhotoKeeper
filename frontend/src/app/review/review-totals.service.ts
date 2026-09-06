@@ -32,8 +32,9 @@ export class ReviewTotalsService {
       photosReviewed: statuses.length,
       photosDeleted: statuses.filter((s) => s === 'rejected').length,
       photosEdited: statuses.filter((s) => s === 'toEdit').length,
-      // 'placed' means it arrived and went on the wall — the moment actually worth celebrating.
-      albumsPrinted: [...printed.values()].filter((state) => state === 'placed').length,
+      // Counted at 'done', the end of the journey — not at 'ordered', since an order that never
+      // turned up printed nothing.
+      albumsPrinted: [...printed.values()].filter((state) => state === 'done').length,
     };
   }
 }

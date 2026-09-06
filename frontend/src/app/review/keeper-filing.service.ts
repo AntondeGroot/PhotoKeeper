@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../lightroom.service';
 import { KeeperAlbumsService } from '../keeper-albums.service';
-import { albumForVerdict } from '../keeper-albums';
+import { albumForVerdict, isPrintBin } from '../keeper-albums';
 import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
@@ -98,6 +98,25 @@ export class KeeperFilingService {
   }
 
   /**
+   * Files a chosen set into a named album, now, and says how many landed.
+   *
+   * Separate from {@link sweep} because it answers a different question. The sweep files what a
+   * verdict implies, whenever it gets round to it; this files a set the user has just confirmed,
+   * into an album the user has just been shown — the print set, which no single verdict implies and
+   * which only exists once the whole album is decided and its exceptions set aside.
+   *
+   * Returns 0 when the album is not in the catalogue, rather than throwing: the caller has a better
+   * place to say "you have not made that album yet" than an exception does.
+   */
+  async fileSet(album: string, assetIds: readonly string[]): Promise<number> {
+    if (assetIds.length === 0) return 0;
+    await this.albums.ensure();
+    const albumId = this.albums.idFor(album);
+    if (!albumId) return 0;
+    return this.fileInto(albumId, album, [...assetIds]);
+  }
+
+  /**
    * Photos sitting in an album their verdict has moved on from — album name → their filenames.
    *
    * The residue of a one-way API. Filing adds and can never remove, so a photo sent to edit and then
@@ -121,6 +140,9 @@ export class KeeperFilingService {
       if (!name) continue;
       for (const album of record.albums) {
         if (album === belongs) continue;
+        // A print bin is not a filing a verdict implies — it is a record of one order the user sent
+        // deliberately. Nothing has "moved on" from it, so it is never something to tidy away.
+        if (isPrintBin(album)) continue;
         byAlbum.set(album, [...(byAlbum.get(album) ?? []), name]);
       }
     }

@@ -95,15 +95,27 @@ describe('KeeperFilingService', () => {
   it('files each verdict into the album that matches it', async () => {
     verdicts.set('a', verdict('rejected'));
     verdicts.set('b', verdict('toEdit'));
-    verdicts.set('c', verdict('toPrint'));
 
     await filing.sweep();
 
     expect(sent).toEqual([
       { albumId: 'al-del', assetIds: ['a'] },
       { albumId: 'al-edit', assetIds: ['b'] },
-      { albumId: 'al-print', assetIds: ['c'] },
     ]);
+  });
+
+  /**
+   * Promoting a photo to print while editing used to file it into KeeperPrint within seconds — long
+   * before the print set was known. The set is chosen afterwards, over a finished album, and a photo
+   * cannot be taken out of a Lightroom album again: every one later set aside as "just save" was
+   * stuck there for good. The print set is now sent deliberately, via {@link fileSet}.
+   */
+  it('does not file a photo promoted to print — that set is sent from the Prints tab', async () => {
+    verdicts.set('a', verdict('toPrint'));
+
+    await filing.sweep();
+
+    expect(sent).toEqual([]);
   });
 
   /**
@@ -163,10 +175,45 @@ describe('KeeperFilingService', () => {
     await filing.sweep();
     sent.length = 0;
 
-    verdicts.set('a', verdict('toPrint'));
+    verdicts.set('a', verdict('rejected'));
     await filing.sweep();
 
-    expect(sent).toEqual([{ albumId: 'al-print', assetIds: ['a'] }]);
+    expect(sent).toEqual([{ albumId: 'al-del', assetIds: ['a'] }]);
+  });
+
+  /**
+   * A bin is a record of one order the user sent deliberately, not a filing any verdict implies.
+   * Reported as stale it would ask them to tidy away the very photos they had just ordered.
+   */
+  it('never asks the user to tidy a print bin', async () => {
+    verdicts.set('a', verdict('kept'));
+    filed.set('a', { albums: ['KeeperPrint'], at: 1 });
+
+    expect(await filing.staleFilings()).toEqual(new Map());
+  });
+
+  describe('sending a chosen set', () => {
+    it('files exactly the photos it was given, into the album it was named', async () => {
+      const filed = await filing.fileSet('KeeperPrint', ['a', 'c']);
+
+      expect(filed).toBe(2);
+      expect(sent).toEqual([{ albumId: 'al-print', assetIds: ['a', 'c'] }]);
+    });
+
+    /** The bins are albums the user makes by hand, so one may simply not be there yet. */
+    it('files nothing when that album is not in the catalogue', async () => {
+      albumIds.delete('KeeperPrint');
+
+      const filed = await filing.fileSet('KeeperPrint', ['a']);
+
+      expect(filed).toBe(0);
+      expect(sent).toEqual([]);
+    });
+
+    it('asks Lightroom nothing for an empty set', async () => {
+      expect(await filing.fileSet('KeeperPrint', [])).toBe(0);
+      expect(sent).toEqual([]);
+    });
   });
 
   // The album is one the user has to create by hand — the API cannot — so until they do, those

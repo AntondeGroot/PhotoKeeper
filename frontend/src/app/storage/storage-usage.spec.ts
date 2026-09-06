@@ -1,3 +1,4 @@
+import { StoreNames } from 'idb';
 import { PhotoKeeperSchema } from './photokeeper-db';
 import { byteSize, formatBytes, summarise } from './storage-usage';
 import { STORAGE_USAGE_GROUPS } from './storage-usage.service';
@@ -64,8 +65,12 @@ describe('storage usage', () => {
 
   // A store added to the schema and forgotten here would simply never be counted, and the total
   // would quietly understate what the app is using — the one failure this screen cannot afford.
+  //
+  // Keyed by StoreNames rather than `keyof PhotoKeeperSchema`, which collapses to `string`: DBSchema
+  // carries an index signature, so the Record accepted any object at all and a forgotten store slid
+  // past both the compiler and this test. Two had already — keeperFiling and printBins.
   it('accounts for every store the schema declares', () => {
-    const schema: Record<keyof PhotoKeeperSchema, true> = {
+    const schema: Record<StoreNames<PhotoKeeperSchema>, true> = {
       previews: true,
       verdicts: true,
       dailyFeed: true,
@@ -85,6 +90,8 @@ describe('storage usage', () => {
       celebrationLog: true,
       celebrationCurrent: true,
       reviewBuffer: true,
+      keeperFiling: true,
+      printBins: true,
     };
     const grouped = STORAGE_USAGE_GROUPS.flatMap((g) => g.stores);
 

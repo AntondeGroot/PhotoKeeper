@@ -33,9 +33,18 @@ export class PrintsComponent implements OnInit {
     void this.prints.refresh();
   }
 
-  /** Albums still to export/order, and albums ordered & awaiting placement. */
+  /** The three stages of the journey: not ordered, ordered and waiting, arrived. */
   readonly toPrint = this.prints.toPrint;
+  readonly ordered = this.prints.ordered;
   readonly done = this.prints.done;
+  /** The bins and what each holds, the next free one, and whether a write is in flight. */
+  readonly binState = this.prints.binState;
+  readonly nextBin = this.prints.nextBin;
+  readonly binsKnown = this.prints.binsKnown;
+  readonly binsInUse = this.prints.binsInUse;
+  readonly sending = this.prints.sending;
+  /** Only the bins actually holding an order — the ones the user can act on. */
+  readonly occupiedBins = computed(() => this.binState().filter((slot) => slot.holds !== null));
 
   /** The album whose prints are being chosen, if any — it takes over the tab while it is open. */
   private readonly choosing = signal<string | null>(null);
@@ -58,25 +67,47 @@ export class PrintsComponent implements OnInit {
     this.choosing.set(album);
   }
 
+  /** The bin this album's photos were sent to, or null while they have not been sent. */
+  sentTo(album: string): string | null {
+    return this.prints.binHolding(album);
+  }
+
+  /** Put the chosen photos in a Lightroom album, so there is something to export. */
+  send(group: AlbumGroup): void {
+    void this.prints.sendToBin(group);
+  }
+
+  /** The user has emptied a bin in Lightroom — it can hold the next order. */
+  freeBin(bin: string): void {
+    void this.prints.freeBin(bin);
+  }
+
   /** A photo was tapped in the picker: flip it between printing and just being kept. */
   toggleSaveOnly(photo: Photo): void {
     void this.prints.toggleSaveOnly(photo);
   }
 
-  /**
-   * The album's one action, which is two things depending on what was chosen.
-   *
-   * With prints chosen it means "ordered" and the album moves to Done. With every photo set aside
-   * there is nothing to order, so the album is completed outright — otherwise an album you decided
-   * not to print anything from would sit in the lane for good, since only ordering ever clears it.
-   */
-  settle(group: AlbumGroup): void {
-    if (this.chosen(group).length > 0) void this.prints.markOrdered(group.album);
-    else void this.prints.markPlaced(group.album);
+  /** "I've ordered these" — recorded, and nothing in Lightroom moves. */
+  markOrdered(album: string): void {
+    void this.prints.markOrdered(album);
   }
 
-  /** Checkmark — the prints are placed; complete the album. */
-  markPlaced(album: string): void {
-    void this.prints.markPlaced(album);
+  /** "I've received these" — the prints arrived, so the album is done. */
+  markReceived(album: string): void {
+    void this.prints.markDone(album);
+  }
+
+  /**
+   * Completes an album nothing is being printed from.
+   *
+   * Every photo set aside as a keepsake means there is no order to place and none to receive, so the
+   * two middle steps have nothing to record — and the album is no less finished for it. Without this
+   * it would sit in the first lane for good, since ordering is the only other way out.
+   *
+   * The same end state as receiving prints, reached by a different button: which of the two happened
+   * is what the user pressed, not something worth storing.
+   */
+  completeUnprinted(album: string): void {
+    void this.prints.markDone(album);
   }
 }

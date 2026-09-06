@@ -2,7 +2,9 @@
   <app-print-picker [album]="album" (toggled)="toggleSaveOnly($event)" (closed)="choose(null)" />
 } @else {
   <div class="prints">
-    <!-- To print — albums edited and waiting to be exported/ordered -->
+    <!-- To print — finished albums whose prints have not been ordered yet. Three steps, in order:
+         put the photos somewhere Lightroom can export, order them, then say they arrived. Only the
+         first one writes anything, and it cannot be taken back. -->
     <section class="lane">
       <header class="lane-head">
         <span class="lane-title lane-title-print">To print</span>
@@ -23,16 +25,93 @@
                   {{ chosen(group).length }} of {{ group.photos.length }} photos · ready to print
                 </div>
               </div>
-              <button class="album-pill album-pill-print" (click)="settle(group)">
-                {{ chosen(group).length ? "I've ordered these →" : 'Nothing to print — done' }}
-              </button>
             </div>
             <app-photo-stack [photos]="chosen(group)" />
             <button class="album-choose" (click)="choose(group.album)">Choose prints →</button>
+
+            @if (chosen(group).length === 0) {
+              <p class="bin-note">Nothing chosen to print.</p>
+              <button class="album-pill" (click)="completeUnprinted(group.album)">
+                Nothing to print — done
+              </button>
+            } @else if (sentTo(group.album); as bin) {
+              <p class="bin-note bin-note-sent">
+                In <strong>{{ bin }}</strong> — export it from Lightroom and order it.
+              </p>
+              <!-- Nothing moves here. The photos stay in the print album until you empty it. -->
+              <button class="album-pill album-pill-print" (click)="markOrdered(group.album)">
+                I've ordered these →
+              </button>
+            } @else if (nextBin(); as bin) {
+              <button class="album-send" [disabled]="sending()" (click)="send(group)">
+                Put {{ chosen(group).length }} photos in {{ bin }} →
+              </button>
+            } @else if (binsKnown()) {
+              <p class="bin-note">
+                Nowhere to put them yet:
+                @for (slot of binsInUse(); track slot.bin) {
+                  <span class="bin-holds"
+                    ><strong>{{ slot.bin }}</strong> still holds {{ slot.photos }} photos from
+                    {{ slot.album }}.
+                  </span>
+                }
+                Empty one in Lightroom and mark it free below, or make another album named after
+                KeeperPrint.
+              </p>
+            }
           </article>
         }
       }
     </section>
+
+    <!-- Ordered — sent off and waiting for the post. Nothing here needs Lightroom. -->
+    <section class="lane">
+      <header class="lane-head">
+        <span class="lane-title lane-title-print">Ordered</span>
+        <span class="lane-count">{{ ordered().length }}</span>
+      </header>
+      @if (ordered().length === 0) {
+        <p class="lane-hint">Albums you have ordered prints of, waiting for them to arrive.</p>
+      } @else {
+        @for (group of ordered(); track group.album) {
+          <article class="album-card">
+            <div class="album-card-head">
+              <div class="album-meta">
+                <div class="album-title">{{ group.album }}</div>
+                <div class="album-subtitle">
+                  {{ chosen(group).length }} photos ordered · on their way
+                </div>
+              </div>
+              <button class="album-pill album-pill-done" (click)="markReceived(group.album)">
+                <span class="pill-box"></span> I've received these
+              </button>
+            </div>
+            <app-photo-stack [photos]="chosen(group)" />
+          </article>
+        }
+      }
+    </section>
+
+    <!-- Print albums — what is sitting in each, and freeing one for the next order. Shown only when
+         something is in them: with a single empty KeeperPrint there is nothing to say. -->
+    @if (occupiedBins().length > 0) {
+      <section class="lane">
+        <header class="lane-head">
+          <span class="lane-title">In your print albums</span>
+        </header>
+        @for (slot of occupiedBins(); track slot.bin) {
+          <article class="bin-row">
+            <div class="album-meta">
+              <div class="album-title">{{ slot.bin }}</div>
+              <div class="album-subtitle">
+                {{ slot.holds?.photos }} photos from {{ slot.holds?.album }}
+              </div>
+            </div>
+            <button class="album-pill" (click)="freeBin(slot.bin)">I have emptied it</button>
+          </article>
+        }
+      </section>
+    }
 
     <!-- Done — ordered, awaiting placement; mark done once on the wall / in the album -->
     <section class="lane">
@@ -42,7 +121,7 @@
       </header>
       @if (done().length === 0) {
         <p class="lane-hint">
-          Printed and placed — the photo completed its journey from camera to a wall or an album.
+          Albums with nothing left to do — the prints arrived, or there were never any to order.
         </p>
       } @else {
         @for (group of done(); track group.album) {
@@ -51,12 +130,13 @@
               <div class="album-meta">
                 <div class="album-title">{{ group.album }}</div>
                 <div class="album-subtitle">
-                  {{ group.photos.length }} photos · on the wall or in the album?
+                  @if (chosen(group).length > 0) {
+                    {{ chosen(group).length }} photos · printed
+                  } @else {
+                    {{ group.photos.length }} photos · kept, none printed
+                  }
                 </div>
               </div>
-              <button class="album-pill album-pill-done" (click)="markPlaced(group.album)">
-                <span class="pill-box"></span> Mark as done
-              </button>
             </div>
             <app-photo-stack [photos]="chosen(group)" />
           </article>

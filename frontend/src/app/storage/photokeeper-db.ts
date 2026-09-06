@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { DBSchema, IDBPDatabase, openDB } from 'idb';
 import { Photo, ReviewItem } from '../photo';
 import { Tag } from '../tagging/tags';
-import { AlbumPrintState } from '../prints/prints.types';
+import { AlbumPrintState, PrintBin } from '../prints/prints.types';
 import { CurrentPick, ShownRecord } from '../celebrations/celebration.types';
 import {
   DetectedGroup,
@@ -108,6 +108,7 @@ export interface AlbumManifest {
  * - albumManifest: albumId → population fingerprint, the detection change-gate
  * - groups: groupId → a detected cluster (burst/pano/stereo) for group-aware selection
  * - assetMeta: assetId → lightweight metadata for on-device selection (album, name, taken)
+ * - printBins:  print-bin album name → the album order sitting in it (see PrintBin)
  * - groupOverrides: member-set signature → a "not a group" user correction
  * - groupReclass: member-set signature → a "this is actually a burst/pano" user correction
  * - groupMembers: member-set signature → a "this pano is missing frames" user correction
@@ -134,6 +135,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   tags: { key: string; value: Tag };
   assetTags: { key: string; value: string[] };
   albumPrint: { key: string; value: AlbumPrintState };
+  printBins: { key: string; value: PrintBin };
   celebrationLog: { key: string; value: ShownRecord };
   celebrationCurrent: { key: string; value: CurrentPick };
   reviewBuffer: { key: string; value: ReviewItem[] };
@@ -229,9 +231,11 @@ export class PhotoKeeperDb {
     // album re-scans: a left/right-eye album used not to be hashed at all. v26 clears the queue once
     // more, for the aligned-signature matcher that pairs eyes the hash refused. v27 clears it again:
     // the matcher's cheap first pass was still a hash, and still dropping real pairs. v28 added
-    // 'keeperFiling' (which verdicts have been written back to a Lightroom album).
+    // 'keeperFiling' (which verdicts have been written back to a Lightroom album). v29 added
+    // 'printBins' (which print bin holds which album's order), for the print set now being sent
+    // deliberately from the Prints tab rather than filed the moment a photo was promoted.
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 28, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 29, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -261,6 +265,7 @@ export class PhotoKeeperDb {
           'celebrationCurrent',
           'reviewBuffer',
           'keeperFiling',
+          'printBins',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);
