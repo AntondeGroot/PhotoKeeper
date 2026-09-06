@@ -212,6 +212,19 @@ export class LightroomService {
     });
   }
 
+  /**
+   * Files photos into a Keeper album — the one durable write-back the partner scope allows.
+   *
+   * Not idempotent, despite looking it: a photo already in the album is refused with a 403 rather
+   * than accepted quietly. The backend reads that one refusal as success for a single-asset call,
+   * which is what makes retrying safe — see `LightroomService.addAssetsToAlbum`.
+   */
+  addToAlbum(albumId: string, assetIds: readonly string[]): Observable<void> {
+    return this.http.post<void>(`api/albums/${albumId}/assets`, assetIds, {
+      headers: this.authHeaders(),
+    });
+  }
+
   logout(): Observable<void> {
     return this.http.delete<void>('api/auth/logout');
   }
