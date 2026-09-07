@@ -64,6 +64,19 @@ class CorsConfigTest {
         assertThat(status).isNotEqualTo(403);
     }
 
+    /**
+     * The Android app carries the frontend inside the APK and serves it from this origin, so its
+     * calls to the backend are cross-origin. Refused here, the device cannot refresh a token, which
+     * on the phone is indistinguishable from having been logged out.
+     */
+    @Test
+    void aPostFromTheAndroidAppsOwnBundleReachesTheController() throws Exception {
+        int status =
+                mockMvc.perform(refreshFrom("https://photokeeper")).andReturn().getResponse().getStatus();
+
+        assertThat(status).isNotEqualTo(403);
+    }
+
     @Test
     void aPostFromSomewhereElseIsStillRefused() throws Exception {
         int status =

@@ -40,4 +40,44 @@ describe('PhotoKeeperDb upgrades', () => {
     expect(await db.get('verdicts', 'asset-1')).toEqual({ status: 'kept' });
     expect(await db.get('assetMeta', 'asset-1')).toEqual({ albumId: 'al-1' });
   });
+
+  /**
+   * Verdicts, tags and print state live here and on no server, so the engine has to be asked to keep
+   * them rather than treat the origin as a cache it may reclaim under storage pressure.
+   */
+  describe('persistence', () => {
+    // Defined rather than spied on: the test environment has no navigator.storage at all, which is
+    // also why the production call is written defensively.
+    function withStorageManager(value: unknown): void {
+      Object.defineProperty(navigator, 'storage', { value, configurable: true });
+    }
+
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'storage');
+    });
+
+    it('asks the engine to keep the data, once, however often storage is opened', async () => {
+      const persist = vi.fn().mockResolvedValue(true);
+      withStorageManager({ persist });
+      const db = TestBed.inject(PhotoKeeperDb);
+
+      await Promise.all([db.persisted(), db.persisted(), db.persisted()]);
+
+      expect(persist).toHaveBeenCalledTimes(1);
+      expect(await db.persisted()).toBe(true);
+    });
+
+    /** A refusal is not a failure: the data is stored either way, just without the promise. */
+    it('carries on when the engine refuses', async () => {
+      withStorageManager({ persist: () => Promise.resolve(false) });
+
+      expect(await TestBed.inject(PhotoKeeperDb).persisted()).toBe(false);
+    });
+
+    it('carries on where the api is absent altogether', async () => {
+      withStorageManager(undefined);
+
+      expect(await TestBed.inject(PhotoKeeperDb).persisted()).toBe(false);
+    });
+  });
 });

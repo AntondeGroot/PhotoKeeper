@@ -29,13 +29,16 @@
     <div class="status" [class.show]="noticeVisible()">
       @switch (state()) {
         @case ('offline') {
-          <!-- Lightroom / sync unreachable: soft, never blocks the device-only flow. -->
+          <!-- Lightroom unreachable. Said as a notice rather than a failure, because it is one: the
+               deck, its previews and somewhere to put the verdicts are all already on the device. -->
           <div class="notice">
             <span class="dotwarn" style="background: var(--c-amber)"></span>
             <h2>Working offline</h2>
             <p>
-              Can't reach Lightroom or Keeper's sync right now. You can still sort and edit your
-              device photos — everything syncs when you're back online.
+              Can't reach Lightroom right now, so this is today's batch as it was last saved to this
+              phone. Sort away — your decisions are kept here and written back to Lightroom the next
+              time you're online. A photo whose preview hasn't been downloaded yet will have to
+              wait.
             </p>
             <button class="btn" (click)="continued.emit()">Continue</button>
             <button

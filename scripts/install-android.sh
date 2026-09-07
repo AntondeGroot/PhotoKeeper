@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
-# Builds the app and installs it on a connected Android device.
+# Builds the frontend, packages it into the APK, and installs that on a phone.
+#
+# Installing is not deploying, and this script exists because the two used to be
+# tangled. `./deploy.sh` publishes the site and updates the Pi — it is how other
+# people get the app. This puts the code you have *right now* on a device, so a
+# change can be tried on real hardware before anyone else sees it.
+#
+# What lands on the phone is the code in this working copy. The APK carries the
+# frontend rather than loading the deployed site (see capacitor.config.ts), so a
+# frontend change needs nothing on the server — only the backend does, and that
+# still goes through ./deploy.sh before the phone can see it.
 #
 # The steps have to happen in order and each has a way of going wrong quietly,
-# which is what this script is really for:
+# which is the rest of what this script is for:
 #
 #   1. `cap sync` copies the *built* web bundle into android/. Skip it and Gradle
 #      happily packages whatever was copied last time, so you test a stale app
@@ -12,12 +22,6 @@
 #      rather than a toolchain one.
 #   3. adb is not on the PATH from a normal shell, and a phone can be attached
 #      without being usable — unauthorized, or still asleep.
-#
-# Note on what the APK actually renders: capacitor.config.ts sets `server.url`
-# to the deployed site, so the installed app loads https://antondegroot.uk/
-# photokeeper rather than the bundle inside the APK. Changing the frontend only
-# needs `./deploy.sh` — reinstall only when the *native* shell changes (app id,
-# name, icon, plugins, Capacitor version).
 #
 # Usage:
 #   npm run android:install                  # build, then install
@@ -86,7 +90,12 @@ if [[ "${1:-}" == "--skip-build" ]]; then
   [[ -f "$APK" ]] || fail "no APK at $APK — run without --skip-build first"
   echo "→ using the existing APK"
 else
+  # Built with `--base-href /` (see build:mobile): the app serves its bundle from
+  # the root of its own origin, while the deployed website lives under
+  # /photokeeper/. Built with the website's prefix, every asset here resolves to
+  # a path nothing serves and the app opens to a blank screen.
   echo "→ building the web app and syncing it into android/"
+  echo "  (this build is what runs; api/... calls go to the deployed backend)"
   npm run cap:sync
 
   echo "→ building the APK with JDK $REQUIRED_JDK"
@@ -110,4 +119,4 @@ fi
 echo "→ installing on $SERIAL"
 "$ADB" -s "$SERIAL" install -r "$APK"
 
-printf '\nInstalled. Open PhotoKeeper on the phone.\n'
+printf '\nInstalled. Open PhotoKeeper on the phone — it is running your local build.\n'

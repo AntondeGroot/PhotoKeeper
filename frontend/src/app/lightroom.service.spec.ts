@@ -1,7 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse, provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { isAuthFailure, LightroomService, loginHrefUnder } from './lightroom.service';
+import {
+  isAuthFailure,
+  isBundledApp,
+  isOffline,
+  LightroomService,
+  loginHrefUnder,
+} from './lightroom.service';
 
 const ACCESS_KEY = 'lr-access-token';
 const REFRESH_KEY = 'lr-refresh-token';
@@ -119,6 +125,81 @@ describe('LightroomService', () => {
       expect(loginHrefUnder('https://antondegroot.uk/photokeeper/', SHELL_UA)).toBe(
         'https://antondegroot.uk/photokeeper/api/auth/login?client=app',
       );
+    });
+  });
+
+  /**
+   * Whether this page is the app or the website. The app carries the frontend inside the APK, so it
+   * shares no origin with the backend and its calls have to be aimed at the Pi explicitly; the
+   * website is served by the backend and resolves them against itself.
+   */
+  describe('isBundledApp', () => {
+    const BROWSER_UA = 'Mozilla/5.0 (Linux; Android 15) Chrome/150.0.0.0 Mobile Safari/537.36';
+    const SHELL_UA = `${BROWSER_UA} PhotoKeeperApp`;
+
+    it('recognises the app serving its own bundle', () => {
+      expect(isBundledApp('https://photokeeper/', SHELL_UA)).toBe(true);
+    });
+
+    it('does not for the website, which the backend serves itself', () => {
+      expect(isBundledApp('https://antondegroot.uk/photokeeper/', SHELL_UA)).toBe(false);
+      expect(isBundledApp('http://localhost:6200/', BROWSER_UA)).toBe(false); // ng serve
+    });
+
+    /**
+     * Both halves are required. The origin is the real signal — nothing else is served from
+     * `https://photokeeper` — and the user agent is the check that it is genuinely the shell, so a
+     * page that merely arrived at that origin some other way cannot redirect the app's API calls.
+     */
+    it('does not on the right origin without the shell that goes with it', () => {
+      expect(isBundledApp('https://photokeeper/', BROWSER_UA)).toBe(false);
+    });
+
+    /** Matched as a whole origin, so a host that merely begins the same way is not mistaken for it. */
+    it('does not for a host that only begins with the app’s name', () => {
+      expect(isBundledApp('https://photokeeper.example.test/', SHELL_UA)).toBe(false);
+    });
+  });
+
+  /**
+   * Being unable to reach the backend is not the same as being turned away by it, and the app leans
+   * on the difference: one is a notice over a session that still works, the other is a sign-in.
+   */
+  describe('offline', () => {
+    it('reads a request that got no answer at all as offline', () => {
+      expect(isOffline(new HttpErrorResponse({ status: 0 }))).toBe(true);
+    });
+
+    it('does not read a refusal as offline — the backend answered', () => {
+      expect(isOffline(new HttpErrorResponse({ status: 401 }))).toBe(false);
+      expect(isOffline(new HttpErrorResponse({ status: 502 }))).toBe(false);
+    });
+
+    it('carries on with the stored catalog when the backend cannot be reached', () => {
+      localStorage.setItem('lr-catalog-id', 'cat-1');
+
+      expect(service.resumeOffline(new HttpErrorResponse({ status: 0 }))).toBe(true);
+      expect(service.offline()).toBe(true);
+      expect(service.connected()).toBe(true);
+    });
+
+    /**
+     * The catalog id is what every later call is addressed with, and it is only cached once a
+     * connection has succeeded. Without one there is nothing stored to work from, so the failure has
+     * to be reported rather than papered over.
+     */
+    it('refuses to go offline on a device that never finished connecting', () => {
+      localStorage.removeItem('lr-catalog-id');
+
+      expect(service.resumeOffline(new HttpErrorResponse({ status: 0 }))).toBe(false);
+      expect(service.offline()).toBe(false);
+    });
+
+    it('never goes offline on a rejected session — that needs a sign-in, not a notice', () => {
+      localStorage.setItem('lr-catalog-id', 'cat-1');
+
+      expect(service.resumeOffline(new HttpErrorResponse({ status: 401 }))).toBe(false);
+      expect(service.offline()).toBe(false);
     });
   });
 
