@@ -265,6 +265,40 @@ describe('ReviewDecisionsService', () => {
       expect(photos()[index()].id).toBe('a');
     });
 
+    /**
+     * "Done editing" is a decision like any other, and a mis-tap on it is the reason it also has a
+     * confirm step. Undo is the way back once the confirm has been passed.
+     */
+    it('takes back a Done editing, putting the photo into the edit queue again', async () => {
+      photos.set([photo('a', 'toEdit'), photo('b')]);
+      // A photo in the edit queue has been decided, so it has a stored verdict to restore.
+      stored.set('a', { status: 'toEdit', starred: false, saveOnly: false });
+      service.promoteToPrint('a');
+      await Promise.resolve();
+      expect(photos()[0].status).toBe('toPrint');
+
+      await service.undo(service.recentDecisions()[0]);
+
+      expect(photos()[0].status).toBe('toEdit');
+      expect(stored.get('a')).toEqual({ status: 'toEdit', starred: false, saveOnly: false });
+    });
+
+    /**
+     * Chosen from a list, so it goes back where it was. Moving it to the cursor would reorder the
+     * review deck as a side effect of undoing something done on another tab entirely.
+     */
+    it('leaves the review deck in its order when it does', async () => {
+      photos.set([photo('a'), photo('b', 'toEdit'), photo('c')]);
+      index.set(2);
+      service.promoteToPrint('b');
+      await Promise.resolve();
+
+      await service.undo(service.recentDecisions()[0]);
+
+      expect(photos().map((p) => p.id)).toEqual(['a', 'b', 'c']);
+      expect(index()).toBe(2);
+    });
+
     it('ignores an entry that has already been taken back', async () => {
       service.decide('kept');
       await Promise.resolve();

@@ -127,3 +127,45 @@
     background: rgba(127, 168, 160, 0.12);
   }
 }
+
+// Set apart from the per-photo actions: it asks about the whole queue, not about one row.
+.check-edits {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-dim);
+  font-size: 13px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+// The confirm step. Deliberately a different control in a different place from the button that
+// opened it: the same button twice would be satisfied by an accidental double-tap.
+.confirm-done {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.edit-done-btn.commit {
+  background: rgba(127, 168, 160, 0.16);
+  font-weight: 600;
+}
+
+.cancel-done {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font-size: 11px;
+  color: var(--c-dim);
+  cursor: pointer;
+  text-decoration: underline;
+}

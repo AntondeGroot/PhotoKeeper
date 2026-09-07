@@ -6,17 +6,20 @@ import {
   Output,
   ChangeDetectionStrategy,
   inject,
+  signal,
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { Photo } from '../../photo';
 import { SceneComponent } from '../scene/scene';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
+import { EditDetectionService } from '../edit-detection.service';
+import { EditCheckComponent } from '../edit-check/edit-check';
 import { KEEPER_EDIT_ALBUM, lightroomAlbumUrl } from '../../keeper-albums';
 
 @Component({
   selector: 'app-review-edit',
   templateUrl: './review-edit.html',
-  imports: [SceneComponent],
+  imports: [EditCheckComponent, SceneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './review-edit.scss',
 })
@@ -29,6 +32,37 @@ export class ReviewEditComponent implements OnInit {
   @Input() editDone: boolean = false;
   /** Retained so a "mark edited → print" affordance can be re-added; the Edit list is open-only for now. */
   @Output() promoted = new EventEmitter<string>();
+
+  // Hosted here rather than in the app shell: the check is about this queue, and the shell is at its
+  // line cap for good reason.
+  protected readonly detection = inject(EditDetectionService);
+
+  /** Ask which of the queued photos have actually been worked on since they were sent. */
+  checkForEdits(): void {
+    void this.detection.check();
+  }
+
+  /**
+   * The photo whose "Done editing" is awaiting confirmation, if any.
+   *
+   * Two steps, because the button sits in a list next to a link and a mis-tap would send the wrong
+   * photo out of the queue. Confirming is a *different* control in a different place rather than the
+   * same button again, so a stray double-tap cannot carry straight through it.
+   */
+  readonly confirming = signal<string | null>(null);
+
+  askDone(photoId: string): void {
+    this.confirming.set(photoId);
+  }
+
+  cancelDone(): void {
+    this.confirming.set(null);
+  }
+
+  confirmDone(photoId: string): void {
+    this.confirming.set(null);
+    this.promoted.emit(photoId);
+  }
 
   private readonly albums = inject(KeeperAlbumsService);
 

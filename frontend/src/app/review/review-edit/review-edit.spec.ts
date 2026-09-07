@@ -95,7 +95,11 @@ describe('ReviewEditComponent', () => {
    * it, so a photo stayed 'toEdit' for ever — which also kept its album off the Prints tab, since
    * that counts a to-edit photo as unfinished.
    */
-  it('emits the photo when its Done editing button is pressed', async () => {
+  /**
+   * Two steps, because the button sits in a list beside a link: a mis-tap would send the wrong photo
+   * out of the queue, and the queue's exit is one-way as far as the Edit tab is concerned.
+   */
+  it('asks before sending a photo out of the queue', async () => {
     await render('al-9');
     fixture.componentRef.setInput('queue', [photo('IMG_1'), photo('IMG_2')]);
     fixture.detectChanges();
@@ -103,8 +107,40 @@ describe('ReviewEditComponent', () => {
     fixture.componentInstance.promoted.subscribe((id: string) => (promoted = id));
 
     root.querySelectorAll<HTMLButtonElement>('.edit-done-btn')[1].click();
+    fixture.detectChanges();
+
+    expect(promoted).toBeNull(); // asked, not done
+    expect(root.querySelector('.confirm-done')).not.toBeNull();
+  });
+
+  it('emits the photo once the confirm is pressed', async () => {
+    await render('al-9');
+    fixture.componentRef.setInput('queue', [photo('IMG_1'), photo('IMG_2')]);
+    fixture.detectChanges();
+    let promoted: string | null = null;
+    fixture.componentInstance.promoted.subscribe((id: string) => (promoted = id));
+
+    root.querySelectorAll<HTMLButtonElement>('.edit-done-btn')[1].click();
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('.edit-done-btn.commit')?.click();
 
     expect(promoted).toBe('IMG_2');
+  });
+
+  /** The whole point: the way out of an accidental tap has to be easier than the way through it. */
+  it('sends nothing when the ask is cancelled', async () => {
+    await render('al-9');
+    let promoted: string | null = null;
+    fixture.componentInstance.promoted.subscribe((id: string) => (promoted = id));
+
+    root.querySelector<HTMLButtonElement>('.edit-done-btn')?.click();
+    fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('.cancel-done')?.click();
+    fixture.detectChanges();
+
+    expect(promoted).toBeNull();
+    expect(root.querySelector('.confirm-done')).toBeNull();
+    expect(root.querySelector('.edit-done-btn')).not.toBeNull();
   });
 
   it('still offers the Lightroom link beside it — you edit there, then say so here', async () => {

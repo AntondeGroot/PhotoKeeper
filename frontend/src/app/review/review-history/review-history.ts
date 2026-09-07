@@ -17,6 +17,7 @@ const OUTCOMES: Record<DecisionOutcome, { label: string; tone: string }> = {
   rejected: { label: 'Rejected', tone: 'reject' },
   toEdit: { label: 'To edit', tone: 'print' },
   maybe: { label: 'Maybe', tone: 'maybe' },
+  toPrint: { label: 'Done editing', tone: 'print' },
   skipped: { label: 'Skipped', tone: 'dim' },
 };
 

@@ -29,7 +29,9 @@ const USAGE_GROUPS: TypedGroupSpec[] = [
   {
     group: 'work',
     title: 'Your decisions',
-    detail: 'Verdicts, tags, album marks, print orders, and what has reached Lightroom.',
+    detail:
+      'Verdicts, tags, album marks, print orders, what has reached Lightroom, and what your ' +
+      'photos looked like before you edited them.',
     rebuildable: false,
     stores: [
       'verdicts',
@@ -38,6 +40,7 @@ const USAGE_GROUPS: TypedGroupSpec[] = [
       'albumPrint',
       'printBins',
       'keeperFiling',
+      'editBaseline',
       'albumTags',
       'groupOverrides',
       'groupReclass',

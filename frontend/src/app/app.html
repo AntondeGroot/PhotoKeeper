@@ -158,6 +158,15 @@
               </button>
             }
           </div>
+          <!-- Above the mode switch: decisions are made in Sort and in Edit, and a mis-tap in
+               either wants the same way back. -->
+          @if (decisions.canUndo()) {
+            <div class="undo-bar">
+              <button class="undo-btn" (click)="decisions.openUndoList()">
+                ↩ Recent decisions ({{ decisions.recentDecisions().length }})
+              </button>
+            </div>
+          }
           @if (reviewMode() === 'sort') {
             @if (feed.nothingToReview()) {
               <div class="session-done">
@@ -170,13 +179,6 @@
               </div>
             } @else if (!stats.sessionDone()) {
               <app-review-album-tags [album]="currentReviewPhoto().album" />
-              @if (decisions.canUndo()) {
-                <div class="undo-bar">
-                  <button class="undo-btn" (click)="decisions.openUndoList()">
-                    ↩ Recent decisions ({{ decisions.recentDecisions().length }})
-                  </button>
-                </div>
-              }
               @switch (currentReviewPhoto().kind) {
                 @case ('photo') {
                   <app-review-sort
