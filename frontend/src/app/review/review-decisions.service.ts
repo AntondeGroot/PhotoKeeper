@@ -109,8 +109,14 @@ export class ReviewDecisionsService {
   readonly streakMetToday = this.streak.metToday;
   /** Days a freeze covered on the way in, and the acknowledgement that clears the notice. */
   readonly freezesJustUsed = this.streak.freezesJustUsed;
-  /** How many edits were promoted to print this session (drives the edit progress bar). */
-  readonly editedToday = signal(0);
+  /**
+   * How many photos have been promoted to print today — the Edit pass's progress against its goal.
+   *
+   * The day's tally rather than this session's, for the same reason the tag count is: it was a
+   * counter here, starting at zero every time the app was opened, while the streak read the
+   * persisted one. The bar said 0 of 5 to someone who had already done four.
+   */
+  readonly editedToday = this.progress.edits;
 
   private isAuthenticated: () => boolean = () => false;
 
@@ -389,7 +395,6 @@ export class ReviewDecisionsService {
   promoteToPrint(id: string): void {
     this.setStatus(id, 'toPrint');
     void this.persistVerdict(id);
-    this.editedToday.update((n) => n + 1);
     this.progress.recordEdit();
   }
 

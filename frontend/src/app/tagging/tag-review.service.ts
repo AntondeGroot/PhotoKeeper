@@ -91,12 +91,17 @@ export class TagReviewService {
   });
 
   /**
-   * Photos labelled in this sitting — the Tag-mode progress against the tagging goal.
+   * Photos labelled today — the Tag-mode progress against the tagging goal.
    *
-   * Counted as it happens rather than derived from the pool, because the pool is now *untagged*
-   * keepers: anything already labelled has been excluded from it, so there is nothing left to count.
+   * The day's tally rather than this sitting's. It was a counter here, zeroed by {@link load}, which
+   * runs every time Tag mode is entered: leaving the tab and coming back showed 0 again, while the
+   * streak — which reads this same persisted tally — already knew about the ones just done. Two
+   * numbers for one fact, and the one on screen was the wrong one.
+   *
+   * Not derived from the pool, which is *untagged* keepers: anything labelled has left it, so there
+   * is nothing there to count.
    */
-  readonly taggedCount = signal(0);
+  readonly taggedCount = this.progress.tags;
 
   readonly progressPercent = computed(() =>
     Math.min(100, (this.taggedCount() / this.prefs.tagGoal()) * 100),
@@ -118,7 +123,6 @@ export class TagReviewService {
     this.candidates = await this.untaggedKeepers().catch(() => []);
     this.taggablePhotos.set(this.candidates.slice(0, this.prefs.tagGoal()));
     this.cursor.set(0);
-    this.taggedCount.set(0);
     this.canLoadMore.set(this.candidates.length > this.taggablePhotos().length);
     await this.warmAround(0);
   }
@@ -178,7 +182,6 @@ export class TagReviewService {
     const wasUntagged = !this.tagState.tagsFor(photo.id).length;
     this.tagState.apply(photo.id, tagId);
     if (wasUntagged) {
-      this.taggedCount.update((n) => n + 1);
       this.progress.recordTag();
     }
     this.next();
@@ -209,7 +212,6 @@ export class TagReviewService {
     const wasUntagged = !this.tagState.tagsFor(photo.id).length;
     this.tagState.toggle(photo.id, tagId);
     if (wasUntagged && this.tagState.tagsFor(photo.id).length) {
-      this.taggedCount.update((n) => n + 1);
       this.progress.recordTag();
     }
   }

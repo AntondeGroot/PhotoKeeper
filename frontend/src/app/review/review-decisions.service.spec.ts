@@ -7,6 +7,7 @@ import { ReviewStore } from '../storage/review/review-store';
 import { GroupOverrideStore } from '../storage/detection/group-override-store';
 import { BackgroundScanService } from '../detection/scan/background-scan.service';
 import { PreferencesService } from '../preferences.service';
+import { DailyProgressService } from './daily-progress.service';
 import { Burst, Pano, Photo, ReviewItem } from '../photo';
 import { StoredVerdict } from '../storage/photokeeper-db';
 
@@ -69,6 +70,9 @@ describe('ReviewDecisionsService', () => {
     memberships = [];
     refillCalls = 0;
     localStorage.removeItem('celebratedGoal');
+    // The edit and tag tallies are the day's now, and persisted, so they carry between tests the
+    // same way they carry between sittings.
+    localStorage.removeItem('daily-progress');
 
     const feed = {
       photos,
@@ -272,6 +276,22 @@ describe('ReviewDecisionsService', () => {
       expect(photos()[0].status).toBe('backlog');
       expect(service.recentDecisions()).toEqual([]);
     });
+  });
+
+  /**
+   * The Edit bar counts the day, not the session. It was a counter on this service, starting at zero
+   * every launch, while the streak read the persisted tally — so the bar told someone who had
+   * already promoted four photos that they had done none.
+   */
+  it('counts edits against the day, not the session', () => {
+    photos.set([photo('a', 'toEdit'), photo('b', 'toEdit')]);
+
+    service.promoteToPrint('a');
+    service.promoteToPrint('b');
+
+    expect(service.editedToday()).toBe(2);
+    // A fresh service on the same day sees the same total, which is the whole point.
+    expect(TestBed.inject(DailyProgressService).edits()).toBe(2);
   });
 
   it('toggleStar() flips the star without advancing', () => {
