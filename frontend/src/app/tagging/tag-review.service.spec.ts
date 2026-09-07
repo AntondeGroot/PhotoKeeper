@@ -42,6 +42,9 @@ describe('TagReviewService', () => {
       { id: 'b', status: 'kept', taken: '2026-01-02' },
       { id: 'c', status: 'kept', taken: '2026-01-01' },
     ];
+    // The tag tally is now the day's, persisted, so it survives between tests as it does between
+    // sittings. Cleared here so each test starts from a known count.
+    localStorage.removeItem('daily-progress');
     tagDirections = signal<TagDirections>({ ...DEFAULT_TAG_DIRECTIONS });
     assignments = signal(new Map<string, string[]>());
     applied = [];
@@ -223,7 +226,7 @@ describe('TagReviewService', () => {
     expect(toggled).toEqual([{ assetId: 'a', tagId: 't1' }]);
   });
 
-  it('taggedCount + progressPercent count what this sitting has labelled', () => {
+  it('taggedCount + progressPercent count what the day has labelled', () => {
     tagDirections.set({ up: 't1' });
     expect(service.taggedCount()).toBe(0);
 
@@ -233,5 +236,20 @@ describe('TagReviewService', () => {
 
     service.swipe('up'); // goal met, clamped at 100
     expect(service.progressPercent()).toBe(100);
+  });
+
+  /**
+   * The bug this replaced. Entering Tag mode rebuilds the pass, and the count used to be rebuilt
+   * with it — so leaving for another tab and coming back said 0 again, while the streak, reading the
+   * same day's persisted tally, already knew about the ones just done.
+   */
+  it('keeps the day’s count when the pass is entered again', async () => {
+    tagDirections.set({ up: 't1' });
+    service.swipe('up');
+    expect(service.taggedCount()).toBe(1);
+
+    await service.load(); // what switching to another tab and back does
+
+    expect(service.taggedCount()).toBe(1);
   });
 });
