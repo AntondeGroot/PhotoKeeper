@@ -21,9 +21,14 @@
           <span class="item-name">{{ photo.name }}{{ photo.ext ? '.' + photo.ext : '' }}</span>
           <span class="item-album">{{ photo.album || 'No album' }}</span>
         </div>
-        <a class="open-lr" [href]="lightroomUrl(photo)" target="_blank" rel="noopener">
-          Open in Lightroom
-        </a>
+        <div class="edit-actions">
+          <a class="open-lr" [href]="lightroomUrl(photo)" target="_blank" rel="noopener">
+            Open in Lightroom
+          </a>
+          <!-- The queue's only exit. Without it a photo stays 'toEdit' for good, and an album
+               holding one can never reach the Prints tab, which counts it as unfinished. -->
+          <button class="edit-done-btn" (click)="promoted.emit(photo.id)">Done editing</button>
+        </div>
       </div>
     }
   </div>

@@ -44,12 +44,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleUpstreamError(RestClientResponseException e) {
         log.error("Upstream API error {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
         // An upstream 401 means the access token expired/was revoked. Surface it as a 401 so the
-        // device's interceptor can refresh and retry; any other upstream failure is a 502.
+        // device's interceptor can refresh and retry.
         if (e.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Upstream rejected the access token"));
         }
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+        // 424, not 502, and the difference is the whole reason this comment exists.
+        //
+        // 502 is the honest description — this *is* a gateway whose upstream failed — but the CDN in
+        // front of it reads an origin 502 as the origin being broken and replaces the response with
+        // its own error page. That page carries no CORS headers, so to the Android app, which is
+        // cross-origin, the whole thing arrives as an opaque "Failed to fetch" with no status at all:
+        // indistinguishable from having no network, and reported to the user as being offline.
+        //
+        // FAILED_DEPENDENCY says the same thing about a request that depended on another service, and
+        // is passed through untouched. See CorsConfig for the other half of why the app can read it.
+        return ResponseEntity.status(HttpStatus.FAILED_DEPENDENCY).body(Map.of(
                 "error", "Upstream API error",
                 "status", e.getStatusCode().toString(),
                 "detail", e.getResponseBodyAsString()

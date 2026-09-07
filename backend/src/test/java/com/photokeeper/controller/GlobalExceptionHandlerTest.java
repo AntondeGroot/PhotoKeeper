@@ -34,8 +34,8 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void rejectedRefreshTokenMapsToUnauthorisedRatherThanBadGateway() {
-        // The device only lets go of a session on a 401. Reaching it as the 502 that every other
+    void rejectedRefreshTokenMapsToUnauthorisedRatherThanFailedDependency() {
+        // The device only lets go of a session on a 401. Reaching it as the 424 that every other
         // upstream problem gets would leave a dead session retrying forever, never prompting.
         ResponseEntity<?> response =
                 handler.handleRefreshRejected(new RefreshTokenRejectedException("spent"));
@@ -44,14 +44,20 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isEqualTo(Map.of("error", "Refresh token rejected"));
     }
 
+    /**
+     * 424 rather than the 502 this once was. 502 describes it accurately, but the CDN in front of the
+     * backend treats an origin 502 as the origin being broken and substitutes its own error page —
+     * which carries no CORS headers, so the cross-origin Android app receives an opaque failure with
+     * no status, indistinguishable from having no network at all.
+     */
     @Test
-    void upstreamErrorMapsToBadGatewayWithDetail() {
+    void upstreamErrorMapsToFailedDependencyWithDetail() {
         RestClientResponseException upstream = new RestClientResponseException(
                 "failed", HttpStatus.NOT_FOUND, "Not Found", null, "boom".getBytes(StandardCharsets.UTF_8), null);
 
         ResponseEntity<?> response = handler.handleUpstreamError(upstream);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FAILED_DEPENDENCY);
         assertThat(response.getBody())
                 .isEqualTo(Map.of("error", "Upstream API error", "status", "404 NOT_FOUND", "detail", "boom"));
     }

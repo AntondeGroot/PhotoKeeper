@@ -122,6 +122,23 @@ export function isOffline(err: unknown): boolean {
   return err instanceof HttpErrorResponse && err.status === 0;
 }
 
+/**
+ * Whether the backend answered, but only to say that Lightroom did not.
+ *
+ * 424 is what the backend returns when its call to Adobe fails (see GlobalExceptionHandler). It is
+ * deliberately not a gateway status: the CDN substitutes its own page for an origin 502, and that
+ * page has no CORS headers, so the app used to receive nothing but an opaque failure — which looks
+ * exactly like having no network, and was reported to the user as being offline.
+ */
+export function isUpstreamFailure(err: unknown): boolean {
+  return err instanceof HttpErrorResponse && err.status === 424;
+}
+
+/** Whether Lightroom is out of reach right now, for either reason. */
+export function isUnreachable(err: unknown): boolean {
+  return isOffline(err) || isUpstreamFailure(err);
+}
+
 @Injectable({ providedIn: 'root' })
 export class LightroomService {
   private readonly http = inject(HttpClient);
@@ -152,6 +169,15 @@ export class LightroomService {
    */
   readonly offline = signal(false);
 
+  /**
+   * Why the catalogue is out of reach, for the notice to say something true.
+   *
+   * 'device' is a dead network; 'lightroom' is a backend that answered to report Adobe failing. The
+   * app does the same thing either way; telling someone to check their connection when the
+   * connection is fine just sends them to their Wi-Fi settings for nothing.
+   */
+  readonly offlineReason = signal<'device' | 'lightroom'>('device');
+
   constructor() {
     // Coming back out of the tunnel. Without this the notice outlives the condition — the app would
     // go on saying it was offline until it was next launched, while every call was working again.
@@ -161,14 +187,19 @@ export class LightroomService {
   }
 
   /**
-   * Whether the app can carry on offline with what it has, given the failure that just happened.
+   * Whether the app can carry on with what it has, given the failure that just happened.
+   *
+   * Either reason counts. A dead network and a Lightroom that is refusing to answer are the same
+   * situation from here — the catalogue is out of reach — and the same answer serves both: work from
+   * what is on the device. Only the wording differs, and {@link offlineReason} carries that.
    *
    * Requires the catalog id, which every later call is addressed with. It is cached on the first
    * successful load, so this is really asking "has this device ever finished connecting?" — and if
    * it has not, there is nothing stored to work from and the failure has to be reported.
    */
   resumeOffline(err: unknown): boolean {
-    if (isAuthFailure(err) || !isOffline(err) || !this.getCatalogId()) return false;
+    if (isAuthFailure(err) || !isUnreachable(err) || !this.getCatalogId()) return false;
+    this.offlineReason.set(isUpstreamFailure(err) ? 'lightroom' : 'device');
     this.offline.set(true);
     this.connected.set(true);
     return true;

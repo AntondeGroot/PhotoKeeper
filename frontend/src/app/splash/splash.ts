@@ -12,6 +12,9 @@ import {
 /** What the splash is communicating while the app boots. */
 export type SplashState = 'normal' | 'offline' | 'update' | 'forced';
 
+/** Why the catalogue is out of reach — the notice says something different for each. */
+export type OfflineReason = 'device' | 'lightroom';
+
 /** How long the developed wordmark holds before a non-normal state reveals its notice. */
 const NOTICE_DELAY_MS = 1150;
 
@@ -31,6 +34,8 @@ export class SplashComponent {
   readonly state = input<SplashState>('normal');
 
   /** Dismiss a non-blocking notice and proceed into the app (offline Continue / update Later). */
+  /** Which way the notice is phrased; ignored unless the state is 'offline'. */
+  readonly offlineReason = input<OfflineReason>('device');
   @Output() continued = new EventEmitter<void>();
   /** The user chose to update — the host opens the store / triggers the update. */
   @Output() updateRequested = new EventEmitter<void>();

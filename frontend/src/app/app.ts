@@ -87,7 +87,9 @@ const SPLASH_MIN_MS = 1800;
   styleUrl: './app.scss',
 })
 export class AppComponent implements OnInit, OnDestroy {
-  private readonly svc = inject(LightroomService);
+  // protected: the splash reads offlineReason straight off the service, rather than through a
+  // wrapper here that would only forward it.
+  protected readonly svc = inject(LightroomService);
   private readonly previews = inject(PreviewCacheService);
   readonly feed = inject(ReviewFeedService); // public: the template reads feed.todayLabel
   // public: the header's date line reads day.label, and it must follow the day turning over

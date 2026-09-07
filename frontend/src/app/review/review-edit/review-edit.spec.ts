@@ -88,4 +88,29 @@ describe('ReviewEditComponent', () => {
       'https://lightroom.adobe.com/libraries/cat-1/search/assets/IMG_1?q=IMG_1.CR2',
     );
   });
+
+  /**
+   * The queue's only exit, and it was missing: the button was dropped when the Lightroom links were
+   * added (#158) while its @Output, the host binding and promoteToPrint all stayed. Nothing emitted
+   * it, so a photo stayed 'toEdit' for ever — which also kept its album off the Prints tab, since
+   * that counts a to-edit photo as unfinished.
+   */
+  it('emits the photo when its Done editing button is pressed', async () => {
+    await render('al-9');
+    fixture.componentRef.setInput('queue', [photo('IMG_1'), photo('IMG_2')]);
+    fixture.detectChanges();
+    let promoted: string | null = null;
+    fixture.componentInstance.promoted.subscribe((id: string) => (promoted = id));
+
+    root.querySelectorAll<HTMLButtonElement>('.edit-done-btn')[1].click();
+
+    expect(promoted).toBe('IMG_2');
+  });
+
+  it('still offers the Lightroom link beside it — you edit there, then say so here', async () => {
+    await render('al-9');
+
+    expect(root.querySelector('.open-lr')).not.toBeNull();
+    expect(root.querySelector('.edit-done-btn')).not.toBeNull();
+  });
 });

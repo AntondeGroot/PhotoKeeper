@@ -20,6 +20,7 @@
       [state]="splashState()"
       (continued)="continueFromSplash()"
       (updateRequested)="requestSplashUpdate()"
+      [offlineReason]="svc.offlineReason()"
     />
   } @else if (labMode() && authenticated()) {
     <app-detection-lab />

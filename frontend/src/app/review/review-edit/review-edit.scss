@@ -104,3 +104,26 @@
     background: rgba(229, 160, 69, 0.16);
   }
 }
+
+// The two things you do to a photo in the queue, side by side: go and edit it, and say you have.
+.edit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.edit-done-btn {
+  background: none;
+  border: 1px solid var(--c-print);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--c-print);
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(127, 168, 160, 0.12);
+  }
+}
