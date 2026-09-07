@@ -296,8 +296,8 @@
       [images]="imgs"
       [startIndex]="fullscreenStartIndex()"
       [reviewMode]="fullscreenReviewMode()"
-      (verdict)="fullscreenVerdict($event)"
-      (closed)="closeFullscreen()"
+      (verdict)="viewer.verdict($event)"
+      (closed)="viewer.close()"
     />
   }
 

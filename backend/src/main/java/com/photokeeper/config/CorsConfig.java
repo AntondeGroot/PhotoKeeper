@@ -30,6 +30,17 @@ public class CorsConfig implements WebMvcConfigurer {
     /** Where {@code ng serve} runs (see frontend/angular.json) — genuinely cross-origin in dev. */
     private static final String DEV_ORIGIN = "http://localhost:6200";
 
+    /**
+     * The origin the Android app serves its own bundle from — {@code server.hostname} in
+     * capacitor.config.ts, and the two have to be changed together.
+     *
+     * The app carries the frontend inside the APK rather than loading the website, so it has no
+     * origin in common with this backend and every {@code api/**} call it makes is cross-origin.
+     * Without this the request is refused with a 403 before any controller sees it, which on the
+     * device is indistinguishable from having been logged out.
+     */
+    private static final String ANDROID_ORIGIN = "https://photokeeper";
+
     private final String frontendUrl;
 
     /**
@@ -53,15 +64,16 @@ public class CorsConfig implements WebMvcConfigurer {
     }
 
     /**
-     * The dev server, plus wherever this deployment serves the app from.
+     * The dev server and the Android app's own origin, plus wherever this deployment serves the app.
      *
-     * <p>Taken from {@code adobe.frontend-url} rather than listed separately: that is already the
-     * one place each environment says where its frontend lives, and a second list to keep in step
-     * is a second list to forget. A set, because in dev the two are the same value.
+     * <p>The last is taken from {@code adobe.frontend-url} rather than listed separately: that is
+     * already the one place each environment says where its frontend lives, and a second list to
+     * keep in step is a second list to forget. A set, because in dev the two are the same value.
      */
     private Set<String> allowedOrigins() {
         Set<String> origins = new LinkedHashSet<>();
         origins.add(DEV_ORIGIN);
+        origins.add(ANDROID_ORIGIN);
         String frontendOrigin = originOf(frontendUrl);
         if (frontendOrigin != null) {
             origins.add(frontendOrigin);

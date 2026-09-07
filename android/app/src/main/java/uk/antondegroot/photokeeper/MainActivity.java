@@ -18,8 +18,11 @@ import com.getcapacitor.BridgeActivity;
  * <p>So the backend, told by {@code ?client=app} that the request came from here, finishes the flow
  * by redirecting to {@code photokeeper://auth#access_token=...} instead of to the website. Android
  * matches that scheme to the intent filter in AndroidManifest.xml, hands the URI here, and this
- * loads the deployed site with the same fragment — the shape the web app already reads its tokens
- * from, so no Angular code has to know any of this happened.
+ * reloads the app with the same fragment — the shape the web app already reads its tokens from, so
+ * no Angular code has to know any of this happened.
+ *
+ * <p>Asking the bridge where the app lives, rather than reading {@code server.url} from the config:
+ * the app has none, because it serves its own bundle.
  */
 public class MainActivity extends BridgeActivity {
 
@@ -33,6 +36,15 @@ public class MainActivity extends BridgeActivity {
      * during startup — which would not run again.
      */
     private static final String RELOAD_MARKER = "?authReturn=1#";
+
+    /**
+     * Says so on screen when the return leg arrives empty.
+     *
+     * The web app already renders {@code auth_error} as "Login failed", so the alternative — giving
+     * up quietly and leaving the user on the connect button — is the one outcome that looks
+     * identical to never having pressed it.
+     */
+    private static final String AUTH_ERROR_MARKER = "?auth_error=no_tokens_returned";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -55,22 +67,30 @@ public class MainActivity extends BridgeActivity {
         if (uri == null || !AUTH_HOST.equals(uri.getHost())) {
             return;
         }
+        // Announced before anything can go wrong with it, so a log says whether the browser handed
+        // the flow back at all. Every failure below used to be a silent return, which left "nothing
+        // happened" covering both "the app was never reopened" and "it was, and gave up here".
+        Log.i(TAG, "auth return received");
 
+        // getAppUrl, not the configured server URL: there is none. The app serves its own bundle
+        // (capacitor.config.ts sets no server.url), so reading the config found nothing and sign-in
+        // gave up here, silently, every time. getAppUrl answers where the app actually lives.
+        String appUrl = getBridge().getAppUrl();
+        if (appUrl == null || appUrl.isEmpty()) {
+            // The one failure with nowhere to report itself: there is no page to load the complaint
+            // into. The log is all there is.
+            Log.w(TAG, "no app URL available; cannot complete sign-in");
+            return;
+        }
+
+        // Tokens logged by presence, never by value: which half arrived is the whole diagnosis, and
+        // the tokens themselves have no business in logcat.
         String tokens = tokensFrom(uri);
-        if (tokens == null) {
-            // Logged without the values: knowing which half arrived is the whole diagnosis, and the
-            // tokens themselves have no business in logcat.
-            Log.w(TAG, "auth return carried neither a query nor a fragment");
-            return;
-        }
+        String target = tokens == null
+                ? withTrailingSlash(appUrl) + AUTH_ERROR_MARKER
+                : withTrailingSlash(appUrl) + RELOAD_MARKER + tokens;
+        Log.i(TAG, tokens == null ? "auth return carried no tokens" : "reloading app with tokens");
 
-        String serverUrl = getBridge().getConfig().getServerUrl();
-        if (serverUrl == null || serverUrl.isEmpty()) {
-            Log.w(TAG, "no server URL configured; cannot complete sign-in");
-            return;
-        }
-
-        String target = withTrailingSlash(serverUrl) + RELOAD_MARKER + tokens;
         WebView webView = getBridge().getWebView();
         webView.post(() -> webView.loadUrl(target));
     }

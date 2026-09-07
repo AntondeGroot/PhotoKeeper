@@ -99,7 +99,9 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly decisions = inject(ReviewDecisionsService);
   // public: the template reads its computeds directly (tallies, goal progress, edit queue)
   readonly stats = inject(ReviewStatsService);
-  private readonly viewer = inject(FullscreenViewerService);
+  // protected: the fullscreen viewer's own controls are wired straight to it from the template,
+  // rather than through wrappers here that only forwarded the call.
+  protected readonly viewer = inject(FullscreenViewerService);
   private readonly tagState = inject(TagState);
   // public: the template reads canLoadMore off it for the Tag-more affordance
   readonly tagReview = inject(TagReviewService);
@@ -305,8 +307,14 @@ export class AppComponent implements OnInit, OnDestroy {
       // Fetching the catalog id both caches it and validates the token (refreshing if expired).
       await firstValueFrom(this.svc.loadCatalogId());
     } catch (err) {
-      this.endSession(err, returningFromLogin);
-      return false;
+      // Unreachable is not disconnected: the deck, its previews and somewhere to write verdicts are
+      // all on the device already. Falling through to the device-photo deck here used to throw a
+      // perfectly good Lightroom session away the moment a train went into a tunnel.
+      if (!this.svc.resumeOffline(err)) {
+        this.endSession(err, returningFromLogin);
+        return false;
+      }
+      this.splashState.set('offline');
     }
     this.authenticated.set(true);
     this.connecting.set(false);
@@ -318,11 +326,13 @@ export class AppComponent implements OnInit, OnDestroy {
     // credentials, so a backend still coming back up must not cost the Lightroom session.
     try {
       await this.loadPhotos();
-      await this.loadAlbums();
+      if (!this.svc.offline()) await this.loadAlbums();
     } catch {
       this.error.set('Could not load your photos — check your connection and try again.');
     }
-    void this.scan.run(this.authenticated); // populate detection stores for future sessions
+    // Skipped offline: it is a long run of network calls that can only fail, and the battery it
+    // would spend failing is the battery a session away from a charger is short of.
+    if (!this.svc.offline()) void this.scan.run(this.authenticated);
     return false;
   }
 
@@ -462,13 +472,6 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   /** A verdict from the viewer's buttons (delegated). */
-  fullscreenVerdict(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {
-    this.viewer.verdict(verdict);
-  }
-
-  closeFullscreen(): void {
-    this.viewer.close();
-  }
 
   /** Swipe verdict on the current unit (delegated to ReviewDecisionsService). */
   decide(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {

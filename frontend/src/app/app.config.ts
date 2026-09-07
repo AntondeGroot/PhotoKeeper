@@ -9,13 +9,16 @@ import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/ht
 
 import { routes } from './app.routes';
 import { authRefreshInterceptor } from './auth-refresh.interceptor';
+import { apiBaseInterceptor } from './api-base.interceptor';
 import { ReminderSchedulerService } from './notifications/reminder-scheduler.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(withXhr(), withInterceptors([authRefreshInterceptor])),
+    // apiBaseInterceptor first: it decides *where* a request goes, and the refresh interceptor
+    // retries requests, so the retry has to carry the corrected URL.
+    provideHttpClient(withXhr(), withInterceptors([apiBaseInterceptor, authRefreshInterceptor])),
     // Constructed for its side effect: it starts watching the reminder prefs and keeps the OS holding
     // the matching daily alarms. Nothing ever reads it back, so it needs a deliberate bootstrap rather
     // than an injection into a component that doesn't use it.

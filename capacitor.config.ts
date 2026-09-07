@@ -6,10 +6,10 @@ const config: CapacitorConfig = {
   appId: "uk.antondegroot.photokeeper",
   appName: "PhotoKeeper",
 
-  // Angular's production output, built with `--base-href /photokeeper/` so it
-  // matches the deployed site. `server.url` below means this bundle is not what
-  // actually renders — Capacitor simply requires webDir to exist, and this is
-  // what the app would fall back to the day the remote URL is dropped.
+  // Angular's production output, built with `--base-href /` because the app
+  // serves it from the root of its own origin. This *is* the app: what ships in
+  // the APK is what runs, which is why installing is a build step and not a
+  // download of whatever happens to be deployed.
   webDir: "frontend/dist/frontend/browser",
 
   android: {
@@ -27,20 +27,35 @@ const config: CapacitorConfig = {
   },
 
   server: {
-    // PhotoKeeper is not a self-contained web app: every `api/...` call is
-    // relative, and Adobe's OAuth callback redirects to the deployed frontend
-    // URL with the tokens in the hash. Loading the deployed site directly keeps
-    // both of those working unchanged — same origin for the API, and the
-    // redirect lands back inside the app instead of navigating out of it.
+    // The app's own hostname, and so its origin: https://photokeeper. Capacitor's
+    // default is `localhost`, which works but names the app after a convention of
+    // the web rather than after itself — and the origin is not an implementation
+    // detail: it is the key the engine files the app's whole database under, as
+    // app_webview/Default/IndexedDB/https_photokeeper_0.indexeddb.leveldb.
     //
-    // The cost is that the app needs the Pi to be reachable, and that a
-    // `./deploy.sh` is picked up without reinstalling the APK.
-    // Trailing slash on purpose: without it the request is answered by nginx's
-    // 301 to the canonical path, and a webview caches a 301 for a long time —
-    // one bad redirect (it briefly pointed at http://) then keeps breaking the
-    // app long after the server is fixed. Asking for the canonical URL directly
-    // sidesteps the whole redirect.
-    url: "https://antondegroot.uk/photokeeper/",
+    // Changing it later moves that storage, so it is worth being the name you
+    // want. It must also be listed in the backend's CorsConfig (ANDROID_ORIGIN),
+    // which is why a change here needs a ./deploy.sh before the app can reach the
+    // API again.
+    hostname: "photokeeper",
+
+    // No `url`, deliberately, and this is the decision the whole app shape rests
+    // on. Setting it would point the webview at the deployed site, which would
+    // make the app a viewer for whatever is on the Pi — a frontend change would
+    // arrive by `./deploy.sh` and the APK would be a shell. Instead the bundle
+    // above is the app, so `npm run android:install` puts the code you have
+    // right now on the phone, and it opens with no network at all.
+    //
+    // It cannot be had both ways. Capacitor's local server answers *every*
+    // request whose host matches the app's own (WebViewLocalServer.isMainUrl),
+    // so an app serving its own bundle can never share an origin with the
+    // backend — the api/... calls would come back as index.html. They are
+    // therefore addressed absolutely: see backendBaseUri and apiBaseInterceptor
+    // in the frontend, and ANDROID_ORIGIN in the backend's CorsConfig.
+    //
+    // The consequence worth knowing: the app's storage lives on
+    // https://photokeeper, which is its own origin and so its own IndexedDB. The
+    // website at antondegroot.uk keeps its own, separately.
     cleartext: false,
 
     // Capacitor keeps the webview on `url`'s host and hands anything else to the

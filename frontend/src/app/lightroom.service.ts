@@ -1,6 +1,6 @@
 import { Injectable, inject, isDevMode, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, map, tap } from 'rxjs';
+import { Observable, firstValueFrom, map, tap } from 'rxjs';
 import { PhotoAsset } from './lightroom-types';
 
 const ACCESS_KEY = 'lr-access-token';
@@ -36,9 +36,49 @@ export function loginHrefUnder(backendBaseUri: string, userAgent: string): strin
   return url.href;
 }
 
-/** Where the backend answers: its own origin under `ng serve`, otherwise wherever it serves the app. */
-function backendBaseUri(): string {
-  return isDevMode() ? `${DEV_BACKEND_ORIGIN}/` : document.baseURI;
+/**
+ * Where the backend answers for the Android app, which carries its own copy of the frontend.
+ *
+ * The app serves its pages from the device, so it shares no origin with the backend and cannot
+ * resolve `api/...` against the page the way the website does. It could only share one by giving up
+ * the bundle and loading the deployed site — which would make the app a viewer for whatever is on
+ * the Pi rather than the thing you just built. See capacitor.config.ts.
+ */
+const DEPLOYED_BACKEND_URI = 'https://antondegroot.uk/photokeeper/';
+
+/**
+ * The origin Capacitor serves the app from on Android — `server.hostname` in capacitor.config.ts.
+ *
+ * Recognising it is how one codebase tells "I am the app" from "I am the website" at runtime. A
+ * build-time flag would say it more directly, but it would have to be threaded through the Angular
+ * build and the Capacitor config to state something the page already knows about itself.
+ *
+ * Named rather than left at Capacitor's `localhost` default, because this string is also the key the
+ * engine files the app's database under — and because localhost is a claim about a server, which
+ * this is not.
+ */
+const BUNDLED_APP_ORIGIN = 'https://photokeeper';
+
+/** Whether this page is the copy inside the APK rather than the website served from the Pi. */
+export function isBundledApp(baseUri: string, userAgent: string): boolean {
+  return userAgent.includes(NATIVE_SHELL_UA) && baseUri.startsWith(`${BUNDLED_APP_ORIGIN}/`);
+}
+
+/**
+ * Where the backend answers: the Pi when this page is the app's own bundle, the backend's port under
+ * `ng serve`, and otherwise wherever this page is being served from — which for the website is the
+ * backend itself.
+ *
+ * Exported for {@link apiBaseInterceptor}, which is what applies it to the relative `api/...` paths
+ * every call in this file uses.
+ */
+export function backendBaseUri(): string {
+  // Asked before the dev-mode question, not after. `DEV_BACKEND_ORIGIN` is localhost, which means
+  // the machine running `ng serve` in a browser and the *phone itself* inside the app — so a bundled
+  // build that was not compiled for production would aim every call at a backend that is not there.
+  if (isBundledApp(document.baseURI, navigator.userAgent)) return DEPLOYED_BACKEND_URI;
+  if (isDevMode()) return `${DEV_BACKEND_ORIGIN}/`;
+  return document.baseURI;
 }
 
 /** Token set returned by the backend (device-stored). */
@@ -70,6 +110,18 @@ export function isAuthFailure(err: unknown): boolean {
   return err instanceof HttpErrorResponse && err.status === 401;
 }
 
+/**
+ * Whether a failure means the backend was never reached, as opposed to reached and refusing.
+ *
+ * Status 0 is what a browser reports for a request that got no answer at all — no network, the host
+ * unresolvable, nothing listening. It is the one failure the app can carry straight on through,
+ * because it says nothing about the session or the data: everything already on the device is still
+ * exactly as true as it was a second ago.
+ */
+export function isOffline(err: unknown): boolean {
+  return err instanceof HttpErrorResponse && err.status === 0;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LightroomService {
   private readonly http = inject(HttpClient);
@@ -90,6 +142,47 @@ export class LightroomService {
    * it. It used to be the host component's own flag, which an interceptor had no way to lower.
    */
   readonly connected = signal(false);
+
+  /**
+   * Running on what is already stored, because the backend cannot be reached.
+   *
+   * Not the same as disconnected, and the difference is the whole point: the session is fine, the
+   * deck is on the device and so are its previews, and a verdict has somewhere to go. Only the
+   * writing back to Lightroom has to wait, which the filing sweep was already built to do.
+   */
+  readonly offline = signal(false);
+
+  constructor() {
+    // Coming back out of the tunnel. Without this the notice outlives the condition — the app would
+    // go on saying it was offline until it was next launched, while every call was working again.
+    window.addEventListener('online', () => {
+      if (this.offline()) void this.recheck();
+    });
+  }
+
+  /**
+   * Whether the app can carry on offline with what it has, given the failure that just happened.
+   *
+   * Requires the catalog id, which every later call is addressed with. It is cached on the first
+   * successful load, so this is really asking "has this device ever finished connecting?" — and if
+   * it has not, there is nothing stored to work from and the failure has to be reported.
+   */
+  resumeOffline(err: unknown): boolean {
+    if (isAuthFailure(err) || !isOffline(err) || !this.getCatalogId()) return false;
+    this.offline.set(true);
+    this.connected.set(true);
+    return true;
+  }
+
+  /** Asks once whether the backend is back; a failure simply leaves the app as it was. */
+  private async recheck(): Promise<void> {
+    try {
+      await firstValueFrom(this.loadCatalogId());
+      this.offline.set(false);
+    } catch {
+      // Still unreachable — stay put and wait for the next 'online'.
+    }
+  }
 
   loginHref(): string {
     return loginHrefUnder(backendBaseUri(), navigator.userAgent);

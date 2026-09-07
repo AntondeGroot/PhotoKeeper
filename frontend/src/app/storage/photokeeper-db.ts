@@ -214,7 +214,29 @@ type StaleStore = 'albumManifest' | 'assetHash' | 'reviewBuffer' | 'dailyFeed';
 export class PhotoKeeperDb {
   private dbPromise: Promise<IDBPDatabase<PhotoKeeperSchema>> | null = null;
 
+  /** The answer to the one persistence request, so it is asked once rather than on every open. */
+  private persistence: Promise<boolean> | null = null;
+
+  /**
+   * Whether the engine has promised to keep this data rather than treat it as a reclaimable cache.
+   *
+   * Asked because there is nowhere else for it. Verdicts, tags and print state exist on this device
+   * and nowhere on any server — the Settings card calls that group "not rebuildable" and means it —
+   * so without a granted request they sit in a bucket the engine may clear when the phone runs short
+   * of space, and a year of decisions would go with it.
+   *
+   * A refusal costs nothing but the promise; the data is stored either way. Resolves false where the
+   * API is absent, which is every environment that is not a browser.
+   */
+  persisted(): Promise<boolean> {
+    this.persistence ??= Promise.resolve(navigator.storage?.persist?.() ?? false).catch(
+      () => false,
+    );
+    return this.persistence;
+  }
+
   open(): Promise<IDBPDatabase<PhotoKeeperSchema>> {
+    void this.persisted(); // once, on the first thing that touches storage
     // v2–v8 grew the store set (see history). v9 replaced the fixed 'edgeHash' store with
     // 'frameSignature'. v10 added 'frameAspect' (the aspect gate's input) and clears signatures +
     // manifests so every album re-scans. v11 added 'groupReclass' (burst↔pano user corrections).
