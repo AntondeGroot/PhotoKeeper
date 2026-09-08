@@ -33,13 +33,22 @@
                deck, its previews and somewhere to put the verdicts are all already on the device. -->
           <div class="notice">
             <span class="dotwarn" style="background: var(--c-amber)"></span>
-            <h2>Working offline</h2>
-            <p>
-              Can't reach Lightroom right now, so this is today's batch as it was last saved to this
-              phone. Sort away — your decisions are kept here and written back to Lightroom the next
-              time you're online. A photo whose preview hasn't been downloaded yet will have to
-              wait.
-            </p>
+            <h2>Working from this phone</h2>
+            <!-- Two ways to be out of reach, and they call for different advice: sending someone to
+                 their Wi-Fi settings when the connection is fine wastes their time. -->
+            @if (offlineReason() === 'lightroom') {
+              <p>
+                Lightroom isn't answering right now, so this is today's batch as it was last saved
+                to this phone. Sort away — your decisions are kept here and written back as soon as
+                it is. A photo whose preview hasn't been downloaded yet will have to wait.
+              </p>
+            } @else {
+              <p>
+                No connection, so this is today's batch as it was last saved to this phone. Sort
+                away — your decisions are kept here and written back to Lightroom the next time
+                you're online. A photo whose preview hasn't been downloaded yet will have to wait.
+              </p>
+            }
             <button class="btn" (click)="continued.emit()">Continue</button>
             <button
               class="check"

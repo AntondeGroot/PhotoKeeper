@@ -164,15 +164,16 @@ class PhotoControllerTest {
 
     // ── Error mapping via GlobalExceptionHandler (exercised through /catalog) ──
 
+    /** 424, not 502: a CDN substitutes its own page for an origin 502 — see GlobalExceptionHandler. */
     @Test
-    void upstreamHttpErrorReturnsBadGateway() throws Exception {
+    void upstreamHttpErrorReturnsFailedDependency() throws Exception {
         when(lightroomService.getCatalog(any())).thenThrow(
                 HttpClientErrorException.create(
                         HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY, new byte[0],
                         StandardCharsets.UTF_8));
 
         mockMvc.perform(get("/api/catalog").header("X-Auth-Token", "acc"))
-                .andExpect(status().isBadGateway());
+                .andExpect(status().isFailedDependency());
     }
 
     @Test

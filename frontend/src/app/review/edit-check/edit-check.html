@@ -1,0 +1,57 @@
+<!-- No click-to-dismiss on the scrim: a keyboard cannot reach it, and this panel holds choices. -->
+<div class="check-scrim">
+  <div class="check-panel" role="dialog" aria-labelledby="check-title">
+    <header>
+      <h2 id="check-title">Edited since you sent them</h2>
+      <button class="close" (click)="close()" aria-label="Close">✕</button>
+    </header>
+
+    @if (checking()) {
+      <p class="check-note">Comparing each photo with how it looked when you sent it…</p>
+    } @else if (failed()) {
+      <p class="check-note">
+        Couldn’t read your KeeperEdit album just now. Nothing has been changed — try again in a
+        moment.
+      </p>
+    } @else {
+      <ul class="check-list">
+        @for (finding of findings(); track finding.assetId) {
+          <li>
+            <button
+              class="tick"
+              [class.on]="isSelected(finding.assetId)"
+              (click)="toggle(finding.assetId)"
+              [attr.aria-pressed]="isSelected(finding.assetId)"
+            >
+              <span class="tick-box"></span>
+            </button>
+            <span class="check-name">{{ finding.name }}</span>
+            <button class="again" (click)="keepEditing(finding)">Not done yet</button>
+          </li>
+        } @empty {
+          <li class="check-empty">Nothing has changed since you sent these to edit.</li>
+        }
+      </ul>
+
+      <!-- Said plainly: a check that silently ignored most of the album would be worse than none. -->
+      <p class="check-note">
+        Looked at {{ examined().length }} photos.
+        @if (untouched() > 0) {
+          {{ untouched() }} untouched.
+        }
+        @if (metadataOnly() > 0) {
+          {{ metadataOnly() }} changed in Lightroom but the picture is the same.
+        }
+        @if (unknown() > 0) {
+          {{ unknown() }} couldn’t be compared — no earlier version on this phone.
+        }
+      </p>
+
+      @if (findings().length > 0) {
+        <button class="send" [disabled]="selected().size === 0" (click)="sendSelected()">
+          Send {{ selected().size }} to print →
+        </button>
+      }
+    }
+  </div>
+</div>

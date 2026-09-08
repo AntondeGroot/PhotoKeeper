@@ -3,6 +3,7 @@ import {
   DecisionOutcome,
   MAX_UNDO,
   UndoEntry,
+  UndoReturn,
   bringBack,
   heldAssetIds,
   pushEntry,
@@ -19,9 +20,15 @@ const unit = (id: string): Photo => ({
   saveOnly: false,
 });
 
-const entry = (id: string, touched: string[], outcome: DecisionOutcome = 'kept'): UndoEntry => ({
+const entry = (
+  id: string,
+  touched: string[],
+  outcome: DecisionOutcome = 'kept',
+  returnTo: UndoReturn = 'cursor',
+): UndoEntry => ({
   outcome,
   unit: unit(id),
+  returnTo,
   verdicts: new Map(touched.map((asset) => [asset, undefined])),
 });
 
@@ -92,5 +99,27 @@ describe('bringBack', () => {
 
     expect(back.deck.map((u) => u.id)).toEqual(['a', 'b']);
     expect(back.index).toBe(1);
+  });
+
+  /**
+   * A decision made from a list, not at the cursor. "Done editing" is chosen from the edit queue, so
+   * the photo has no business jumping to the front of the review deck when the choice is taken back
+   * — that would reorder the sort deck as an invisible side effect of undoing something elsewhere.
+   */
+  it('puts a unit back exactly where it was when the decision came from a list', () => {
+    const deck = ['a', 'b', 'c'].map((id) => ({ ...unit(id), status: 'kept' as const }));
+
+    const back = bringBack(deck, 2, unit('a'), 'place');
+
+    expect(back.deck.map((u) => u.id)).toEqual(['a', 'b', 'c']);
+    expect(back.deck[0].status).toBe('backlog');
+    expect(back.index).toBe(2); // the cursor did not move
+  });
+
+  /** A unit that has left the deck has no place to go back to, so it comes to the cursor anyway. */
+  it('falls back to the cursor when its old place is gone', () => {
+    const back = bringBack([unit('b')], 0, unit('a'), 'place');
+
+    expect(back.deck.map((u) => u.id)).toEqual(['a', 'b']);
   });
 });

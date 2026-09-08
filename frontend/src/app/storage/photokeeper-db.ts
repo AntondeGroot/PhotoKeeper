@@ -3,6 +3,7 @@ import { DBSchema, IDBPDatabase, openDB } from 'idb';
 import { Photo, ReviewItem } from '../photo';
 import { Tag } from '../tagging/tags';
 import { AlbumPrintState, PrintBin } from '../prints/prints.types';
+import { EditBaseline } from '../review/edit-detection';
 import { CurrentPick, ShownRecord } from '../celebrations/celebration.types';
 import {
   DetectedGroup,
@@ -109,6 +110,7 @@ export interface AlbumManifest {
  * - groups: groupId → a detected cluster (burst/pano/stereo) for group-aware selection
  * - assetMeta: assetId → lightweight metadata for on-device selection (album, name, taken)
  * - printBins:  print-bin album name → the album order sitting in it (see PrintBin)
+ * - editBaseline: assetId → what the photo looked like when it was sent to edit (see EditBaseline)
  * - groupOverrides: member-set signature → a "not a group" user correction
  * - groupReclass: member-set signature → a "this is actually a burst/pano" user correction
  * - groupMembers: member-set signature → a "this pano is missing frames" user correction
@@ -136,6 +138,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   assetTags: { key: string; value: string[] };
   albumPrint: { key: string; value: AlbumPrintState };
   printBins: { key: string; value: PrintBin };
+  editBaseline: { key: string; value: EditBaseline };
   celebrationLog: { key: string; value: ShownRecord };
   celebrationCurrent: { key: string; value: CurrentPick };
   reviewBuffer: { key: string; value: ReviewItem[] };
@@ -255,9 +258,11 @@ export class PhotoKeeperDb {
     // the matcher's cheap first pass was still a hash, and still dropping real pairs. v28 added
     // 'keeperFiling' (which verdicts have been written back to a Lightroom album). v29 added
     // 'printBins' (which print bin holds which album's order), for the print set now being sent
-    // deliberately from the Prints tab rather than filed the moment a photo was promoted.
+    // deliberately from the Prints tab rather than filed the moment a photo was promoted. v30 added
+    // 'editBaseline' (what a photo looked like when it was sent to edit), so the Edit pass can tell
+    // which photos have actually been worked on.
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 29, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 30, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -288,6 +293,7 @@ export class PhotoKeeperDb {
           'reviewBuffer',
           'keeperFiling',
           'printBins',
+          'editBaseline',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

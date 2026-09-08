@@ -9,6 +9,7 @@ import { DayService } from './day.service';
 import { StreakService } from './streak.service';
 import { DailyProgressService, DailyTask } from './daily-progress.service';
 import { KeeperFilingService } from './keeper-filing.service';
+import { EditDetectionService } from './edit-detection.service';
 import { DecisionOutcome, ReviewUndoService, UndoEntry, bringBack } from './review-undo.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
 import { Burst, Pano, PanoFrame, ReviewItem, isDevicePhoto, unitAssetIds } from '../photo';
@@ -90,6 +91,7 @@ export class ReviewDecisionsService {
   private readonly progress = inject(DailyProgressService);
   private readonly filing = inject(KeeperFilingService);
   private readonly undoStack = inject(ReviewUndoService);
+  private readonly editDetection = inject(EditDetectionService);
   // The day is read from the service rather than the clock, so every per-day record — the stored
   // deck, the once-a-day celebration, the tally — agrees about which day it is even in the seconds
   // around midnight when the two would briefly disagree.
@@ -163,7 +165,7 @@ export class ReviewDecisionsService {
   async undo(entry: UndoEntry): Promise<void> {
     const taken = await this.undoStack.take(entry);
     if (!taken) return;
-    const restored = bringBack(this.feed.photos(), this.feed.index(), taken.unit);
+    const restored = bringBack(this.feed.photos(), this.feed.index(), taken.unit, taken.returnTo);
     this.feed.photos.set(restored.deck);
     this.feed.index.set(restored.index);
     this.persistDay();
@@ -179,6 +181,11 @@ export class ReviewDecisionsService {
     const current = this.feed.current();
     if (!current) return;
     this.capture(verdict, [current.id]);
+    // Sending a photo to edit is the moment its "before" is still true, and the only moment it is
+    // certain to be — a later scan would overwrite the stores this is copied from.
+    if (verdict === 'toEdit') {
+      for (const id of unitAssetIds(current)) void this.editDetection.captureBaseline(id);
+    }
     this.setStatus(current.id, verdict);
     void this.persistVerdict(current.id);
     this.feed.advance();
@@ -392,7 +399,19 @@ export class ReviewDecisionsService {
       .filter((item) => item.id !== current.id && unitAssetIds(item).some((id) => chosen.has(id)));
   }
 
+  /**
+   * "Done editing" — the photo leaves the edit queue and becomes printable.
+   *
+   * Undoable, and captured with its own position rather than the cursor's: this is chosen from a
+   * list, so the photo has no business jumping to the front of the review deck when it comes back.
+   *
+   * Its edit baseline is deliberately *not* forgotten here. Undo would have nothing to restore it
+   * from, and a baseline for a photo that has left the queue is inert anyway — the check only looks
+   * at photos still marked toEdit, and prunes the rest as it goes.
+   */
   promoteToPrint(id: string): void {
+    const unit = this.feed.photos().find((item) => item.id === id);
+    if (unit) this.undoStack.capture('toPrint', unit, [id], 'place');
     this.setStatus(id, 'toPrint');
     void this.persistVerdict(id);
     this.progress.recordEdit();

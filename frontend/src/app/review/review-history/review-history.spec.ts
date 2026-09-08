@@ -28,6 +28,7 @@ const burst = (id: string, frameIds: string[]): Burst => ({
 const entry = (unit: Photo | Burst, outcome: UndoEntry['outcome']): UndoEntry => ({
   outcome,
   unit,
+  returnTo: 'cursor',
   verdicts: new Map(),
 });
 

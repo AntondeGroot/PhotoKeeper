@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { SplashComponent, SplashState } from './splash';
+import { OfflineReason, SplashComponent, SplashState } from './splash';
 
 describe('SplashComponent', () => {
   let fixture: ComponentFixture<SplashComponent>;
@@ -11,8 +11,9 @@ describe('SplashComponent', () => {
     component = fixture.componentInstance;
   });
 
-  function render(state: SplashState): HTMLElement {
+  function render(state: SplashState, offlineReason: OfflineReason = 'device'): HTMLElement {
     fixture.componentRef.setInput('state', state);
+    fixture.componentRef.setInput('offlineReason', offlineReason);
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
@@ -38,7 +39,7 @@ describe('SplashComponent', () => {
 
   it('offline offers Continue, which emits "continued"', () => {
     const root = render('offline');
-    expect(root.querySelector('.notice h2')?.textContent?.trim()).toBe('Working offline');
+    expect(root.querySelector('.notice h2')?.textContent?.trim()).toBe('Working from this phone');
     let continued = false;
     component.continued.subscribe(() => (continued = true));
 
@@ -81,5 +82,21 @@ describe('SplashComponent', () => {
     buttonByText(root, 'Update Keeper').click();
 
     expect(updateRequested).toBe(true);
+  });
+
+  /**
+   * A backend that answers to say Lightroom is failing is not the same as having no connection, and
+   * the advice differs: telling someone to check their Wi-Fi when their Wi-Fi is fine sends them off
+   * to fix nothing. The app used to be unable to tell the two apart at all — the CDN swallowed the
+   * backend's error — so it called both of them offline.
+   */
+  it('blames the connection only when the connection is the problem', () => {
+    expect(render('offline', 'device').querySelector('.notice p')?.textContent).toContain(
+      'No connection',
+    );
+
+    const lightroom = render('offline', 'lightroom').querySelector('.notice p')?.textContent;
+    expect(lightroom).toContain("Lightroom isn't answering");
+    expect(lightroom).not.toContain('No connection');
   });
 });

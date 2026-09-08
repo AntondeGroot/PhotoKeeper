@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../lightroom.service';
 import { KeeperAlbumsService } from '../keeper-albums.service';
-import { albumForVerdict, isPrintBin } from '../keeper-albums';
+import { albumForVerdict, belongsInPrintBin, isPrintBin } from '../keeper-albums';
 import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
@@ -135,14 +135,19 @@ export class KeeperFilingService {
     ]);
     const byAlbum = new Map<string, string[]>();
     for (const [assetId, record] of filed) {
-      const belongs = albumForVerdict(verdicts.get(assetId)?.status ?? 'backlog');
+      const verdict = verdicts.get(assetId);
+      const belongs = albumForVerdict(verdict?.status ?? 'backlog');
       const name = meta.get(assetId)?.name;
       if (!name) continue;
       for (const album of record.albums) {
-        if (album === belongs) continue;
-        // A print bin is not a filing a verdict implies — it is a record of one order the user sent
-        // deliberately. Nothing has "moved on" from it, so it is never something to tidy away.
-        if (isPrintBin(album)) continue;
+        // A print bin is asked a different question. It is not a filing any verdict implies — it is
+        // a snapshot of one order — so it is not stale merely for holding a photo the verdict map
+        // would not have put there. It is stale once the decision behind the photo is withdrawn:
+        // the edit undone, the photo rejected, or set aside as keep-but-do-not-print.
+        const stale = isPrintBin(album)
+          ? !belongsInPrintBin(verdict?.status ?? 'backlog', verdict?.saveOnly ?? false)
+          : album !== belongs;
+        if (!stale) continue;
         byAlbum.set(album, [...(byAlbum.get(album) ?? []), name]);
       }
     }

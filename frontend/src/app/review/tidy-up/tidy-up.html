@@ -1,0 +1,16 @@
+@if (total() > 0) {
+  <div class="tidy-up">
+    @for (row of tidyRows(); track row.album) {
+      <p class="tidy-note">
+        {{ row.count }} {{ row.count === 1 ? 'photo' : 'photos' }} in
+        <strong>{{ row.album }}</strong> no longer belong there. Lightroom won’t let the app remove
+        them, so open and delete them there:
+        @for (link of row.links; track link; let i = $index) {
+          <a class="tidy-link" [href]="link" target="_blank" rel="noopener">
+            Open{{ row.links.length > 1 ? ' · part ' + (i + 1) : '' }} ↗
+          </a>
+        }
+      </p>
+    }
+  </div>
+}

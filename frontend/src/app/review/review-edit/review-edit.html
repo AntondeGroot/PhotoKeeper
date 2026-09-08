@@ -7,6 +7,13 @@
     </a>
   }
 
+  <app-tidy-up [catalogId]="catalogId" scope="edit" />
+
+  <!-- The queue's other question: not "what shall I edit?" but "which of these did I finish?" -->
+  <button class="check-edits" [disabled]="detection.checking()" (click)="checkForEdits()">
+    {{ detection.checking() ? 'Checking…' : 'Check for edits' }}
+  </button>
+
   <div class="edit-queue">
     @for (photo of queue; track photo.id) {
       <div class="edit-item">
@@ -21,9 +28,25 @@
           <span class="item-name">{{ photo.name }}{{ photo.ext ? '.' + photo.ext : '' }}</span>
           <span class="item-album">{{ photo.album || 'No album' }}</span>
         </div>
-        <a class="open-lr" [href]="lightroomUrl(photo)" target="_blank" rel="noopener">
-          Open in Lightroom
-        </a>
+        <div class="edit-actions">
+          <a class="open-lr" [href]="lightroomUrl(photo)" target="_blank" rel="noopener">
+            Open in Lightroom
+          </a>
+          <!-- The queue's only exit. Without it a photo stays 'toEdit' for good, and an album
+               holding one can never reach the Prints tab, which counts it as unfinished.
+               Two steps: the confirm is its own control, so a stray double-tap cannot carry
+               through it. -->
+          @if (confirming() === photo.id) {
+            <div class="confirm-done">
+              <button class="edit-done-btn commit" (click)="confirmDone(photo.id)">
+                Yes — send to print
+              </button>
+              <button class="cancel-done" (click)="cancelDone()">Cancel</button>
+            </div>
+          } @else {
+            <button class="edit-done-btn" (click)="askDone(photo.id)">Done editing</button>
+          }
+        </div>
       </div>
     }
   </div>
@@ -31,4 +54,8 @@
   <div class="edit-done">
     <h2>Edit queue clear.</h2>
   </div>
+}
+
+@if (detection.panelOpen()) {
+  <app-edit-check />
 }

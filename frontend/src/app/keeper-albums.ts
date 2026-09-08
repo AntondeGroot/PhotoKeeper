@@ -27,6 +27,22 @@ export const KEEPER_EDIT_ALBUM = 'KeeperEdit';
  */
 export const KEEPER_PRINT_ALBUM = 'KeeperPrint';
 
+/**
+ * Whether a photo still belongs in the print bin it was sent to.
+ *
+ * A bin is a snapshot of one order, so a photo does not stop belonging merely because the order was
+ * placed. It stops belonging when the decision behind it is withdrawn — the edit was undone, the
+ * photo was rejected, or it was set aside on the Prints tab as one to keep but not print. In each of
+ * those the bin now holds something the user has said they do not want printed, and only they can
+ * take it out.
+ *
+ * Takes the parts rather than the stored verdict, so this stays a pure statement about a decision
+ * and the domain layer keeps no dependency on the shape of the database.
+ */
+export function belongsInPrintBin(status: string, saveOnly: boolean): boolean {
+  return !saveOnly && (status === 'kept' || status === 'toPrint');
+}
+
 /** Whether an album is one of the print bins. */
 export function isPrintBin(name: string): boolean {
   return name.startsWith(KEEPER_PRINT_ALBUM);
@@ -79,6 +95,27 @@ export function lightroomAlbumUrl(catalogId: string, albumId: string): string {
 
 /** How many filenames one tidy-up link carries, so the URL stays inside what browsers accept. */
 export const SEARCH_TERMS_PER_LINK = 40;
+
+/**
+ * One deep link per batch of filenames, so a long list still fits in URLs a browser will follow.
+ *
+ * Batched rather than truncated: the point of the link is to put the user in front of *the* photos
+ * that need removing, and a link that quietly showed the first forty of sixty would leave twenty
+ * behind with nothing to say so.
+ */
+export function albumSearchLinks(
+  catalogId: string,
+  albumId: string,
+  names: readonly string[],
+): string[] {
+  const links: string[] = [];
+  for (let i = 0; i < names.length; i += SEARCH_TERMS_PER_LINK) {
+    links.push(
+      lightroomAlbumSearchUrl(catalogId, albumId, names.slice(i, i + SEARCH_TERMS_PER_LINK)),
+    );
+  }
+  return links;
+}
 
 /**
  * Deep-link into an album showing only the photos whose names are listed.

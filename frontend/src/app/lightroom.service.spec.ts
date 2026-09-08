@@ -5,6 +5,7 @@ import {
   isAuthFailure,
   isBundledApp,
   isOffline,
+  isUpstreamFailure,
   LightroomService,
   loginHrefUnder,
 } from './lightroom.service';
@@ -172,7 +173,35 @@ describe('LightroomService', () => {
 
     it('does not read a refusal as offline — the backend answered', () => {
       expect(isOffline(new HttpErrorResponse({ status: 401 }))).toBe(false);
-      expect(isOffline(new HttpErrorResponse({ status: 502 }))).toBe(false);
+      expect(isOffline(new HttpErrorResponse({ status: 424 }))).toBe(false);
+    });
+
+    /**
+     * The backend reports a failing Lightroom as 424 rather than 502, because a CDN substitutes its
+     * own page for an origin 502 and that page has no CORS headers — so the app received nothing but
+     * an opaque failure, which is the same signature as having no network and was reported as such.
+     */
+    it('recognises a Lightroom outage as its own thing, not as being offline', () => {
+      const outage = new HttpErrorResponse({ status: 424 });
+
+      expect(isUpstreamFailure(outage)).toBe(true);
+      expect(isOffline(outage)).toBe(false);
+    });
+
+    it('works from stored data for a Lightroom outage too, and says which it was', () => {
+      localStorage.setItem('lr-catalog-id', 'cat-1');
+
+      expect(service.resumeOffline(new HttpErrorResponse({ status: 424 }))).toBe(true);
+      expect(service.offline()).toBe(true);
+      expect(service.offlineReason()).toBe('lightroom');
+    });
+
+    it('calls a dead network a dead network', () => {
+      localStorage.setItem('lr-catalog-id', 'cat-1');
+
+      service.resumeOffline(new HttpErrorResponse({ status: 0 }));
+
+      expect(service.offlineReason()).toBe('device');
     });
 
     it('carries on with the stored catalog when the backend cannot be reached', () => {

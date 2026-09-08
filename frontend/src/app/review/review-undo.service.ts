@@ -32,7 +32,17 @@ import { ReviewStore } from '../storage/review/review-store';
 export const MAX_UNDO = 20;
 
 /** What a decision did, as the list shows it. A skip is not a verdict — it stored none. */
-export type DecisionOutcome = 'kept' | 'rejected' | 'toEdit' | 'maybe' | 'skipped';
+export type DecisionOutcome = 'kept' | 'rejected' | 'toEdit' | 'maybe' | 'toPrint' | 'skipped';
+
+/**
+ * Where a unit goes when its decision is taken back.
+ *
+ * 'cursor' is for a decision made *at* the cursor — the photo just swiped should be the next one in
+ * front of you. 'place' is for a decision made from a list, where the unit's position in the review
+ * deck is not what the user was looking at, and shuffling it would be an invisible side effect of
+ * undoing something else entirely.
+ */
+export type UndoReturn = 'cursor' | 'place';
 
 /** One reversible decision. */
 export interface UndoEntry {
@@ -40,6 +50,8 @@ export interface UndoEntry {
   outcome: DecisionOutcome;
   /** The unit as it stood before, with its own status. */
   unit: ReviewItem;
+  /** Where putting it back should leave it — see {@link UndoReturn}. */
+  returnTo: UndoReturn;
   /**
    * The verdict each touched asset had beforehand — `undefined` for one that had none, which has to
    * be restored as an absence rather than as a stored 'backlog', or the photo counts as decided.
@@ -82,8 +94,16 @@ export function bringBack(
   deck: readonly ReviewItem[],
   index: number,
   unit: ReviewItem,
+  returnTo: UndoReturn = 'cursor',
 ): { deck: ReviewItem[]; index: number } {
   const at = deck.findIndex((item) => item.id === unit.id);
+  // Put back exactly where it was. That decision was made from a list rather than at the cursor, so
+  // moving it would reorder the review deck as a side effect of undoing something done elsewhere.
+  if (returnTo === 'place' && at !== -1) {
+    const restored = [...deck];
+    restored[at] = unit;
+    return { deck: restored, index };
+  }
   const without = at === -1 ? [...deck] : [...deck.slice(0, at), ...deck.slice(at + 1)];
   // Pulling a unit out from behind the cursor shifts everything after it left, the cursor included.
   const cursor = Math.min(at !== -1 && at < index ? index - 1 : index, without.length);
@@ -156,13 +176,18 @@ export class ReviewUndoService {
    * reason — {@link ReviewStore#setVerdict} writes through to the cached map, so an awaited read
    * would come back holding the new values rather than the old.
    */
-  capture(outcome: DecisionOutcome, unit: ReviewItem, assetIds: string[]): void {
+  capture(
+    outcome: DecisionOutcome,
+    unit: ReviewItem,
+    assetIds: string[],
+    returnTo: UndoReturn = 'cursor',
+  ): void {
     const stored = this.store.loadedVerdicts();
     if (!stored) return; // verdicts never read: nothing to restore them to, so offer no undo
 
     const verdicts = new Map<string, StoredVerdict | undefined>();
     for (const id of assetIds) verdicts.set(id, stored.get(id));
-    this.stack.update((s) => pushEntry(s, { outcome, unit, verdicts }));
+    this.stack.update((s) => pushEntry(s, { outcome, unit, verdicts, returnTo }));
   }
 
   /**
