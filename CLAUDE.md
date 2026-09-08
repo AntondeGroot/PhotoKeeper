@@ -29,10 +29,10 @@ session — it renders only when authenticated.
 ## Tests and gates
 
 - **Run frontend tests as `npm --prefix frontend run test -- --watch=false`**, which works from
-  any directory. Several specs (pano fixtures, the celebration catalog) resolve paths relative to
-  the working directory, so a bare `ng test` from a subdirectory fails about seven of them for
-  reasons that have nothing to do with the change under test. `--prefix` sets the directory for
-  you, which is why this is written as a command rather than as a reminder to `cd` first.
+  any directory. A spec that reads a real file (the pano fixtures, the celebration artwork) must
+  hang its path off `src/app/frontend-root.fixture.ts` rather than `process.cwd()` — they used to
+  do the latter, and seven of them failed from any subdirectory for reasons that had nothing to do
+  with the change under test.
 - `ng test` is the entry point behind that script; invoking `vitest` directly fails with
   `describe is not defined`, because the Angular builder supplies the environment.
 - Both sides have pre-commit hooks. Backend formatting is enforced by spotless — `mvn spotless:apply`

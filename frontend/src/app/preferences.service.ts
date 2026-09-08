@@ -43,6 +43,14 @@ export class PreferencesService {
   readonly reminderTime = signal('09:00');
   readonly silentTime = signal('21:00');
   readonly silentEvening = signal(true);
+  /**
+   * Whether the large renditions may only be fetched over Wi-Fi.
+   *
+   * On by default: a review session downloads a 2048px preview per photograph, which is the one
+   * thing this app does that can quietly cost someone money. Somebody who wants it on their data
+   * plan can say so; nobody should have to find out afterwards.
+   */
+  readonly wifiOnly = signal(true);
   readonly taggingEnabled = signal(false);
   readonly stereoEnabled = signal(false);
   // Free-view fusion style for the side-by-side stereo viewer — a personal preference (some people fuse
@@ -90,6 +98,10 @@ export class PreferencesService {
     if (morningReminder) this.morningReminder.set(morningReminder === 'true');
     const silentEvening = localStorage.getItem('silentEvening');
     if (silentEvening) this.silentEvening.set(silentEvening === 'true');
+    // Absent means never set, and the default stands — unlike the flags below, this one is on
+    // unless the user has turned it off, so it cannot be read as a bare `=== 'true'`.
+    const wifiOnly = localStorage.getItem('wifiOnly');
+    if (wifiOnly) this.wifiOnly.set(wifiOnly === 'true');
     this.taggingEnabled.set(localStorage.getItem('taggingEnabled') === 'true');
     this.stereoEnabled.set(localStorage.getItem('stereoEnabled') === 'true');
     if (localStorage.getItem('stereoView') === 'parallel') this.stereoView.set('parallel');
@@ -149,6 +161,7 @@ export class PreferencesService {
     localStorage.setItem('reminderTime', this.reminderTime());
     localStorage.setItem('silentTime', this.silentTime());
     localStorage.setItem('silentEvening', String(this.silentEvening()));
+    localStorage.setItem('wifiOnly', String(this.wifiOnly()));
     localStorage.setItem('taggingEnabled', String(this.taggingEnabled()));
     localStorage.setItem('stereoEnabled', String(this.stereoEnabled()));
     localStorage.setItem('stereoView', this.stereoView());

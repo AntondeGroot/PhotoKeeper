@@ -20,6 +20,7 @@ describe('PreferencesService', () => {
     expect(prefs.morningReminder()).toBe(true);
     expect(prefs.silentEvening()).toBe(true);
     expect(prefs.taggingEnabled()).toBe(false);
+    expect(prefs.wifiOnly()).toBe(true); // on unless turned off: a data plan is spent by default otherwise
     expect(prefs.onboarded()).toBe(false);
     expect(prefs.tagDirections().left).toBe('animals');
   });
@@ -38,6 +39,16 @@ describe('PreferencesService', () => {
     expect(prefs.reminderTime()).toBe('08:30');
     expect(prefs.tagDirections()).toEqual({ up: 'family' });
     expect(prefs.vacationAlbumIds()).toEqual(['alb-1', 'alb-2']);
+  });
+
+  /**
+   * The one preference that is on by default, so "absent" and "off" are different answers — read as a
+   * bare `=== 'true'` it would come back off for everyone who had never touched it.
+   */
+  it('keeps Wi-Fi only turned off once it has been turned off', () => {
+    localStorage.setItem('wifiOnly', 'false');
+
+    expect(make().wifiOnly()).toBe(false);
   });
 
   it('merges stored device-folder selections by name onto the catalogue', () => {

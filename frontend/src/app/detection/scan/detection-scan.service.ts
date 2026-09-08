@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../../lightroom.service';
 import { PhotoAsset } from '../../lightroom-types';
+import { NetworkService } from '../../network.service';
 import { AlbumManifestStore } from '../../storage/detection/album-manifest-store';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { SignatureStore } from '../../storage/detection/signature-store';
@@ -48,6 +49,7 @@ export interface ScanReport {
 export class DetectionScanService {
   private readonly svc = inject(LightroomService);
   private readonly hasher = inject(ImageHasher);
+  private readonly network = inject(NetworkService);
   private readonly previews = inject(PreviewStore);
   private readonly hashes = inject(HashStore);
   private readonly signatures = inject(SignatureStore);
@@ -113,17 +115,22 @@ export class DetectionScanService {
     // pass stopped at one, and we extended this one to one), so no group is split. Re-clustering the
     // prefix is cheap — Stage 2 only hashes the new, un-cached candidates.
     const prefix = all.slice(0, end);
-    const { hashed, groups } = await this.detectPrefix(albumId, prefix, stereoRole);
+    const { hashed, groups, heldBack } = await this.detectPrefix(albumId, prefix, stereoRole);
 
-    await this.manifests.record(albumId, all, end);
+    // A pass that could not download is not a pass that covered anything: the cursor stays where it
+    // was, so the next one re-walks this slice and hashes it. Crediting it would leave the album
+    // marked as fully scanned with photographs in it that were never looked at — a burst that quietly
+    // never exists rather than one that arrives late.
+    const reached = heldBack ? cursor : end;
+    await this.manifests.record(albumId, all, reached);
     return {
       albumId,
       skipped: false,
       hashed,
       removed: diff.removed.length,
       groups: groups.length,
-      scanned: end - cursor,
-      exhausted: end >= all.length,
+      scanned: reached - cursor,
+      exhausted: reached >= all.length,
     };
   }
 
@@ -147,14 +154,17 @@ export class DetectionScanService {
     albumId: string,
     prefix: PhotoAsset[],
     stereoRole: StereoRole | null,
-  ): Promise<{ hashed: number; groups: DetectedGroup[] }> {
+  ): Promise<{ hashed: number; groups: DetectedGroup[]; heldBack: boolean }> {
     const candidateIds = this.candidateFrames(prefix, stereoRole);
     // The only step that touches pixels: hash the candidates that lack cached data.
-    const { hashed, hashes, signatures, aspects } = await this.hashCandidates(prefix, candidateIds);
+    const { hashed, hashes, signatures, aspects, heldBack } = await this.hashCandidates(
+      prefix,
+      candidateIds,
+    );
 
     const groups = this.groupsFor(stereoRole, albumId, prefix, hashes, signatures, aspects);
     await this.groups.replaceForAlbum(albumId, groups);
-    return { hashed, groups };
+    return { hashed, groups, heldBack };
   }
 
   /**
@@ -211,17 +221,27 @@ export class DetectionScanService {
     hashes: Map<string, string>;
     signatures: Map<string, FrameSignature>;
     aspects: Map<string, number>;
+    /** True when it stopped early because the pixels would have had to be downloaded. */
+    heldBack: boolean;
   }> {
     const hashes = await this.hashes.getAll();
     const signatures = await this.signatures.getAll();
     const aspects = await this.aspects.getAll();
     const byId = new Map(prefix.map((a) => [a.id, a]));
     let hashed = 0;
+    let heldBack = false;
     for (const id of candidateIds) {
       if (hashes.has(id) && signatures.has(id) && aspects.has(id)) continue;
       const asset = byId.get(id);
       if (!asset) continue;
-      const { hash, signature, aspect } = await this.computeHashes(asset);
+      const computed = await this.computeHashes(asset);
+      // Nothing to hash without the pixels. The whole pass is abandoned rather than half-credited:
+      // the caller leaves the cursor alone, so the next pass — on Wi-Fi — walks this slice again.
+      if (!computed) {
+        heldBack = true;
+        break;
+      }
+      const { hash, signature, aspect } = computed;
       await this.hashes.put(id, hash);
       hashes.set(id, hash);
       await this.signatures.put(id, signature);
@@ -230,7 +250,7 @@ export class DetectionScanService {
       aspects.set(id, aspect);
       hashed++;
     }
-    return { hashed, hashes, signatures, aspects };
+    return { hashed, hashes, signatures, aspects, heldBack };
   }
 
   /**
@@ -310,11 +330,19 @@ export class DetectionScanService {
     return [...burstGroups, ...panoGroups];
   }
 
-  /** Hash + signature + aspect for one asset, from a warmed 2048 preview or a fetched rendition. */
+  /**
+   * Hash + signature + aspect for one asset, from a warmed 2048 preview or a fetched rendition.
+   *
+   * Returns null when the rendition would have to be downloaded and "Wi-Fi only" says not now. The
+   * scan is the heaviest downloader in the app — a rendition for every photograph in the library —
+   * so it is the last thing that should run on someone's data plan. A warmed preview is used freely:
+   * it is already on the device and costs nothing.
+   */
   private async computeHashes(
     asset: PhotoAsset,
-  ): Promise<{ hash: string; signature: FrameSignature; aspect: number }> {
+  ): Promise<{ hash: string; signature: FrameSignature; aspect: number } | null> {
     const warmed = await this.previews.get(asset.id, WARMED_PREVIEW_SIZE);
+    if (!warmed && !this.network.mayDownloadRenditions()) return null;
     const blob =
       warmed ?? (await firstValueFrom(this.svc.getPhotoBlob(asset.id, HASH_RENDITION_SIZE)));
     return {

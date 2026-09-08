@@ -12,6 +12,7 @@ import { PreviewStore } from '../../storage/review/preview-store';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { FrameSignature } from '../detectors/detection-types';
 import { SIGNATURE_SIZE } from '../detectors/phash';
+import { NetworkService } from '../../network.service';
 
 const image = (id: string, captureDate: string, updated = 'v1'): PhotoAsset => ({
   id,
@@ -144,11 +145,14 @@ describe('DetectionScanService', () => {
   let metaStore: AssetMetaStore;
   let fetched: string[];
   let albumAssets: PhotoAsset[];
+  /** Stands in for "Wi-Fi only, and this is mobile data" — what the gate is asked. */
+  let metered: boolean;
 
   beforeEach(() => {
     indexedDB = new IDBFactory(); // fresh, empty database per test
     localStorage.clear(); // detection settings default; tests assume the 3s window / hamming 10
     fetched = [];
+    metered = false;
     albumAssets = [
       image('a1', '2026-05-01T10:00:00Z'),
       image('a2', '2026-05-01T10:00:02Z'), // 2s after a1, inside the 3s burst window
@@ -172,6 +176,7 @@ describe('DetectionScanService', () => {
       providers: [
         { provide: LightroomService, useValue: svcStub },
         { provide: ImageHasher, useValue: hasherStub },
+        { provide: NetworkService, useValue: { mayDownloadRenditions: () => !metered } },
       ],
     });
     service = TestBed.inject(DetectionScanService);
@@ -208,6 +213,31 @@ describe('DetectionScanService', () => {
       taken: '2026-05-01T12:00:00Z',
     });
     expect(await hashStore.get('a3')).toBeUndefined();
+  });
+
+  /**
+   * The scan is the heaviest downloader in the app — a rendition for every photograph in the library
+   * — so "Wi-Fi only" has to stop it, and stopping it must not look like "this album has no groups".
+   * It leaves the album uncovered and picks up where it left off, which is exactly what the cursor
+   * already does for a budget that runs out.
+   */
+  it('downloads nothing on mobile data, and covers the album on the next Wi-Fi pass', async () => {
+    metered = true;
+
+    const held = await service.scanAlbum('alb-1', BUDGET);
+
+    expect(fetched).toEqual([]);
+    expect(await hashStore.getAll()).toEqual(new Map());
+    expect(held.hashed).toBe(0);
+    expect(held.exhausted).toBe(false); // not "done" — there is still work here
+
+    metered = false;
+    const done = await service.scanAlbum('alb-1', BUDGET);
+
+    expect(done.hashed).toBe(2);
+    expect(await groupStore.getByAlbum('alb-1')).toEqual([
+      { type: 'burst', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2'] },
+    ]);
   });
 
   it('skips an unchanged album on the second scan — no fetch, no re-hash', async () => {
