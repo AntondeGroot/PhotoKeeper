@@ -9,8 +9,9 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { ViewerImage } from './viewer-image';
+import { SwipeAim, SwipeVerdict, VIEWER_SWIPE_COMMIT_PX, swipeAim } from '../../photo';
 
-export type ReviewVerdict = 'kept' | 'rejected' | 'toEdit' | 'maybe';
+export type ReviewVerdict = SwipeVerdict;
 
 /**
  * Full-screen image overlay. Fits the image to the viewport with `contain`, so it shows at its true
@@ -56,6 +57,20 @@ export class FullscreenViewerComponent {
   readonly current = computed<ViewerImage | undefined>(() => this.imagesSig()[this.index()]);
   readonly multi = computed(() => this.imagesSig().length > 1);
   // Image follows the drag in review mode, so the directional flag underneath is revealed.
+  /** Where this drag is heading — the one flag shown, and the one verdict given on release. */
+  readonly aim = computed(() => swipeAim(this.dragX(), this.dragY(), VIEWER_SWIPE_COMMIT_PX));
+
+  /**
+   * How strongly to show one verdict's flag: nothing at all unless the drag is aimed at it.
+   *
+   * Only ever one, however diagonal the drag — the flags used to fade on their own axis, so two
+   * could be lit while only one of them could possibly happen.
+   */
+  protected flagOpacity(verdict: SwipeVerdict): number {
+    const aim = this.aim();
+    return aim.verdict === verdict ? aim.progress : 0;
+  }
+
   readonly dragTransform = computed(() =>
     this.reviewMode ? `translate(${this.dragX()}px, ${this.dragY()}px)` : 'none',
   );
@@ -114,6 +129,8 @@ export class FullscreenViewerComponent {
   onPointerUp(): void {
     const dx = this.dragX();
     const dy = this.dragY();
+    // Read before the reset below, which would otherwise leave it aimed at nothing.
+    const aim = this.aim();
     this.dragging.set(false);
     this.dragX.set(0);
     this.dragY.set(0);
@@ -121,7 +138,7 @@ export class FullscreenViewerComponent {
     if (this.reviewMode) {
       // Review: a clean tap closes; a long directional swipe gives a verdict; partial swipes snap back.
       if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) this.close();
-      else this.swipeVerdict(dx, dy);
+      else this.swipeVerdict(aim);
     } else if (Math.abs(dx) > 40 && this.imagesSig().length > 0) {
       const n = this.imagesSig().length;
       this.index.set((this.index() + (dx < 0 ? 1 : -1) + n) % n); // compare: clear swipe → switch
@@ -130,15 +147,9 @@ export class FullscreenViewerComponent {
     }
   }
 
-  private swipeVerdict(dx: number, dy: number): void {
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      if (dx > 80) this.verdict.emit('kept');
-      else if (dx < -80) this.verdict.emit('rejected');
-    } else if (dy > 80) {
-      this.verdict.emit('maybe');
-    } else if (dy < -80) {
-      this.verdict.emit('toEdit');
-    }
+  /** Emits whatever the flags were showing, if the drag got far enough to mean it. */
+  private swipeVerdict({ verdict, progress }: SwipeAim): void {
+    if (verdict && progress >= 1) this.verdict.emit(verdict);
   }
 
   @HostListener('document:keydown.escape')

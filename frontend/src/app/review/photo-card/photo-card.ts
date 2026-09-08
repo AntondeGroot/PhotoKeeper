@@ -8,7 +8,7 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
-import { Photo } from '../../photo';
+import { CARD_SWIPE_COMMIT_PX, Photo, SwipeVerdict, swipeAim } from '../../photo';
 import { SceneComponent } from '../scene/scene';
 
 @Component({
@@ -48,6 +48,20 @@ export class PhotoCardComponent {
     () => `translate(${this.dragX()}px, ${this.dragY()}px) rotate(${this.dragX() * 0.04}deg)`,
   );
 
+  /** Where this drag is heading — the one verdict shown, and the one given on release. */
+  readonly aim = computed(() => swipeAim(this.dragX(), this.dragY(), CARD_SWIPE_COMMIT_PX));
+
+  /**
+   * How strongly to show one verdict's label: nothing at all unless the drag is aimed at it.
+   *
+   * Only ever one label, however diagonal the drag. Fading each on its own axis lit two of them at
+   * once and left it unclear which one letting go would give.
+   */
+  protected overlayOpacity(verdict: SwipeVerdict): number {
+    const aim = this.aim();
+    return aim.verdict === verdict ? aim.progress : 0;
+  }
+
   onPointerDown(e: PointerEvent): void {
     this.startX = e.clientX;
     this.startY = e.clientY;
@@ -62,14 +76,10 @@ export class PhotoCardComponent {
   }
 
   onPointerUp(): void {
-    if (this.dragX() > 100) {
-      this.swiped.emit('kept');
-    } else if (this.dragX() < -100) {
-      this.swiped.emit('rejected');
-    } else if (this.dragY() > 100) {
-      this.swiped.emit('maybe');
-    } else if (this.dragY() < -100) {
-      this.swiped.emit('toEdit');
+    // The same aim the labels are drawn from, so what was shown is what happens.
+    const { verdict, progress } = this.aim();
+    if (verdict && progress >= 1) {
+      this.swiped.emit(verdict);
     } else if (Math.abs(this.dragX()) < 8 && Math.abs(this.dragY()) < 8) {
       this.tapped.emit(); // a tap (no real drag) → open full screen
     }

@@ -51,26 +51,42 @@ describe('PhotoCardComponent', () => {
     }
   });
 
+  /** The visible labels, so a test can say what the person dragging can actually see. */
+  function shownLabels(): { label: string; opacity: number }[] {
+    return [...root.querySelectorAll<HTMLElement>('.swipe-overlay')]
+      .map((el) => ({ label: el.textContent?.trim() ?? '', opacity: Number(el.style.opacity) }))
+      .filter((l) => l.opacity > 0);
+  }
+
   /** The labels still have to answer the drag — they fade in, they simply do not travel. */
   it('fades the label for the direction being dragged', () => {
     dragTo(100, 0);
 
-    const keep = root.querySelector<HTMLElement>('.overlay-keep');
-    const reject = root.querySelector<HTMLElement>('.overlay-reject');
-
-    expect(Number(keep?.style.opacity)).toBe(1);
-    expect(Number(reject?.style.opacity)).toBe(0);
+    expect(shownLabels()).toEqual([{ label: 'KEEP →', opacity: 1 }]);
   });
 
   it('fades the edit label upward and the maybe label downward', () => {
     dragTo(0, -50);
-    expect(Number(root.querySelector<HTMLElement>('.overlay-edit')?.style.opacity)).toBeCloseTo(
-      0.5,
-    );
+    expect(shownLabels()).toEqual([{ label: '↑ EDIT', opacity: 0.5 }]);
 
     dragTo(0, 50);
-    expect(Number(root.querySelector<HTMLElement>('.overlay-maybe')?.style.opacity)).toBeCloseTo(
-      0.5,
-    );
+    expect(shownLabels()).toEqual([{ label: '↓ MAYBE', opacity: 0.5 }]);
+  });
+
+  /**
+   * The complaint this fixes: a diagonal drag lit two labels, so it was not clear which verdict
+   * letting go would give — and the answer came from a different rule again, one that checked the
+   * horizontal axis first whichever had travelled further.
+   */
+  it('shows one label on a diagonal, and it is the one that will be given', () => {
+    dragTo(60, 140);
+
+    expect(shownLabels()).toEqual([{ label: '↓ MAYBE', opacity: 1 }]);
+
+    let given: string | null = null;
+    fixture.componentInstance.swiped.subscribe((v: string) => (given = v));
+    fixture.componentInstance.onPointerUp();
+
+    expect(given).toBe('maybe');
   });
 });

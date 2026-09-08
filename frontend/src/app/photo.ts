@@ -5,6 +5,50 @@ export interface AiHint {
 
 export type ReviewStatus = 'backlog' | 'kept' | 'rejected' | 'toEdit' | 'toPrint' | 'maybe';
 
+/** The four a swipe can reach. */
+export type SwipeVerdict = 'kept' | 'rejected' | 'toEdit' | 'maybe';
+
+/** How far a drag must travel on the review card before releasing it means anything. */
+export const CARD_SWIPE_COMMIT_PX = 100;
+
+/** The fullscreen viewer commits a little sooner — the photo fills the screen, so there is more room. */
+export const VIEWER_SWIPE_COMMIT_PX = 80;
+
+/** Where a drag is heading, and how close it is to getting there. */
+export interface SwipeAim {
+  /** The one verdict aimed at, or null at dead centre. Never two, however diagonal the drag. */
+  verdict: SwipeVerdict | null;
+  /** 0 → 1, reaching exactly 1 when letting go would commit. Drives how strongly the label shows. */
+  progress: number;
+}
+
+/**
+ * The single verdict a drag is aimed at.
+ *
+ * <p>One function, used both to decide what to show and to decide what to do, which is the whole
+ * point. They used to be worked out separately: each label faded on its own axis, so a diagonal drag
+ * lit two of them, while the release checked the horizontal axis first and committed to that one
+ * whichever had travelled further. The picture disagreed with the outcome, and on a diagonal it was
+ * anyone's guess which verdict was about to be given.
+ *
+ * <p>The larger displacement wins, because that is what a swipe means to the person making it: a
+ * drag mostly downward is a "maybe" even if it drifted a little to the right.
+ */
+export function swipeAim(dx: number, dy: number, commitPx: number): SwipeAim {
+  const alongX = Math.abs(dx) >= Math.abs(dy);
+  const travel = alongX ? dx : dy;
+  if (travel === 0) return { verdict: null, progress: 0 };
+
+  const verdict = SWIPE_DIRECTIONS[alongX ? 'x' : 'y'][travel > 0 ? 'forward' : 'back'];
+  return { verdict, progress: Math.min(1, Math.abs(travel) / commitPx) };
+}
+
+/** Which way is which, in one place: right/left keep and reject, down/up are maybe and edit. */
+const SWIPE_DIRECTIONS = {
+  x: { forward: 'kept', back: 'rejected' },
+  y: { forward: 'maybe', back: 'toEdit' },
+} as const satisfies Record<'x' | 'y', Record<'forward' | 'back', SwipeVerdict>>;
+
 export type ReviewItem = Photo | Burst | Pano | Stereo;
 
 /** A single photo pulled from a local device folder (no Lightroom rendition to fetch). */
