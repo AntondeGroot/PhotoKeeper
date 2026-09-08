@@ -193,6 +193,28 @@ describe('DailyUnitsService', () => {
     }
   });
 
+  /** And it comes back as the kind that was asserted, not always as a sweep. */
+  it('rebuilds an asserted burst as a burst', async () => {
+    albums = [{ id: 'alb-1', name: 'Lisbon' }];
+    for (const [id, second] of [
+      ['a1', '00'],
+      ['a2', '02'],
+    ]) {
+      await metaStore.put(id, {
+        albumId: 'alb-1',
+        name: `IMG_${id}`,
+        taken: `2026-05-01T10:00:${second}Z`,
+      });
+    }
+    await overrideStore.setMembers({ memberIds: ['a2'], frameIds: ['a1', 'a2'], at: 1 });
+    await overrideStore.reclassify({ memberIds: ['a2'], type: 'burst', at: 1 });
+
+    const units = await service.buildUnits([], 10, fixedRng);
+
+    expect(units).toHaveLength(1);
+    expect(units[0].kind).toBe('burst');
+  });
+
   /** The other half of that: without the assertion those same photos are three ordinary singles. */
   it('leaves them as singles when nobody has said they belong together', async () => {
     albums = [{ id: 'alb-1', name: 'Lisbon' }];

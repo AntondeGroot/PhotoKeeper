@@ -364,6 +364,37 @@ describe('ReviewDecisionsService', () => {
       ]);
     });
 
+    /**
+     * The other thing a lone photograph can turn out to be. Photos taken minutes apart from
+     * different spots — boarding a ferry, say — are one story with one keeper in it, which is a
+     * burst's question rather than a panorama's, and detection groups on overlap so it finds none.
+     */
+    it('can assemble a burst instead, and asks the burst question of it', () => {
+      photos.set([photo('a')]);
+
+      service.assembleGroup('burst', [
+        { id: 'a', name: 'a' },
+        { id: 'x', name: 'x' },
+      ]);
+
+      const unit = photos()[0];
+      expect(unit.kind).toBe('burst');
+      expect((unit as Burst).photos.map((p) => p.id)).toEqual(['a', 'x']);
+      expect(unit.id).toBe('burst:a');
+    });
+
+    /** Which kind it is has to be recorded too, or it comes back as the wrong one after a re-scan. */
+    it('records what kind of group was asserted, not only what is in it', () => {
+      photos.set([photo('a')]);
+
+      service.assembleGroup('burst', [
+        { id: 'a', name: 'a' },
+        { id: 'x', name: 'x' },
+      ]);
+
+      expect(reclassifies).toEqual([expect.objectContaining({ memberIds: ['a'], type: 'burst' })]);
+    });
+
     /** Two frames is the least that is a sweep rather than a photograph. */
     it('does nothing when only the photo itself is chosen', () => {
       photos.set([photo('a')]);

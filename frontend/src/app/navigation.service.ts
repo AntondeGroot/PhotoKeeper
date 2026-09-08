@@ -7,6 +7,16 @@ import { landingFor } from './notifications/landing';
 /** The three top-level tabs. */
 export type Tab = 'review' | 'prints' | 'settings';
 
+/**
+ * The kinds of group a photograph can be said to belong to.
+ *
+ * Both are "these belong together", differing in what you are then asked. A panorama is a sweep, so
+ * the frames are kept and shown as one. A burst is several tries at the same thing — which a set of
+ * photographs minutes apart can be, taken from different spots while boarding a ferry — so the
+ * question becomes which one of them is the keeper.
+ */
+export type AssembledGroup = 'pano' | 'burst';
+
 /** The steps within Daily review. Tag is optional (Settings → Features). */
 export type ReviewMode = 'sort' | 'edit' | 'tag';
 
@@ -29,20 +39,20 @@ export class NavigationService {
   readonly reviewMode = signal<ReviewMode>('sort');
 
   /**
-   * Whether the panorama frame picker has taken over the sort step.
+   * Which kind of group is being assembled in the frame picker, or null when it is closed.
    *
-   * Here rather than on the card because the two ends are apart: the control sits in the strip above
+   * Here rather than on the card because the two ends are apart: the controls sit in the strip above
    * the photo, beside the album's stereo marking, while the picker replaces the card below it. That
    * strip belongs to the review screen, not to any one card, so the state that joins them does too.
    */
-  readonly panoPicking = signal(false);
+  readonly groupPicking = signal<AssembledGroup | null>(null);
 
-  openPanoPicker(): void {
-    this.panoPicking.set(true);
+  openGroupPicker(type: AssembledGroup): void {
+    this.groupPicking.set(type);
   }
 
-  closePanoPicker(): void {
-    this.panoPicking.set(false);
+  closeGroupPicker(): void {
+    this.groupPicking.set(null);
   }
 
   /** Settings sub-screens, which are drilled into from the Settings tab and close when it is left. */

@@ -28,7 +28,7 @@ export class ReviewAlbumTagsComponent {
   /** What the album is marked as, or the invitation to mark it when it carries no role. */
   label(): string {
     const role = this.stereo.role(this.album());
-    return role ? STEREO_ROLE_LABEL[role].long : 'Mark as stereo';
+    return role ? STEREO_ROLE_LABEL[role].long : 'mark album as stereo';
   }
 
   /** Steps the album through the stereo roles: none → both eyes → left eyes → right eyes → none. */

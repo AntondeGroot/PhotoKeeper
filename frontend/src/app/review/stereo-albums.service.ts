@@ -12,10 +12,16 @@ const CYCLE: (StereoRole | null)[] = [null, 'both', 'left', 'right'];
  * Pill wording per role. Kept together so the album manager's narrow rows and the roomier in-review
  * chip cannot drift into describing the same mark differently.
  */
+/**
+ * `long` is lower case because it shares a row with the photograph's own remarks, which are phrases
+ * rather than titles — and because this one pill says both "mark album as stereo" and what it is
+ * once marked, so a capital would make the pill change case when the album does. `short` keeps its
+ * capital: it labels albums in a list, alongside their names.
+ */
 export const STEREO_ROLE_LABEL: Record<StereoRole, { short: string; long: string }> = {
-  both: { short: 'Stereo L+R', long: 'Stereo · both eyes' },
-  left: { short: 'Stereo L', long: 'Stereo · left eyes' },
-  right: { short: 'Stereo R', long: 'Stereo · right eyes' },
+  both: { short: 'Stereo L+R', long: 'stereo · both eyes' },
+  left: { short: 'Stereo L', long: 'stereo · left eyes' },
+  right: { short: 'Stereo R', long: 'stereo · right eyes' },
 };
 
 /**

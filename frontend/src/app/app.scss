@@ -181,25 +181,43 @@
 
 // The strip above the card: what can be said about what is on screen. The album's stereo marking
 // sits at the right where it always has; the photo's own remark takes the space to its left.
+// Two rows: what can be said about the photograph, then what can be said about its album. Stacked
+// rather than strung along one line because they are claims of different sizes — one is about the
+// picture in front of you, the other about every photo in the album it came from.
 .unit-remarks {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-
-  app-review-album-tags {
-    margin-left: auto;
-  }
+  flex-direction: column;
+  gap: 4px;
 }
 
-// A quiet admission that detection may have missed a sweep — not a verdict, so it never competes
-// with the buttons below. Padded because 11px text on its own is not something to aim at.
-.belongs-to-pano {
-  padding: 8px 4px 8px 0;
-  background: none;
-  border: none;
-  color: var(--c-faint);
-  font-size: 11px;
+.photo-remarks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// Quiet admissions that detection may have missed a grouping — not verdicts, so they never compete
+// with the buttons below. Shaped like the stereo pill they sit beside: the row reads as one set of
+// remarks about what is on screen rather than three unrelated controls.
+.remark-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--c-line);
+  color: var(--c-dim);
+  background: transparent;
   cursor: pointer;
   white-space: nowrap;
+
+  .pill-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--c-faint);
+  }
 }

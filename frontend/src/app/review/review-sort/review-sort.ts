@@ -12,7 +12,7 @@ import { SafeUrl } from '@angular/platform-browser';
 import { PanoFrame, Photo } from '../../photo';
 import { PhotoCardComponent } from '../photo-card/photo-card';
 import { PanoFramePickerComponent } from '../pano-card/frame-picker/frame-picker';
-import { NavigationService } from '../../navigation.service';
+import { AssembledGroup, NavigationService } from '../../navigation.service';
 
 @Component({
   selector: 'app-review-sort',
@@ -37,8 +37,8 @@ export class ReviewSortComponent {
   @Output() tapped = new EventEmitter<void>();
   /** Forwarded from the card: open an edited photo beside the original it came from. */
   @Output() compare = new EventEmitter<{ ids: string[]; start: number }>();
-  /** This photograph turns out to be one frame of a panorama. */
-  @Output() panoFrames = new EventEmitter<PanoFrame[]>();
+  /** This photograph turns out to be one of a group — a sweep, or several tries at one thing. */
+  @Output() grouped = new EventEmitter<{ type: AssembledGroup; frames: PanoFrame[] }>();
 
   // The picker is opened from the strip above the card, so the flag that shows it lives with the
   // rest of "which screen is showing" rather than on either end.
@@ -52,7 +52,8 @@ export class ReviewSortComponent {
 
   /** Done in the picker: hand the frames up, and put the card back either way. */
   protected applyFrames(frames: PanoFrame[]): void {
-    this.nav.closePanoPicker();
-    if (frames.length > 0) this.panoFrames.emit(frames);
+    const type = this.nav.groupPicking();
+    this.nav.closeGroupPicker();
+    if (type && frames.length > 0) this.grouped.emit({ type, frames });
   }
 }
