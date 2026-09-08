@@ -153,7 +153,7 @@ export class DailyUnitsService {
       pushInto(byAlbum, group.sourceAlbumId, effective);
     }
 
-    for (const asserted of assertedPanos(corrections.memberships, claimed, metaById)) {
+    for (const asserted of assertedGroups(corrections, claimed, metaById)) {
       pushInto(byAlbum, asserted.sourceAlbumId, asserted);
     }
     return byAlbum;
@@ -196,7 +196,7 @@ function applyCorrections(
 }
 
 /**
- * Panoramas the user asserted where detection had found no group at all.
+ * Groups the user asserted where detection had found none at all.
  *
  * A membership correction usually adjusts a group that exists — "this sweep is missing frames" —
  * and {@link applyCorrections} finds it by the members detection reported. One made about a lone
@@ -207,8 +207,8 @@ function applyCorrections(
  *
  * Only memberships no group claimed are considered, so a correction is never counted twice.
  */
-function assertedPanos(
-  memberships: GroupCorrections['memberships'],
+function assertedGroups(
+  { memberships, reclassified }: GroupCorrections,
   claimed: readonly string[][],
   metaById: ReadonlyMap<string, AssetMeta>,
 ): DetectedGroup[] {
@@ -220,11 +220,15 @@ function assertedPanos(
     // the group, and the photos fall through as singles exactly as they did before.
     const albumId = frameIds.map((id) => metaById.get(id)?.albumId).find((id) => id !== undefined);
     if (albumId === undefined) continue;
+    // What kind the user said it was, recorded beside the membership. A panorama when nothing says
+    // otherwise: that was the only thing this could assert before bursts could be asserted too, and
+    // an assertion made then should still come back as what it was.
+    const said = reclassified.find((r) => coversSameGroup(r.memberIds, memberIds));
     groups.push({
-      type: 'pano',
+      type: said?.type ?? 'pano',
       sourceAlbumId: albumId,
       memberIds: [...frameIds],
-      orientation: 'horizontal',
+      ...(said?.type === 'burst' ? {} : { orientation: said?.orientation ?? 'horizontal' }),
     });
   }
   return groups;

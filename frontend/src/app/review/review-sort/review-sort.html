@@ -1,9 +1,10 @@
-@if (nav.panoPicking()) {
-  <!-- Replaces the card, as it does on a pano: the same strip, asked the same way. -->
+@if (nav.groupPicking(); as kind) {
+  <!-- Replaces the card, as it does on a pano: the same strip, asked the question that fits. -->
   <app-pano-frame-picker
     [seed]="seed()"
+    [kind]="kind"
     (confirmed)="applyFrames($event)"
-    (cancelled)="nav.closePanoPicker()"
+    (cancelled)="nav.closeGroupPicker()"
   />
 } @else {
   <app-photo-card

@@ -48,14 +48,25 @@ function freezeUnlocked(held: number): HeadsUp {
 }
 
 /**
- * The unit as a panorama of `frames` — the same sweep with its frames corrected, or a photograph
- * that turns out to have been one frame of one.
+ * The unit as a group of `frames` — a sweep with its frames corrected, or a photograph that turns
+ * out to have been one of a set: a panorama, or several tries at the same subject minutes apart.
  *
  * A photograph keeps everything but its kind: same album, same capture time, same undecided status,
  * and an id re-typed so the stored verdict follows it (see retypedId). Horizontal by default, which
  * is what a sweep usually is and what the card lets you change.
  */
-function asPano(unit: Photo | Pano, frames: PanoFrame[]): Pano {
+function asGroup(type: 'pano' | 'burst', unit: Photo | Pano, frames: PanoFrame[]): Pano | Burst {
+  if (type === 'burst') {
+    return {
+      id: retypedId('burst', unit.id),
+      name: `Burst · ${frames.length} frames`,
+      album: unit.album,
+      taken: unit.taken,
+      status: unit.status,
+      kind: 'burst',
+      photos: frames.map(({ id, name, ext }) => ({ id, name, ext })),
+    };
+  }
   const name = `Panorama · ${frames.length} frames`;
   if (unit.kind === 'pano') return { ...unit, name, frames };
   return {
@@ -385,6 +396,18 @@ export class ReviewDecisionsService {
    * dropping the frames back off.
    */
   setPanoFrames(frames: PanoFrame[]): void {
+    this.assembleGroup('pano', frames);
+  }
+
+  /**
+   * "These photos belong together" — the frames the user picked become one unit of `type`.
+   *
+   * One method for both kinds because the work is the same and only the resulting unit differs: the
+   * deck surgery, the absorbing of units the frames were taken from, and the record that makes the
+   * answer survive a re-scan are identical whether the photographs are a sweep or a set of tries at
+   * the same subject.
+   */
+  assembleGroup(type: 'pano' | 'burst', frames: PanoFrame[]): void {
     const current = this.feed.current();
     if (!current || frames.length < MIN_PANO_FRAMES) return;
     if (current.kind !== 'pano' && current.kind !== 'photo') return;
@@ -396,7 +419,7 @@ export class ReviewDecisionsService {
     // What detection found, which is what the correction is filed against: the sweep's own frames,
     // or — for a lone photograph it never grouped at all — just that photograph.
     const detectedIds = current.kind === 'pano' ? current.frames.map((f) => f.id) : [current.id];
-    const updated = asPano(current, frames);
+    const updated = asGroup(type, current, frames);
     const absorbed = this.unitsAbsorbedBy(frames, current);
     this.feed.photos.update((list) =>
       list.flatMap((item) => {
@@ -406,6 +429,10 @@ export class ReviewDecisionsService {
     );
     this.persistDay();
     void this.recordMembers(detectedIds, frames);
+    // What kind of group it is, recorded beside what it consists of. For a lone photograph the two
+    // together are the whole assertion — detection found no group at all, so there is nothing else
+    // to say which of the two this is.
+    void this.recordReclassify(detectedIds, type, type === 'pano' ? 'horizontal' : undefined);
     // Each absorbed group is dissolved as well as removed: without that, the next selection would
     // hydrate it from detection all over again and the sweep would be back in two pieces.
     for (const unit of absorbed) void this.recordAbsorbed(unit);

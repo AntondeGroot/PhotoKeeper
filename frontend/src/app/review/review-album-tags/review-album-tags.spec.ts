@@ -87,7 +87,7 @@ describe('ReviewAlbumTagsComponent', () => {
       fixture.detectChanges();
 
       expect(component.isStereo()).toBe(true);
-      expect(pill()?.textContent).toContain('Stereo · both eyes');
+      expect(pill()?.textContent).toContain('stereo · both eyes');
     });
   });
 

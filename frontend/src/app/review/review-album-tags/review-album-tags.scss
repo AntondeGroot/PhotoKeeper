@@ -1,6 +1,8 @@
+// Left, in line with the photograph's own remarks above it: on its own row, an end-aligned pill
+// under a left-aligned pair read as two unrelated things rather than one short list.
 .review-tags {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   min-height: 30px;
   margin-bottom: 8px;
 }

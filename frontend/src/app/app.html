@@ -181,11 +181,22 @@
               <!-- What can be said about what is on screen: this photo may be part of a sweep,
                    and its album may hold stereo pairs. One strip, the photo's remark on the left. -->
               <div class="unit-remarks">
-                @if (currentReviewPhoto().kind === 'photo' && !nav.panoPicking()) {
-                  <button class="belongs-to-pano" (click)="nav.openPanoPicker()">
-                    part of a panorama…
-                  </button>
+                <!-- Two rows, because they are about different things. These two are about the
+                     photograph on screen: a sweep is obvious once you see it, while a set of tries
+                     at one thing is not — photos minutes apart from different spots can be one
+                     story with one keeper in it. -->
+                @if (currentReviewPhoto().kind === 'photo' && !nav.groupPicking()) {
+                  <div class="photo-remarks">
+                    <button class="remark-pill" (click)="nav.openGroupPicker('pano')">
+                      <span class="pill-dot"></span>part of a panorama
+                    </button>
+                    <button class="remark-pill" (click)="nav.openGroupPicker('burst')">
+                      <span class="pill-dot"></span>one of a set
+                    </button>
+                  </div>
                 }
+                <!-- And this one is about the album the photograph came from, which is a different
+                     claim entirely: it applies to every photo in it, not just the one on screen. -->
                 <app-review-album-tags [album]="currentReviewPhoto().album" />
               </div>
               @switch (currentReviewPhoto().kind) {
@@ -198,7 +209,7 @@
                     (starToggle)="toggleStar()"
                     (tapped)="openPhotoFullscreen()"
                     (compare)="openBurstCompare($event)"
-                    (panoFrames)="setPanoFrames($event)"
+                    (grouped)="decisions.assembleGroup($event.type, $event.frames)"
                   />
                 }
                 @case ('burst') {

@@ -37,7 +37,10 @@ describe('ReviewSortComponent', () => {
       providers: [
         {
           provide: NavigationService,
-          useValue: { panoPicking: signal(true), closePanoPicker: () => undefined },
+          useValue: {
+            groupPicking: signal<'pano' | 'burst'>('pano'),
+            closeGroupPicker: () => undefined,
+          },
         },
         {
           provide: PanoFramesService,

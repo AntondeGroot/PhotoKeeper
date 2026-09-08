@@ -38,6 +38,20 @@ export class PanoFramePickerComponent {
    */
   readonly seed = input.required<readonly PanoFrame[]>();
 
+  /**
+   * Which question the strip is asking, which is the only thing that differs between the two.
+   *
+   * A panorama asks which photographs are part of one sweep; a burst asks which are attempts at the
+   * same subject — and answering that is what lets you pick the keeper afterwards.
+   */
+  readonly kind = input<'pano' | 'burst'>('pano');
+
+  protected readonly title = computed(() =>
+    this.kind() === 'burst'
+      ? 'Which photos are of the same subject?'
+      : 'Which photos belong to this panorama?',
+  );
+
   /** The confirmed frames, in capture order. Empty means nothing was changed. */
   @Output() confirmed = new EventEmitter<PanoFrame[]>();
   @Output() cancelled = new EventEmitter<void>();
