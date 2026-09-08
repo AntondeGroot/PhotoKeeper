@@ -28,6 +28,23 @@ export class NavigationService {
   readonly activeTab = signal<Tab>('review');
   readonly reviewMode = signal<ReviewMode>('sort');
 
+  /**
+   * Whether the panorama frame picker has taken over the sort step.
+   *
+   * Here rather than on the card because the two ends are apart: the control sits in the strip above
+   * the photo, beside the album's stereo marking, while the picker replaces the card below it. That
+   * strip belongs to the review screen, not to any one card, so the state that joins them does too.
+   */
+  readonly panoPicking = signal(false);
+
+  openPanoPicker(): void {
+    this.panoPicking.set(true);
+  }
+
+  closePanoPicker(): void {
+    this.panoPicking.set(false);
+  }
+
   /** Settings sub-screens, which are drilled into from the Settings tab and close when it is left. */
   readonly manageAlbumsOpen = signal(false);
   readonly tagsManagerOpen = signal(false);

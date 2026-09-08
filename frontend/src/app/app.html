@@ -178,7 +178,16 @@
                 </button>
               </div>
             } @else if (!stats.sessionDone()) {
-              <app-review-album-tags [album]="currentReviewPhoto().album" />
+              <!-- What can be said about what is on screen: this photo may be part of a sweep,
+                   and its album may hold stereo pairs. One strip, the photo's remark on the left. -->
+              <div class="unit-remarks">
+                @if (currentReviewPhoto().kind === 'photo' && !nav.panoPicking()) {
+                  <button class="belongs-to-pano" (click)="nav.openPanoPicker()">
+                    part of a panorama…
+                  </button>
+                }
+                <app-review-album-tags [album]="currentReviewPhoto().album" />
+              </div>
               @switch (currentReviewPhoto().kind) {
                 @case ('photo') {
                   <app-review-sort
@@ -189,6 +198,7 @@
                     (starToggle)="toggleStar()"
                     (tapped)="openPhotoFullscreen()"
                     (compare)="openBurstCompare($event)"
+                    (panoFrames)="setPanoFrames($event)"
                   />
                 }
                 @case ('burst') {

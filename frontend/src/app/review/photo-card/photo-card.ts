@@ -37,6 +37,7 @@ export class PhotoCardComponent {
       this.compare.emit({ ids: [this.photo.edit.originalId, this.photo.id], start: index });
     }
   }
+
   private startX = 0;
   private startY = 0;
 
@@ -76,6 +77,11 @@ export class PhotoCardComponent {
   }
 
   onPointerUp(): void {
+    // A release that never began on the card is not a gesture on the card. Children that take their
+    // own taps stop `pointerdown`, but `pointerup` still bubbles here — and with no movement behind
+    // it, it read as a tap and opened the photo full screen on top of whatever the child was doing.
+    if (!this.dragging()) return;
+
     // The same aim the labels are drawn from, so what was shown is what happens.
     const { verdict, progress } = this.aim();
     if (verdict && progress >= 1) {

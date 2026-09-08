@@ -26,8 +26,13 @@ describe('PhotoCardComponent', () => {
     root = fixture.nativeElement as HTMLElement;
   });
 
-  /** Drags the card as a finger would, without committing to a verdict. */
+  /**
+   * Drags the card as a finger would: pressed first, then moved. The press matters — a release the
+   * card never saw the start of is deliberately ignored, so that a child taking its own tap does
+   * not also open the photo.
+   */
   function dragTo(x: number, y: number): void {
+    fixture.componentInstance.dragging.set(true);
     fixture.componentInstance.dragX.set(x);
     fixture.componentInstance.dragY.set(y);
     fixture.detectChanges();
@@ -88,5 +93,29 @@ describe('PhotoCardComponent', () => {
     fixture.componentInstance.onPointerUp();
 
     expect(given).toBe('maybe');
+  });
+
+  /**
+   * What went wrong when the "part of a panorama" button sat on the photo: children that take their
+   * own taps stop `pointerdown`, but `pointerup` still reaches the card — and with no movement
+   * behind it, the card read it as a tap and opened the picture on top of whatever was happening.
+   */
+  it('ignores a release it never saw the start of', () => {
+    let opened = false;
+    fixture.componentInstance.tapped.subscribe(() => (opened = true));
+
+    fixture.componentInstance.onPointerUp(); // no press: a child handled that
+
+    expect(opened).toBe(false);
+  });
+
+  it('still opens the photo on a real tap', () => {
+    let opened = false;
+    fixture.componentInstance.tapped.subscribe(() => (opened = true));
+
+    dragTo(0, 0); // pressed, not moved
+    fixture.componentInstance.onPointerUp();
+
+    expect(opened).toBe(true);
   });
 });

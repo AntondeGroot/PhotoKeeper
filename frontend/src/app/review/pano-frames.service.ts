@@ -2,7 +2,6 @@ import { Injectable, inject } from '@angular/core';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { GroupStore } from '../storage/detection/group-store';
 import { AssetMeta } from '../storage/photokeeper-db';
-import { Pano } from '../photo';
 import { AlbumAsset, NEIGHBOURS_EACH_SIDE, PanoCandidate, candidateWindow } from './pano-frames';
 
 /**
@@ -18,14 +17,17 @@ export class PanoFramesService {
   private readonly groups = inject(GroupStore);
 
   /**
-   * The photos around `pano`'s frames, in capture order, including the frames themselves.
+   * The photos around `frameIds`, in capture order, including those frames themselves.
    *
-   * The album comes from the frames rather than from the pano's own `album`, which holds a display
+   * Takes the frames rather than the pano they came from, because a lone photograph asks this too:
+   * one frame of a grid-pattern sweep can be the only thing detection found, and it needs the same
+   * neighbourhood offered to it. Nothing here ever needed more than the ids.
+   *
+   * The album comes from the frames rather than from any unit's own `album`, which holds a display
    * name: several albums can share a name, and the frames say exactly which one they came out of.
    */
-  async candidatesFor(pano: Pano): Promise<PanoCandidate[]> {
+  async candidatesFor(frameIds: readonly string[]): Promise<PanoCandidate[]> {
     const metaById = await this.meta.getAll();
-    const frameIds = pano.frames.map((frame) => frame.id);
     const albumId = frameIds.map((id) => metaById.get(id)?.albumId).find((id) => id !== undefined);
     if (albumId === undefined) return [];
 

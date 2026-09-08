@@ -3,7 +3,7 @@
     <!-- The picker replaces the sweep rather than sitting beside it: it is the same frames, asked
          about differently, and two strips of the same photos would be a puzzle. -->
     <app-pano-frame-picker
-      [pano]="pano"
+      [seed]="pano.frames"
       (confirmed)="applyFrames($event)"
       (cancelled)="picking.set(false)"
     />

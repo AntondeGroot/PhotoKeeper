@@ -178,3 +178,28 @@
     border-color: var(--c-dim);
   }
 }
+
+// The strip above the card: what can be said about what is on screen. The album's stereo marking
+// sits at the right where it always has; the photo's own remark takes the space to its left.
+.unit-remarks {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  app-review-album-tags {
+    margin-left: auto;
+  }
+}
+
+// A quiet admission that detection may have missed a sweep — not a verdict, so it never competes
+// with the buttons below. Padded because 11px text on its own is not something to aim at.
+.belongs-to-pano {
+  padding: 8px 4px 8px 0;
+  background: none;
+  border: none;
+  color: var(--c-faint);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
