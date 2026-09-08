@@ -129,7 +129,9 @@
 }
 
 // Set apart from the per-photo actions: it asks about the whole queue, not about one row.
-.check-edits {
+// The second way of answering the same question, so it gets the same treatment.
+.check-edits,
+.pick-edits {
   width: 100%;
   margin-bottom: 10px;
   padding: 8px 12px;

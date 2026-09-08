@@ -2,7 +2,9 @@
 <div class="check-scrim">
   <div class="check-panel" role="dialog" aria-labelledby="check-title">
     <header>
-      <h2 id="check-title">Edited since you sent them</h2>
+      <h2 id="check-title">
+        {{ picking() ? 'Which ones are done?' : 'Edited since you sent them' }}
+      </h2>
       <button class="close" (click)="close()" aria-label="Close">✕</button>
     </header>
 
@@ -15,39 +17,61 @@
       </p>
     } @else {
       <ul class="check-list">
-        @for (finding of findings(); track finding.assetId) {
+        @for (finding of rows(); track finding.assetId) {
           <li>
+            <!-- The whole tile toggles: on a phone the picture is the target worth hitting, and a
+                 filename is not how anyone recognises a photograph. -->
             <button
-              class="tick"
+              class="tile"
               [class.on]="isSelected(finding.assetId)"
               (click)="toggle(finding.assetId)"
               [attr.aria-pressed]="isSelected(finding.assetId)"
             >
+              @if (thumbnail(finding.assetId); as url) {
+                <img class="tile-img" [src]="url" alt="" draggable="false" />
+              } @else {
+                <span class="tile-blank"></span>
+              }
               <span class="tick-box"></span>
+              <span class="check-name">{{ finding.name }}</span>
             </button>
-            <span class="check-name">{{ finding.name }}</span>
-            <button class="again" (click)="keepEditing(finding)">Not done yet</button>
+            @if (!picking()) {
+              <button class="again" (click)="keepEditing(finding)">Not done yet</button>
+            }
           </li>
         } @empty {
-          <li class="check-empty">Nothing has changed since you sent these to edit.</li>
+          <li class="check-empty">
+            {{
+              picking()
+                ? 'Nothing is waiting to be edited.'
+                : 'Nothing has changed since you sent these to edit.'
+            }}
+          </li>
         }
       </ul>
 
-      <!-- Said plainly: a check that silently ignored most of the album would be worse than none. -->
-      <p class="check-note">
-        Looked at {{ examined().length }} photos.
-        @if (untouched() > 0) {
-          {{ untouched() }} untouched.
-        }
-        @if (metadataOnly() > 0) {
-          {{ metadataOnly() }} changed in Lightroom but the picture is the same.
-        }
-        @if (unknown() > 0) {
-          {{ unknown() }} couldn’t be compared — no earlier version on this phone.
-        }
-      </p>
+      @if (picking()) {
+        <p class="check-note">
+          Everything still waiting to be edited. Tick the ones you have finished — including any
+          that only ended up here by a mis-tap.
+        </p>
+      } @else {
+        <!-- Said plainly: a check that silently ignored most of the album would be worse than none. -->
+        <p class="check-note">
+          Looked at {{ examined().length }} photos.
+          @if (untouched() > 0) {
+            {{ untouched() }} untouched.
+          }
+          @if (metadataOnly() > 0) {
+            {{ metadataOnly() }} changed in Lightroom but the picture is the same.
+          }
+          @if (unknown() > 0) {
+            {{ unknown() }} couldn’t be compared — no earlier version on this phone.
+          }
+        </p>
+      }
 
-      @if (findings().length > 0) {
+      @if (rows().length > 0) {
         <button class="send" [disabled]="selected().size === 0" (click)="sendSelected()">
           Send {{ selected().size }} to print →
         </button>

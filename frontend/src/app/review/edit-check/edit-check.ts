@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
+import { SafeUrl } from '@angular/platform-browser';
 import { EditDetectionService, EditFinding } from '../edit-detection.service';
 
 /**
@@ -20,9 +29,13 @@ import { EditDetectionService, EditFinding } from '../edit-detection.service';
 export class EditCheckComponent {
   private readonly detection = inject(EditDetectionService);
 
-  readonly findings = this.detection.editedFindings;
   readonly checking = this.detection.checking;
   readonly failed = this.detection.failed;
+  /** Whether the user asked for the list rather than for the check — see {@link rows}. */
+  readonly picking = this.detection.picking;
+
+  /** What the panel lists — the service decides, since it also fetches the pictures for them. */
+  readonly rows = this.detection.shownFindings;
 
   /** Everything checked, for the line that says what was looked at and what was left alone. */
   readonly examined = computed(() => this.detection.findings() ?? []);
@@ -34,23 +47,33 @@ export class EditCheckComponent {
   );
   readonly unknown = computed(() => this.examined().filter((f) => f.state === 'unknown').length);
 
-  /** Which rows are ticked. Everything the check offers starts ticked — that is the common answer. */
-  private readonly cleared = signal<ReadonlySet<string>>(new Set());
-  readonly selected = computed(
-    () =>
-      new Set(
-        this.findings()
-          .map((f) => f.assetId)
-          .filter((id) => !this.cleared().has(id)),
-      ),
-  );
+  /** Which rows are ticked. */
+  readonly selected = signal<ReadonlySet<string>>(new Set());
+
+  constructor() {
+    // Each new list opens on the answer that is usually right. What the check *found* is a list of
+    // edits to send on, so it starts ticked; a list the user asked to pick from starts empty, since
+    // picking is the whole reason they asked.
+    effect(() => {
+      const rows = this.rows();
+      const picking = this.picking();
+      untracked(() =>
+        this.selected.set(picking ? new Set() : new Set(rows.map((row) => row.assetId))),
+      );
+    });
+  }
+
+  /** The photo for a row, once its preview has arrived. */
+  thumbnail(assetId: string): SafeUrl | undefined {
+    return this.detection.thumbnails().get(assetId);
+  }
 
   isSelected(id: string): boolean {
     return this.selected().has(id);
   }
 
   toggle(id: string): void {
-    this.cleared.update((set) => {
+    this.selected.update((set) => {
       const next = new Set(set);
       if (next.has(id)) next.delete(id);
       else next.add(id);

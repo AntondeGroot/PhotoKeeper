@@ -57,6 +57,32 @@
     border-bottom: 1px solid var(--c-line);
   }
 
+  // The row is the photograph. A name alone answers "which files are these?" when the question is
+  // "which photos are these?", and only one of those can be answered by looking.
+  .tile {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .tile-img,
+  .tile-blank {
+    flex: none;
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--c-panel);
+    border: 1px solid var(--c-line);
+  }
+
   .check-name {
     flex: 1;
     min-width: 0;
@@ -75,18 +101,14 @@
   }
 }
 
-.tick {
-  flex: none;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-
+.tile {
   .tick-box {
+    flex: none;
+    order: -1; // before the picture, where a checklist is read from
     display: block;
-    width: 18px;
-    height: 18px;
-    border-radius: 5px;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
     border: 1px solid var(--c-line);
   }
 

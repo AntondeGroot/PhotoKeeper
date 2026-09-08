@@ -26,6 +26,8 @@ describe('EditDetectionService', () => {
   let verdicts: Map<string, StoredVerdict>;
   let blobRequests: string[];
   let editAlbumId: string | null;
+  /** What the detection scan has hashed. Undefined for most photos — see the baseline tests. */
+  let storedHash: string | undefined;
 
   beforeEach(() => {
     albumAssets = [];
@@ -36,6 +38,7 @@ describe('EditDetectionService', () => {
     verdicts = new Map([['a', { status: 'toEdit', starred: false, saveOnly: false }]]);
     blobRequests = [];
     editAlbumId = 'al-edit';
+    storedHash = 'stored-hash';
 
     TestBed.configureTestingModule({
       providers: [
@@ -69,7 +72,7 @@ describe('EditDetectionService', () => {
             },
           },
         },
-        { provide: HashStore, useValue: { get: () => Promise.resolve('stored-hash') } },
+        { provide: HashStore, useValue: { get: () => Promise.resolve(storedHash) } },
         { provide: AlbumManifestStore, useValue: { get: () => Promise.resolve(undefined) } },
         {
           provide: AssetMetaStore,
@@ -168,6 +171,54 @@ describe('EditDetectionService', () => {
     expect(service.findings()?.[0].state).toBe('unknown');
   });
 
+  /**
+   * The bug this covers: the baseline took its hash from the detection scan's store, and the scan
+   * only hashes burst and pano *candidates* — a lone photograph, which is most of them, has no hash
+   * there at all. So an ordinary photo was sent to edit with a hashless baseline, and the check could
+   * only ever answer 'unknown' about it: every real edit was invisible by construction.
+   */
+  describe('the baseline a photo leaves with', () => {
+    it('hashes the photo itself when the scan never did', async () => {
+      storedHash = undefined;
+      renditions.set('a', rendition('before'));
+
+      await service.captureBaseline('a');
+
+      expect(baselines.get('a')?.hash).toBe('before');
+      expect(blobRequests).toEqual(['a']);
+    });
+
+    /** The scan's hash is the same measurement already paid for; there is no reason to buy it twice. */
+    it('uses the stored hash when there is one, without downloading', async () => {
+      await service.captureBaseline('a');
+
+      expect(baselines.get('a')?.hash).toBe('stored-hash');
+      expect(blobRequests).toEqual([]);
+    });
+
+    it('still records a baseline when the photo cannot be fetched', async () => {
+      storedHash = undefined; // and no rendition staged, so the download fails
+
+      await service.captureBaseline('a');
+
+      expect(baselines.has('a')).toBe(true);
+      expect(baselines.get('a')?.hash).toBeUndefined();
+    });
+
+    /** End to end: send to edit, edit it, and the check must say so. */
+    it('lets an ordinary photo’s edit be found afterwards', async () => {
+      storedHash = undefined;
+      renditions.set('a', rendition('before'));
+      await service.captureBaseline('a');
+
+      albumAssets = [asset('a', 'stamp-2')];
+      renditions.set('a', rendition('after'));
+      await service.check();
+
+      expect(service.editedFindings().map((f) => f.assetId)).toEqual(['a']);
+    });
+  });
+
   it('says so when the album cannot be read, rather than reporting nothing found', async () => {
     editAlbumId = null;
 
@@ -176,6 +227,71 @@ describe('EditDetectionService', () => {
     expect(service.failed()).toBe(true);
     expect(service.findings()).toEqual([]);
     expect(service.panelOpen()).toBe(true);
+  });
+
+  /**
+   * The escape hatch from the check's blind spots. It cannot speak for a photo it holds no earlier
+   * version of, and it will never speak for one sent to edit by a mis-tap — nothing about that photo
+   * changed, and nothing should have.
+   */
+  describe('listing the queue by hand', () => {
+    it('offers everything still waiting, and nothing that has left', async () => {
+      verdicts.set('b', { status: 'toEdit', starred: false, saveOnly: false });
+      verdicts.set('c', { status: 'toPrint', starred: false, saveOnly: false });
+      albumAssets = [asset('a', 'stamp-1'), asset('b', 'stamp-1'), asset('c', 'stamp-1')];
+
+      await service.listQueue();
+
+      expect(service.findings()?.map((f) => f.assetId)).toEqual(['a', 'b']);
+      expect(service.picking()).toBe(true);
+    });
+
+    it('claims nothing about any of them — that is what the user is there for', async () => {
+      albumAssets = [asset('a', 'stamp-1')];
+
+      await service.listQueue();
+
+      expect(service.findings()?.[0]).toMatchObject({ state: 'unknown', updated: 'stamp-1' });
+    });
+
+    /**
+     * Which rows reach the panel, pinned where the rule lives. A photo whose revision moved but whose
+     * picture did not is deliberately kept out of the check's list — sending it on would print the
+     * version that was already there — but it belongs in a list the user asked to pick from.
+     */
+    it('shows everything when picking, and only the changed ones after a check', async () => {
+      verdicts.set('b', { status: 'toEdit', starred: false, saveOnly: false });
+      albumAssets = [asset('a', 'stamp-2'), asset('b', 'stamp-2')];
+      baselines.set('a', { hash: 'before', updated: 'stamp-1', at: 1 });
+      baselines.set('b', { hash: 'same', updated: 'stamp-1', at: 1 });
+      renditions.set('a', rendition('after')); // the picture changed
+      renditions.set('b', rendition('same')); // only its metadata did
+
+      await service.check();
+      expect(service.shownFindings().map((f) => f.assetId)).toEqual(['a']);
+
+      await service.listQueue();
+      expect(service.shownFindings().map((f) => f.assetId)).toEqual(['a', 'b']);
+    });
+
+    it('says so when the album cannot be read', async () => {
+      editAlbumId = null;
+
+      await service.listQueue();
+
+      expect(service.failed()).toBe(true);
+      expect(service.panelOpen()).toBe(true);
+    });
+
+    /** The two buttons share a panel, so the mode has to be right whichever was pressed last. */
+    it('goes back to the check’s own list when the check is run again', async () => {
+      albumAssets = [asset('a', 'stamp-1')];
+      await service.listQueue();
+
+      await service.check();
+
+      expect(service.picking()).toBe(false);
+    });
   });
 
   it('makes the chosen photos printable and forgets what they used to look like', async () => {

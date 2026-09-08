@@ -43,6 +43,11 @@ export class ReviewEditComponent implements OnInit {
     void this.detection.check();
   }
 
+  /** Skip the asking: list everything waiting, and let the user say which are finished. */
+  pickEdits(): void {
+    void this.detection.listQueue();
+  }
+
   /**
    * The photo whose "Done editing" is awaiting confirmation, if any.
    *

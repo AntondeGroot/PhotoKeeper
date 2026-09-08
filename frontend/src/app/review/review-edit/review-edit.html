@@ -13,6 +13,11 @@
   <button class="check-edits" [disabled]="detection.checking()" (click)="checkForEdits()">
     {{ detection.checking() ? 'Checking…' : 'Check for edits' }}
   </button>
+  <!-- The check can only speak for photos it holds an earlier version of, and never for one that
+       landed here by a mis-tap. This asks the person who did the editing instead. -->
+  <button class="pick-edits" [disabled]="detection.checking()" (click)="pickEdits()">
+    Pick them myself
+  </button>
 
   <div class="edit-queue">
     @for (photo of queue; track photo.id) {
