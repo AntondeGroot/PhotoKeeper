@@ -1,4 +1,13 @@
-import { Burst, Pano, Photo, Stereo, splitFileName, unitAssetIds } from './photo';
+import {
+  Burst,
+  CARD_SWIPE_COMMIT_PX,
+  Pano,
+  Photo,
+  Stereo,
+  splitFileName,
+  swipeAim,
+  unitAssetIds,
+} from './photo';
 
 describe('splitFileName', () => {
   it('splits a normal filename into name + extension (no dot)', () => {
@@ -135,5 +144,48 @@ describe('unitAssetIds', () => {
     };
 
     expect(unitAssetIds(half)).toEqual(['l9']);
+  });
+});
+
+const aim = (dx: number, dy: number) => swipeAim(dx, dy, CARD_SWIPE_COMMIT_PX);
+
+describe('swipeAim', () => {
+  it('reads each straight drag as its own verdict', () => {
+    expect(aim(120, 0).verdict).toBe('kept');
+    expect(aim(-120, 0).verdict).toBe('rejected');
+    expect(aim(0, -120).verdict).toBe('toEdit');
+    expect(aim(0, 120).verdict).toBe('maybe');
+  });
+
+  /**
+   * The complaint this fixes. A diagonal used to light two labels while the release checked the
+   * horizontal axis first — so a drag mostly downward showed "maybe" *and* "keep" and then gave
+   * keep. One answer now, and it is the one a person would say they were making.
+   */
+  it('gives one answer on a diagonal, and it is the larger movement', () => {
+    expect(aim(60, 140).verdict).toBe('maybe');
+    expect(aim(140, 60).verdict).toBe('kept');
+    expect(aim(-60, -140).verdict).toBe('toEdit');
+  });
+
+  it('never leaves the aim ambiguous, even at exactly 45°', () => {
+    // Horizontal wins the tie, but the point is that exactly one verdict comes back.
+    expect(aim(100, 100).verdict).toBe('kept');
+  });
+
+  it('is aimed nowhere at dead centre', () => {
+    expect(aim(0, 0)).toEqual({ verdict: null, progress: 0 });
+  });
+
+  /** Progress reaches 1 exactly where releasing commits, so a full label means "this will happen". */
+  it('measures how close the drag is to committing', () => {
+    expect(aim(50, 0).progress).toBeCloseTo(0.5);
+    expect(aim(100, 0).progress).toBe(1);
+    expect(aim(400, 0).progress).toBe(1); // clamped: past committing is still committing
+  });
+
+  /** Measured along the axis that decides, not the diagonal, so the label fills as that axis fills. */
+  it('measures progress along the winning axis', () => {
+    expect(aim(30, 90).progress).toBeCloseTo(0.9);
   });
 });

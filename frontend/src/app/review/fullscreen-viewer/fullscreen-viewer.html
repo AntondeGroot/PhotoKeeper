@@ -14,16 +14,10 @@
   }
 
   @if (reviewMode) {
-    <div class="swipe-flag flag-keep" [style.opacity]="dragX() > 0 ? dragX() / 100 : 0">KEEP →</div>
-    <div class="swipe-flag flag-reject" [style.opacity]="dragX() < 0 ? -dragX() / 100 : 0">
-      ← REJECT
-    </div>
-    <div class="swipe-flag flag-edit" [style.opacity]="dragY() < 0 ? -dragY() / 100 : 0">
-      ↑ EDIT
-    </div>
-    <div class="swipe-flag flag-maybe" [style.opacity]="dragY() > 0 ? dragY() / 100 : 0">
-      ↓ MAYBE
-    </div>
+    <div class="swipe-flag flag-keep" [style.opacity]="flagOpacity('kept')">KEEP →</div>
+    <div class="swipe-flag flag-reject" [style.opacity]="flagOpacity('rejected')">← REJECT</div>
+    <div class="swipe-flag flag-edit" [style.opacity]="flagOpacity('toEdit')">↑ EDIT</div>
+    <div class="swipe-flag flag-maybe" [style.opacity]="flagOpacity('maybe')">↓ MAYBE</div>
   }
 
   <button class="viewer-close" (click)="close()" aria-label="close">✕</button>

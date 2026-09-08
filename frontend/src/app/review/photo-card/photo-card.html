@@ -31,18 +31,12 @@
       <app-scene [scene]="scene" />
     }
   </div>
-  <div class="swipe-overlay overlay-keep" [style.opacity]="dragX() > 0 ? dragX() / 100 : 0">
-    KEEP →
-  </div>
-  <div class="swipe-overlay overlay-reject" [style.opacity]="dragX() < 0 ? -dragX() / 100 : 0">
+  <div class="swipe-overlay overlay-keep" [style.opacity]="overlayOpacity('kept')">KEEP →</div>
+  <div class="swipe-overlay overlay-reject" [style.opacity]="overlayOpacity('rejected')">
     ← REJECT
   </div>
-  <div class="swipe-overlay overlay-edit" [style.opacity]="dragY() < 0 ? -dragY() / 100 : 0">
-    ↑ EDIT
-  </div>
-  <div class="swipe-overlay overlay-maybe" [style.opacity]="dragY() > 0 ? dragY() / 100 : 0">
-    ↓ MAYBE
-  </div>
+  <div class="swipe-overlay overlay-edit" [style.opacity]="overlayOpacity('toEdit')">↑ EDIT</div>
+  <div class="swipe-overlay overlay-maybe" [style.opacity]="overlayOpacity('maybe')">↓ MAYBE</div>
   <div class="photo-top">
     <span class="chip" [class.chip-device]="photo.source === 'device'">
       {{ photo.source === 'device' ? 'Device · ' + photo.album : photo.album || 'No album' }}
