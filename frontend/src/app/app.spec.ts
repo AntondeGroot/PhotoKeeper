@@ -451,7 +451,7 @@ describe('App', () => {
   });
 
   describe('burst duel', () => {
-    it('resolveBurst keeps the winning frame, rejects the rest, and marks the burst done', async () => {
+    it('resolveBurst rejects the losers and leaves the survivor to be judged', async () => {
       const saved = new Map<string, StoredVerdict>();
       TestBed.overrideProvider(ReviewStore, {
         useValue: {
@@ -461,6 +461,8 @@ describe('App', () => {
             saved.set(id, v);
             return Promise.resolve();
           },
+          // The deck changes when the survivors take the burst's place, so the day is re-persisted.
+          setDailyFeed: () => Promise.resolve(),
         },
       });
       const fixture = TestBed.createComponent(App);
@@ -483,10 +485,12 @@ describe('App', () => {
 
       app.resolveBurst(['f1']);
 
-      expect(app.reviewPhotos()[0].status).toBe('kept'); // burst unit done
+      // The survivor takes the burst's place, undecided: winning a duel is not a verdict.
+      expect(app.reviewPhotos().map((p) => p.id)).toEqual(['f1']);
+      expect(app.reviewPhotos()[0].status).toBe('backlog');
       await tick();
-      expect(saved.get('f1')?.status).toBe('kept'); // winner
       expect(saved.get('f2')?.status).toBe('rejected'); // loser
+      expect(saved.has('f1')).toBe(false); // survivor: nothing decided about it yet
     });
   });
 

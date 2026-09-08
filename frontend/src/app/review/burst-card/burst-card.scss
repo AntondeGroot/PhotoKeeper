@@ -78,6 +78,17 @@
   min-height: 220px;
 }
 
+// The closing screen shows every survivor at once rather than a pair, so they share the row and are
+// shorter — this is a summary of what is left, not another duel to study.
+.burst-survivors {
+  min-height: 140px;
+  flex-wrap: wrap;
+
+  .burst-frame {
+    min-width: 90px;
+  }
+}
+
 .burst-frame {
   position: relative;
   flex: 1;
@@ -161,7 +172,10 @@
   padding: 4px 10px;
 }
 
-.reject-all {
+// Both are escapes from the run in progress rather than answers the duel is asking for, so they
+// get the same quiet treatment.
+.reject-all,
+.start-over {
   align-self: center;
   background: none;
   border: none;

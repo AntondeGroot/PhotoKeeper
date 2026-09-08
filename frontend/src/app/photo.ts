@@ -168,6 +168,32 @@ export interface EditedFrom {
   originalExt?: string;
 }
 
+/**
+ * A burst frame as its own review unit, for the survivors of a duel.
+ *
+ * The duel is a culling step, not a verdict: it settles which frames of the burst are worth looking
+ * at, and each survivor is then judged on its own like any other photograph — rejected, sent to
+ * edit, kept or set aside. So the frame comes back as a plain undecided photo.
+ *
+ * `taken` is the burst's own timestamp, which is the earliest capture in it. A frame's exact moment
+ * is not carried on the burst unit, and the frames of a burst are seconds apart in any case; it is
+ * shown and sorted by, never used to identify anything.
+ */
+export function burstFrameToPhoto(frame: BurstPhoto, burst: Burst): Photo {
+  return {
+    id: frame.id,
+    name: frame.name,
+    ext: frame.ext,
+    album: burst.album,
+    taken: burst.taken,
+    status: 'backlog',
+    kind: 'photo',
+    starred: false,
+    saveOnly: false,
+    ai: frame.ai,
+  };
+}
+
 /** A local device folder the user can opt into reviewing, with a (mock) photo count. */
 export interface DeviceFolder {
   name: string;

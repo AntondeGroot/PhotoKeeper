@@ -100,3 +100,37 @@ describe('GroupOverrideStore — membership corrections', () => {
     expect(stored[0].frameIds).toEqual(['f2', 'f3', 'f4']);
   });
 });
+
+describe('GroupOverrideStore', () => {
+  let store: GroupOverrideStore;
+
+  beforeEach(() => {
+    indexedDB = new IDBFactory(); // fresh, empty database per test
+    TestBed.configureTestingModule({});
+    store = TestBed.inject(GroupOverrideStore);
+  });
+
+  it('records a dissolve, whatever order the frames come in', async () => {
+    await store.dissolve({ memberIds: ['b', 'a'], dissolvedAt: 1 });
+
+    expect(await store.getAll()).toEqual([{ memberIds: ['b', 'a'], dissolvedAt: 1 }]);
+  });
+
+  /** Undo has to reach the record by the same key, not by the order the caller happens to hold. */
+  it('forgets it again on restore, however the frames are ordered', async () => {
+    await store.dissolve({ memberIds: ['b', 'a'], dissolvedAt: 1 });
+
+    await store.restore(['a', 'b']);
+
+    expect(await store.getAll()).toEqual([]);
+  });
+
+  it('leaves other dissolves alone', async () => {
+    await store.dissolve({ memberIds: ['a', 'b'], dissolvedAt: 1 });
+    await store.dissolve({ memberIds: ['c', 'd'], dissolvedAt: 2 });
+
+    await store.restore(['a', 'b']);
+
+    expect(await store.getAll()).toEqual([{ memberIds: ['c', 'd'], dissolvedAt: 2 }]);
+  });
+});
