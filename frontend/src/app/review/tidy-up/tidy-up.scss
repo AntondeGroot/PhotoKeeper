@@ -1,0 +1,23 @@
+.tidy-up {
+  margin-bottom: 10px;
+}
+
+.tidy-note {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-faint);
+
+  strong {
+    color: var(--c-dim);
+    font-weight: 600;
+  }
+}
+
+.tidy-link {
+  display: inline-block;
+  margin: 4px 8px 0 0;
+  color: var(--c-print);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(127, 168, 160, 0.4);
+}

@@ -182,14 +182,35 @@ describe('KeeperFilingService', () => {
   });
 
   /**
-   * A bin is a record of one order the user sent deliberately, not a filing any verdict implies.
-   * Reported as stale it would ask them to tidy away the very photos they had just ordered.
+   * A bin is a snapshot of one order, not a filing any verdict implies, so it is not stale merely
+   * for holding a photo the verdict map would not have put there. Reported that way it would ask the
+   * user to tidy away the very photos they had just ordered.
    */
-  it('never asks the user to tidy a print bin', async () => {
+  it('leaves a print bin alone while its photos are still wanted', async () => {
     verdicts.set('a', verdict('kept'));
     filed.set('a', { albums: ['KeeperPrint'], at: 1 });
 
     expect(await filing.staleFilings()).toEqual(new Map());
+  });
+
+  /**
+   * The case that undo creates. Mark a photo done editing, send the album's prints to a bin, then
+   * take the decision back: the photo is sitting in KeeperPrint and is no longer meant to be
+   * printed. Only the user can remove it, so they have to be told which one.
+   */
+  it('reports a photo whose decision was taken back after it was sent', async () => {
+    verdicts.set('a', verdict('toEdit')); // undone: back in the edit queue
+    filed.set('a', { albums: ['KeeperPrint'], at: 1 });
+
+    expect(await filing.staleFilings()).toEqual(new Map([['KeeperPrint', ['DSC_0001']]]));
+  });
+
+  /** The same is true of setting one aside on the Prints tab after the set has been sent. */
+  it('reports a photo set aside as keep-but-do-not-print after it was sent', async () => {
+    verdicts.set('a', { status: 'kept', starred: false, saveOnly: true });
+    filed.set('a', { albums: ['KeeperPrint'], at: 1 });
+
+    expect(await filing.staleFilings()).toEqual(new Map([['KeeperPrint', ['DSC_0001']]]));
   });
 
   describe('sending a chosen set', () => {

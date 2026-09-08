@@ -14,7 +14,7 @@ import { BatteryOptimizationService } from '../notifications/battery-optimizatio
 import { StorageUsageService } from '../storage/storage-usage.service';
 import { KeeperFilingService } from '../review/keeper-filing.service';
 import { KeeperAlbumsService } from '../keeper-albums.service';
-import { SEARCH_TERMS_PER_LINK, lightroomAlbumSearchUrl } from '../keeper-albums';
+import { albumSearchLinks } from '../keeper-albums';
 import { formatBytes } from '../storage/storage-usage';
 
 @Component({
@@ -71,14 +71,7 @@ export class SettingsComponent implements OnInit {
   /** One link per batch of names, or none when the album is not in the catalogue to link to. */
   private linksFor(catalogId: string, album: string, names: string[]): string[] {
     const albumId = this.keeperAlbums.idFor(album);
-    if (!albumId) return [];
-    const links: string[] = [];
-    for (let i = 0; i < names.length; i += SEARCH_TERMS_PER_LINK) {
-      links.push(
-        lightroomAlbumSearchUrl(catalogId, albumId, names.slice(i, i + SEARCH_TERMS_PER_LINK)),
-      );
-    }
-    return links;
+    return albumId ? albumSearchLinks(catalogId, albumId, names) : [];
   }
 
   protected readonly bytes = formatBytes;

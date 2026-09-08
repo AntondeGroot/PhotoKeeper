@@ -7,6 +7,8 @@
     </a>
   }
 
+  <app-tidy-up [catalogId]="catalogId" scope="edit" />
+
   <!-- The queue's other question: not "what shall I edit?" but "which of these did I finish?" -->
   <button class="check-edits" [disabled]="detection.checking()" (click)="checkForEdits()">
     {{ detection.checking() ? 'Checking…' : 'Check for edits' }}

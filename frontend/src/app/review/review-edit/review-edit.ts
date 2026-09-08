@@ -14,12 +14,13 @@ import { SceneComponent } from '../scene/scene';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
 import { EditDetectionService } from '../edit-detection.service';
 import { EditCheckComponent } from '../edit-check/edit-check';
+import { TidyUpComponent } from '../tidy-up/tidy-up';
 import { KEEPER_EDIT_ALBUM, lightroomAlbumUrl } from '../../keeper-albums';
 
 @Component({
   selector: 'app-review-edit',
   templateUrl: './review-edit.html',
-  imports: [EditCheckComponent, SceneComponent],
+  imports: [EditCheckComponent, TidyUpComponent, SceneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './review-edit.scss',
 })
@@ -30,7 +31,7 @@ export class ReviewEditComponent implements OnInit {
   /** Lightroom catalog id, for the per-photo "Open in Lightroom" deep-link. */
   @Input() catalogId: string | null = null;
   @Input() editDone: boolean = false;
-  /** Retained so a "mark edited → print" affordance can be re-added; the Edit list is open-only for now. */
+  /** A photo the user says is finished, so it can leave the queue and become printable. */
   @Output() promoted = new EventEmitter<string>();
 
   // Hosted here rather than in the app shell: the check is about this queue, and the shell is at its

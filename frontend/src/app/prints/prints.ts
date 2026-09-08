@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  Input,
   OnInit,
   computed,
   inject,
@@ -9,17 +10,21 @@ import {
 import { PrintsService } from './prints.service';
 import { PhotoStackComponent } from './photo-stack/photo-stack';
 import { PrintPickerComponent } from './print-picker/print-picker';
+import { TidyUpComponent } from '../review/tidy-up/tidy-up';
 import { printsIn } from './prints.types';
 import { AlbumGroup, Photo } from '../photo';
 
 @Component({
   selector: 'app-prints',
   templateUrl: './prints.html',
-  imports: [PhotoStackComponent, PrintPickerComponent],
+  imports: [PhotoStackComponent, PrintPickerComponent, TidyUpComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './prints.scss',
 })
 export class PrintsComponent implements OnInit {
+  /** Lightroom catalog id, for the tidy-up links into the print bins. */
+  @Input() catalogId: string | null = null;
+
   private readonly prints = inject(PrintsService);
 
   /**

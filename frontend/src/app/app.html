@@ -260,7 +260,7 @@
             />
           }
         } @else if (activeTab() === 'prints') {
-          <app-prints />
+          <app-prints [catalogId]="catalogId()" />
         } @else if (manageAlbumsOpen()) {
           <app-album-manager [albums]="albums()" (back)="manageAlbumsOpen.set(false)" />
         } @else if (tagsManagerOpen()) {
