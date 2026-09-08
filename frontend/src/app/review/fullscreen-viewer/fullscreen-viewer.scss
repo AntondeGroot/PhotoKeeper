@@ -31,14 +31,14 @@
   top: 50%;
   right: 8%;
   transform: translateY(-50%);
-  color: #57c98b;
+  color: var(--c-keep);
 }
 
 .flag-reject {
   top: 50%;
   left: 8%;
   transform: translateY(-50%);
-  color: #e06c6c;
+  color: var(--c-reject);
 }
 
 .flag-edit {
@@ -52,7 +52,7 @@
   bottom: 14%;
   left: 50%;
   transform: translateX(-50%);
-  color: #9aa6ff;
+  color: var(--c-maybe);
 }
 
 .viewer-close {
@@ -133,23 +133,27 @@
   .viewer-action {
     padding: 12px 18px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
+    border: 1px solid currentColor;
+    background: color-mix(in srgb, currentColor 22%, transparent);
     font-weight: 600;
     font-size: 13px;
     cursor: pointer;
   }
 
   .viewer-action.keep {
-    background: var(--c-amber);
-    color: #131110;
-    border-color: transparent;
+    color: var(--c-keep);
   }
 
   .viewer-action.reject {
-    background: rgba(224, 108, 108, 0.85);
-    border-color: transparent;
+    color: var(--c-reject);
+  }
+
+  .viewer-action.edit {
+    color: var(--c-amber);
+  }
+
+  .viewer-action.maybe {
+    color: var(--c-maybe);
   }
 }
 
