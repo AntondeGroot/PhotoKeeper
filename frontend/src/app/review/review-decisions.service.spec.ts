@@ -53,6 +53,7 @@ describe('ReviewDecisionsService', () => {
   /** What is stored right now, so undo can be checked against it rather than against the call log. */
   let stored: Map<string, StoredVerdict>;
   let dailyFeeds: Map<string, ReviewItem[]>;
+  let restores: string[][];
   let dissolves: { memberIds: string[] }[];
   let reclassifies: { memberIds: string[]; type: string; orientation?: string }[];
   let memberships: { memberIds: string[]; frameIds: string[]; at: number }[];
@@ -66,6 +67,7 @@ describe('ReviewDecisionsService', () => {
     stored = new Map();
     dailyFeeds = new Map();
     dissolves = [];
+    restores = [];
     reclassifies = [];
     memberships = [];
     refillCalls = 0;
@@ -114,6 +116,10 @@ describe('ReviewDecisionsService', () => {
           useValue: {
             dissolve: (o: { memberIds: string[] }) => {
               dissolves.push(o);
+              return Promise.resolve();
+            },
+            restore: (memberIds: string[]) => {
+              restores.push(memberIds);
               return Promise.resolve();
             },
             reclassify: (o: { memberIds: string[]; type: string; orientation?: string }) => {
@@ -203,12 +209,41 @@ describe('ReviewDecisionsService', () => {
 
       service.resolveBurst(['f1']);
       await Promise.resolve();
-      expect(stored.size).toBe(4); // the unit and its three frames
+      expect(stored.size).toBe(2); // the two frames the duel rejected
 
       await undoLatest();
 
       expect(stored.size).toBe(0);
       expect(photos()[0].status).toBe('backlog');
+    });
+
+    /** The dissolve is part of the decision, so it comes back with it. */
+    it('lets the burst form again by forgetting the dissolve', async () => {
+      photos.set([burst('b1', ['f1', 'f2'])]);
+      index.set(0);
+      service.resolveBurst(['f1']);
+      await Promise.resolve();
+
+      await undoLatest();
+
+      expect(restores).toContainEqual(['f1', 'f2']);
+    });
+
+    /**
+     * The survivor stood on the deck in the burst's place; taking the decision back has to reclaim
+     * it, or the same photograph is there twice — once in the burst and once on its own.
+     */
+    it('takes the survivors back off the deck with it', async () => {
+      photos.set([burst('b1', ['f1', 'f2', 'f3'])]);
+      index.set(0);
+      service.resolveBurst(['f1', 'f2']);
+      await Promise.resolve();
+      expect(photos().map((p) => p.id)).toEqual(['f1', 'f2']);
+
+      await undoLatest();
+
+      expect(photos().map((p) => p.id)).toEqual(['b1']);
+      expect(photos()[0].kind).toBe('burst');
     });
 
     /** Skipping writes no verdict at all, so only the recorded unit can bring it back. */
@@ -427,16 +462,20 @@ describe('ReviewDecisionsService', () => {
     expect(index()).toBe(0);
   });
 
-  it('resolveBurst() keeps the winner, rejects the rest, and marks the unit done', async () => {
-    photos.set([burst('grp', ['f1', 'f2', 'f3'])]);
+  /**
+   * The duel culls, it does not judge: the survivor is a photograph nobody has said keep, edit or
+   * reject about yet, so it takes the burst's place on the deck and is asked next.
+   */
+  it('resolveBurst() rejects the losers and puts the survivor back as a photo to judge', async () => {
+    photos.set([burst('grp', ['f1', 'f2', 'f3']), photo('later')]);
     index.set(0);
+
     service.resolveBurst(['f2']);
     await Promise.resolve();
-    expect(photos()[0].status).toBe('kept'); // the burst unit itself is done
-    expect(verdicts).toContainEqual({
-      id: 'f2',
-      verdict: { status: 'kept', starred: false, saveOnly: false },
-    });
+
+    expect(photos().map((p) => p.id)).toEqual(['f2', 'later']);
+    expect(photos()[0]).toMatchObject({ kind: 'photo', status: 'backlog' });
+    expect(index()).toBe(0); // the cursor stays on it — it is the next card
     expect(verdicts).toContainEqual({
       id: 'f1',
       verdict: { status: 'rejected', starred: false, saveOnly: false },
@@ -445,29 +484,59 @@ describe('ReviewDecisionsService', () => {
       id: 'f3',
       verdict: { status: 'rejected', starred: false, saveOnly: false },
     });
+    // Nothing was decided about the survivor, by anyone.
+    expect(verdicts.map((v) => v.id)).not.toContain('f2');
   });
 
-  it('resolveBurst() keeps every frame the duel kept, not just one', async () => {
-    // A burst can hold two frames worth keeping — the pair where nobody lost.
+  /** A burst can hold two frames worth keeping — the pair where nobody lost. Both come back. */
+  it('resolveBurst() returns every frame the duel kept, in the burst’s place', async () => {
     photos.set([burst('grp', ['f1', 'f2', 'f3'])]);
     index.set(0);
 
     service.resolveBurst(['f1', 'f3']);
     await Promise.resolve();
 
-    expect(photos()[0].status).toBe('kept');
+    expect(photos().map((p) => p.id)).toEqual(['f1', 'f3']);
+    expect(verdicts).toContainEqual({
+      id: 'f2',
+      verdict: { status: 'rejected', starred: false, saveOnly: false },
+    });
+    expect(verdicts.map((v) => v.id)).not.toContain('f1');
+    expect(verdicts.map((v) => v.id)).not.toContain('f3');
+  });
+
+  /**
+   * Without this the next selection hydrates the group from detection again: the survivors are
+   * swallowed back into a burst nobody asked for, and the frames already rejected come with them.
+   * This is the bug the shape exists to prevent.
+   */
+  it('resolveBurst() dissolves the group so it is never offered as a burst again', async () => {
+    photos.set([burst('grp', ['f1', 'f2', 'f3'])]);
+    index.set(0);
+
+    service.resolveBurst(['f2']);
+    await Promise.resolve();
+
+    expect(dissolves.map((d) => d.memberIds)).toContainEqual(['f1', 'f2', 'f3']);
+  });
+
+  /** "Reject the whole burst" left every frame undecided, so the burst came round again for ever. */
+  it('rejectBurst() rejects each frame, not only the unit', async () => {
+    photos.set([burst('grp', ['f1', 'f2'])]);
+    index.set(0);
+
+    service.rejectBurst();
+    await Promise.resolve();
+
     expect(verdicts).toContainEqual({
       id: 'f1',
-      verdict: { status: 'kept', starred: false, saveOnly: false },
-    });
-    expect(verdicts).toContainEqual({
-      id: 'f3',
-      verdict: { status: 'kept', starred: false, saveOnly: false },
+      verdict: { status: 'rejected', starred: false, saveOnly: false },
     });
     expect(verdicts).toContainEqual({
       id: 'f2',
       verdict: { status: 'rejected', starred: false, saveOnly: false },
     });
+    expect(dissolves).toHaveLength(1);
   });
 
   it('resolveBurst() marks the unit rejected when the answer was "none of them"', async () => {

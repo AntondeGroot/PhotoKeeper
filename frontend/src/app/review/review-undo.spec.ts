@@ -1,4 +1,4 @@
-import { Photo } from '../photo';
+import { Burst, Photo } from '../photo';
 import {
   DecisionOutcome,
   MAX_UNDO,
@@ -106,6 +106,33 @@ describe('bringBack', () => {
    * the photo has no business jumping to the front of the review deck when the choice is taken back
    * — that would reorder the sort deck as an invisible side effect of undoing something elsewhere.
    */
+  /**
+   * A burst that was duelled leaves its survivors on the deck as single photos, so taking that
+   * decision back has to reclaim them: without this the same photograph stands on the deck twice,
+   * once inside the restored burst and once on its own, each asking for its own verdict.
+   */
+  it('reclaims the frames of the unit it restores', () => {
+    const burst: Burst = {
+      id: 'burst:alb:f1',
+      name: 'Burst · 3 frames',
+      album: 'Trip',
+      taken: '2026-01-01',
+      status: 'backlog',
+      kind: 'burst',
+      photos: [
+        { id: 'f1', name: 'f1' },
+        { id: 'f2', name: 'f2' },
+        { id: 'f3', name: 'f3' },
+      ],
+    };
+    const deck = [unit('f1'), unit('f3'), unit('other')];
+
+    const back = bringBack(deck, 0, burst);
+
+    expect(back.deck.map((item) => item.id)).toEqual(['burst:alb:f1', 'other']);
+    expect(back.index).toBe(0);
+  });
+
   it('puts a unit back exactly where it was when the decision came from a list', () => {
     const deck = ['a', 'b', 'c'].map((id) => ({ ...unit(id), status: 'kept' as const }));
 

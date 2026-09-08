@@ -12,7 +12,16 @@ import { KeeperFilingService } from './keeper-filing.service';
 import { EditDetectionService } from './edit-detection.service';
 import { DecisionOutcome, ReviewUndoService, UndoEntry, bringBack } from './review-undo.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
-import { Burst, Pano, PanoFrame, Photo, ReviewItem, isDevicePhoto, unitAssetIds } from '../photo';
+import {
+  Burst,
+  Pano,
+  PanoFrame,
+  Photo,
+  ReviewItem,
+  burstFrameToPhoto,
+  isDevicePhoto,
+  unitAssetIds,
+} from '../photo';
 import { MIN_PANO_FRAMES } from './pano-frames';
 
 /**
@@ -203,6 +212,12 @@ export class ReviewDecisionsService {
     const restored = bringBack(this.feed.photos(), this.feed.index(), taken.unit, taken.returnTo);
     this.feed.photos.set(restored.deck);
     this.feed.index.set(restored.index);
+    // A settled burst was dissolved on its way out, so that it could never re-form around frames
+    // already looked at. Taking the decision back has to take that record back too: the unit is on
+    // the deck again, and without this it would be the last time it ever could be.
+    if (taken.unit.kind !== 'photo') {
+      void this.groupOverrides.restore(unitAssetIds(taken.unit));
+    }
     this.persistDay();
     this.recordReviewProgress();
   }
@@ -240,37 +255,71 @@ export class ReviewDecisionsService {
   }
 
   /**
-   * Settles a burst: `keptIds` are kept, every other frame is rejected, and the unit leaves the queue
-   * as one decision that counts toward the day's goal.
+   * Settles a burst: the frames named in `keptIds` survive it and everything else in it is rejected.
    *
-   * A list rather than a single winner, because a burst can hold two frames worth keeping — the two
-   * of a pair where nobody lost. The unit's own verdict follows the frames: kept if any survived,
-   * rejected if the answer in the end was "none of them", so the day's tally says what happened.
+   * <p>Surviving is not a verdict. The duel asks which frames of a near-identical run are worth
+   * looking at, which is a different question from whether a photograph is a keeper, one to edit, or
+   * one to set aside — so the survivors go back on the deck as ordinary single photos, right where
+   * the burst stood, and are judged one at a time. Only those judgements count toward the day, or the
+   * same photographs would be counted twice.
+   *
+   * <p>The group is dissolved on the way out. It is spent either way — its frames have been looked
+   * at — and without that record the next selection hydrates it from detection all over again: the
+   * survivors would be swallowed back into a burst nobody asked for, and the frames already rejected
+   * would come back with it. That is the bug this shape exists to make impossible.
    */
   resolveBurst(keptIds: string[]): void {
     const current = this.feed.current();
     if (current?.kind !== 'burst') return;
     const kept = new Set(keptIds);
-    this.capture(kept.size > 0 ? 'kept' : 'rejected', [
+    const survivors = current.photos.filter((frame) => kept.has(frame.id));
+    this.capture(survivors.length > 0 ? 'kept' : 'rejected', [
       current.id,
       ...current.photos.map((p) => p.id),
     ]);
-    this.setStatus(current.id, kept.size > 0 ? 'kept' : 'rejected');
-    void this.persistVerdict(current.id); // burst unit itself: done, survives reload
     for (const frame of current.photos) {
-      const status = kept.has(frame.id) ? ('kept' as const) : ('rejected' as const);
-      void this.reviewStore.setVerdict(frame.id, { status, starred: false, saveOnly: false });
+      if (kept.has(frame.id)) continue;
+      void this.reviewStore.setVerdict(frame.id, {
+        status: 'rejected',
+        starred: false,
+        saveOnly: false,
+      });
     }
-    this.feed.advance();
+    void this.recordAbsorbed(current); // spent: never offer these frames as a burst again
+
+    if (survivors.length === 0) {
+      // Nothing came back from it, so the burst itself is the decision — and the day's tally has
+      // something to count, which it would not if the unit simply vanished.
+      this.setStatus(current.id, 'rejected');
+      void this.persistVerdict(current.id);
+      this.feed.advance();
+      return;
+    }
+    this.replaceWithFrames(
+      current,
+      survivors.map((frame) => burstFrameToPhoto(frame, current)),
+    );
   }
 
+  /** "Reject the whole burst" — the same settlement with nothing kept. */
   rejectBurst(): void {
-    const current = this.feed.current();
-    if (!current) return;
-    this.capture('rejected', [current.id]);
-    this.setStatus(current.id, 'rejected');
-    void this.persistVerdict(current.id);
-    this.feed.advance();
+    if (this.feed.current()?.kind !== 'burst') return;
+    this.resolveBurst([]);
+  }
+
+  /**
+   * Swaps a group unit for the photos it leaves behind, in its place on the deck.
+   *
+   * The cursor stays put, so the first of them is the next card: they are the photographs just
+   * looked at, and judging them while they are still in mind is the point of sending them back
+   * rather than leaving them to a later day's draw.
+   */
+  private replaceWithFrames(unit: ReviewItem, frames: Photo[]): void {
+    this.feed.photos.update((list) => {
+      const at = list.findIndex((item) => item.id === unit.id);
+      return at === -1 ? list : [...list.slice(0, at), ...frames, ...list.slice(at + 1)];
+    });
+    this.persistDay();
   }
 
   /**

@@ -1,6 +1,7 @@
 import {
   Burst,
   CARD_SWIPE_COMMIT_PX,
+  burstFrameToPhoto,
   Pano,
   Photo,
   Stereo,
@@ -148,6 +149,37 @@ describe('unitAssetIds', () => {
 });
 
 const aim = (dx: number, dy: number) => swipeAim(dx, dy, CARD_SWIPE_COMMIT_PX);
+
+describe('burstFrameToPhoto', () => {
+  const burst: Burst = {
+    id: 'burst:alb:f1',
+    name: 'Burst · 2 frames',
+    album: 'Trip',
+    taken: '2026-05-01T10:00:00Z',
+    status: 'kept',
+    kind: 'burst',
+    photos: [
+      { id: 'f1', name: 'DSC_1', ext: 'NEF' },
+      { id: 'f2', name: 'DSC_2', ext: 'NEF', blur: true },
+    ],
+  };
+
+  /** Surviving a duel is not a verdict — the frame still has to be judged on its own. */
+  it('comes back undecided, carrying the burst’s album and time', () => {
+    expect(burstFrameToPhoto(burst.photos[0], burst)).toEqual({
+      id: 'f1',
+      name: 'DSC_1',
+      ext: 'NEF',
+      album: 'Trip',
+      taken: '2026-05-01T10:00:00Z',
+      status: 'backlog',
+      kind: 'photo',
+      starred: false,
+      saveOnly: false,
+      ai: undefined,
+    });
+  });
+});
 
 describe('swipeAim', () => {
   it('reads each straight drag as its own verdict', () => {

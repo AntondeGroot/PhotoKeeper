@@ -44,6 +44,16 @@ export class GroupOverrideStore {
     ).put('groupOverrides', override, groupSignature(override.memberIds));
   }
 
+  /**
+   * Forgets a dissolve, so the group forms again as detection sees it.
+   *
+   * For undo: taking back the decision that dissolved a group has to take back the dissolve too, or
+   * the frames stay singles for ever and the unit the user just got back could never be drawn again.
+   */
+  async restore(memberIds: string[]): Promise<void> {
+    await (await this.db.open()).delete('groupOverrides', groupSignature(memberIds));
+  }
+
   /** All recorded overrides — the labels a future "tighten detection?" suggestion would read. */
   async getAll(): Promise<GroupOverride[]> {
     return (await this.db.open()).getAll('groupOverrides');

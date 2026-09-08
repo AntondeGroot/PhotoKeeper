@@ -79,6 +79,21 @@ export function heldAssetIds(stack: readonly UndoEntry[]): Set<string> {
 }
 
 /**
+ * The deck with any *other* unit that holds one of this unit's frames taken out.
+ *
+ * A restored unit owns its frames again. A duelled burst leaves its survivors on the deck as single
+ * photos, so putting the burst back without this leaves the same photograph standing there twice —
+ * once inside the burst and once on its own — each asking for its own verdict. Selection guarantees a
+ * frame belongs to one unit at a time, and undo has to leave it that way.
+ */
+function withoutFramesOf(deck: readonly ReviewItem[], unit: ReviewItem): ReviewItem[] {
+  const frames = new Set(unitAssetIds(unit));
+  return deck.filter(
+    (item) => item.id === unit.id || !unitAssetIds(item).some((id) => frames.has(id)),
+  );
+}
+
+/**
  * Puts a unit back at the cursor, so a photo taken back is the next one judged.
  *
  * <p>At the cursor rather than where it was, because the list can reach a decision made twenty
@@ -96,6 +111,7 @@ export function bringBack(
   unit: ReviewItem,
   returnTo: UndoReturn = 'cursor',
 ): { deck: ReviewItem[]; index: number } {
+  deck = withoutFramesOf(deck, unit);
   const at = deck.findIndex((item) => item.id === unit.id);
   // Put back exactly where it was. That decision was made from a list rather than at the cursor, so
   // moving it would reorder the review deck as a side effect of undoing something done elsewhere.
