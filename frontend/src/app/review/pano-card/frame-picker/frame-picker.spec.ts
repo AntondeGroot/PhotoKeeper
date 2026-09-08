@@ -57,7 +57,7 @@ describe('PanoFramePickerComponent', () => {
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(PanoFramePickerComponent);
-    fixture.componentRef.setInput('pano', pano());
+    fixture.componentRef.setInput('seed', pano().frames);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();

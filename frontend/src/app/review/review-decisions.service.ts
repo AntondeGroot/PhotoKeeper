@@ -12,7 +12,8 @@ import { KeeperFilingService } from './keeper-filing.service';
 import { EditDetectionService } from './edit-detection.service';
 import { DecisionOutcome, ReviewUndoService, UndoEntry, bringBack } from './review-undo.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
-import { Burst, Pano, PanoFrame, ReviewItem, isDevicePhoto, unitAssetIds } from '../photo';
+import { Burst, Pano, PanoFrame, Photo, ReviewItem, isDevicePhoto, unitAssetIds } from '../photo';
+import { MIN_PANO_FRAMES } from './pano-frames';
 
 /**
  * The id a unit takes when re-typed. Replaces the type prefix rather than stacking another, so
@@ -43,6 +44,29 @@ function freezeUnlocked(held: number): HeadsUp {
       held === 1
         ? 'One banked. It covers a day you miss, automatically.'
         : `${held} banked. Each covers a day you miss, automatically.`,
+  };
+}
+
+/**
+ * The unit as a panorama of `frames` — the same sweep with its frames corrected, or a photograph
+ * that turns out to have been one frame of one.
+ *
+ * A photograph keeps everything but its kind: same album, same capture time, same undecided status,
+ * and an id re-typed so the stored verdict follows it (see retypedId). Horizontal by default, which
+ * is what a sweep usually is and what the card lets you change.
+ */
+function asPano(unit: Photo | Pano, frames: PanoFrame[]): Pano {
+  const name = `Panorama · ${frames.length} frames`;
+  if (unit.kind === 'pano') return { ...unit, name, frames };
+  return {
+    id: retypedId('pano', unit.id),
+    name,
+    album: unit.album,
+    taken: unit.taken,
+    status: unit.status,
+    kind: 'pano',
+    orientation: 'horizontal',
+    frames,
   };
 }
 
@@ -362,13 +386,17 @@ export class ReviewDecisionsService {
    */
   setPanoFrames(frames: PanoFrame[]): void {
     const current = this.feed.current();
-    if (current?.kind !== 'pano' || frames.length < 2) return;
-    const detectedIds = current.frames.map((frame) => frame.id);
-    const updated: Pano = {
-      ...current,
-      name: `Panorama · ${frames.length} frames`,
-      frames,
-    };
+    if (!current || frames.length < MIN_PANO_FRAMES) return;
+    if (current.kind !== 'pano' && current.kind !== 'photo') return;
+    // A photograph must be part of the panorama it is claiming to belong to. Without this, taking
+    // the ring off the seed would replace it with a sweep it is not in, and the photo would leave
+    // the deck having never been decided.
+    if (current.kind === 'photo' && !frames.some((frame) => frame.id === current.id)) return;
+
+    // What detection found, which is what the correction is filed against: the sweep's own frames,
+    // or — for a lone photograph it never grouped at all — just that photograph.
+    const detectedIds = current.kind === 'pano' ? current.frames.map((f) => f.id) : [current.id];
+    const updated = asPano(current, frames);
     const absorbed = this.unitsAbsorbedBy(frames, current);
     this.feed.photos.update((list) =>
       list.flatMap((item) => {
@@ -392,7 +420,7 @@ export class ReviewDecisionsService {
    * yet, so they simply come round again in a later selection, whereas leaving it would duplicate the
    * frames that were taken.
    */
-  private unitsAbsorbedBy(frames: PanoFrame[], current: Pano): ReviewItem[] {
+  private unitsAbsorbedBy(frames: PanoFrame[], current: ReviewItem): ReviewItem[] {
     const chosen = new Set(frames.map((frame) => frame.id));
     return this.feed
       .photos()

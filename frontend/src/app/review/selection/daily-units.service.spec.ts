@@ -162,6 +162,58 @@ describe('DailyUnitsService', () => {
     }
   });
 
+  /**
+   * The half that makes the correction stick. Detection groups a sweep by what overlaps, so a
+   * grid-pattern shoot can leave one frame ungrouped — an ordinary-looking photograph. A correction
+   * filed against it has no group to attach to, so it has to become one, or the panorama the user
+   * assembled would fall apart the next time the deck was built.
+   */
+  it('builds the panorama a user assembled from a photo detection never grouped', async () => {
+    albums = [{ id: 'alb-1', name: 'Lisbon' }];
+    for (const [id, second] of [
+      ['a1', '00'],
+      ['a2', '02'],
+      ['a3', '04'],
+    ]) {
+      await metaStore.put(id, {
+        albumId: 'alb-1',
+        name: `IMG_${id}`,
+        taken: `2026-05-01T10:00:${second}Z`,
+      });
+    }
+    // No detected group at all — just the assertion made about one lone photograph.
+    await overrideStore.setMembers({ memberIds: ['a2'], frameIds: ['a1', 'a2', 'a3'], at: 1 });
+
+    const units = await service.buildUnits([], 10, fixedRng);
+
+    expect(units).toHaveLength(1);
+    expect(units[0].kind).toBe('pano');
+    if (units[0].kind === 'pano') {
+      expect(units[0].frames.map((f) => f.id)).toEqual(['a1', 'a2', 'a3']);
+    }
+  });
+
+  /** The other half of that: without the assertion those same photos are three ordinary singles. */
+  it('leaves them as singles when nobody has said they belong together', async () => {
+    albums = [{ id: 'alb-1', name: 'Lisbon' }];
+    for (const [id, second] of [
+      ['a1', '00'],
+      ['a2', '02'],
+      ['a3', '04'],
+    ]) {
+      await metaStore.put(id, {
+        albumId: 'alb-1',
+        name: `IMG_${id}`,
+        taken: `2026-05-01T10:00:${second}Z`,
+      });
+    }
+
+    const units = await service.buildUnits([], 10, fixedRng);
+
+    expect(units).toHaveLength(3);
+    expect(units.every((unit) => unit.kind === 'photo')).toBe(true);
+  });
+
   it('marks vacation albums and tolerates an album missing from the album list', async () => {
     albums = []; // 'alb-x' is not in the (empty) album list → album name resolves to null
     await metaStore.put('a1', { albumId: 'alb-x', name: 'IMG_1', taken: '2026-05-01T10:00:00Z' });

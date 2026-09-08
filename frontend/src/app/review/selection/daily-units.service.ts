@@ -72,6 +72,7 @@ export class DailyUnitsService {
       allGroups,
       { dissolved, reclassified, memberships },
       bothEyeAlbumIds,
+      metaById,
     );
 
     // What every stereo marking means for selection: a split shoot's two albums matched back into
@@ -136,15 +137,24 @@ export class DailyUnitsService {
     allGroups: readonly DetectedGroup[],
     corrections: GroupCorrections,
     bothEyeAlbumIds: ReadonlySet<string>,
+    metaById: ReadonlyMap<string, AssetMeta>,
   ): Map<string, DetectedGroup[]> {
     const byAlbum = new Map<string, DetectedGroup[]>();
+    const claimed: string[][] = [];
     for (const group of allGroups) {
       const corrected = applyCorrections(group, corrections);
+      if (corrections.memberships.some((m) => coversSameGroup(m.memberIds, group.memberIds))) {
+        claimed.push(group.memberIds);
+      }
       if (!corrected) continue;
       const effective = bothEyeAlbumIds.has(group.sourceAlbumId)
         ? { ...corrected, type: 'stereo' as const }
         : corrected;
       pushInto(byAlbum, group.sourceAlbumId, effective);
+    }
+
+    for (const asserted of assertedPanos(corrections.memberships, claimed, metaById)) {
+      pushInto(byAlbum, asserted.sourceAlbumId, asserted);
     }
     return byAlbum;
   }
@@ -183,6 +193,41 @@ function applyCorrections(
   // re-running detection finds the same correction again.
   const members = memberships.find((m) => coversSameGroup(m.memberIds, group.memberIds));
   return members ? { ...retyped, memberIds: members.frameIds } : retyped;
+}
+
+/**
+ * Panoramas the user asserted where detection had found no group at all.
+ *
+ * A membership correction usually adjusts a group that exists — "this sweep is missing frames" —
+ * and {@link applyCorrections} finds it by the members detection reported. One made about a lone
+ * photograph has nothing to attach to: a frame of a grid-pattern sweep that detection never
+ * grouped is a single photo, and a correction filed against it would be looked for among groups
+ * and never found. So it is turned back into a group here, and the assertion survives a re-scan
+ * the same way a correction does.
+ *
+ * Only memberships no group claimed are considered, so a correction is never counted twice.
+ */
+function assertedPanos(
+  memberships: GroupCorrections['memberships'],
+  claimed: readonly string[][],
+  metaById: ReadonlyMap<string, AssetMeta>,
+): DetectedGroup[] {
+  const groups: DetectedGroup[] = [];
+  for (const { memberIds, frameIds } of memberships) {
+    if (claimed.some((members) => coversSameGroup(memberIds, members))) continue;
+    if (frameIds.length < 2) continue;
+    // The album the frames actually came out of; without metadata for them there is nowhere to put
+    // the group, and the photos fall through as singles exactly as they did before.
+    const albumId = frameIds.map((id) => metaById.get(id)?.albumId).find((id) => id !== undefined);
+    if (albumId === undefined) continue;
+    groups.push({
+      type: 'pano',
+      sourceAlbumId: albumId,
+      memberIds: [...frameIds],
+      orientation: 'horizontal',
+    });
+  }
+  return groups;
 }
 
 function pushInto<T>(map: Map<string, T[]>, key: string, value: T): void {

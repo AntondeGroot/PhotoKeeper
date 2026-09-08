@@ -328,6 +328,68 @@ describe('ReviewDecisionsService', () => {
     expect(TestBed.inject(DailyProgressService).edits()).toBe(2);
   });
 
+  /**
+   * A grid-pattern sweep can leave detection with one frame it never grouped, looking like an
+   * ordinary photograph. Saying so has to replace the photo with the panorama it belongs to.
+   */
+  describe('a photograph that turns out to be part of a panorama', () => {
+    it('replaces the photo with a pano of the frames chosen', () => {
+      photos.set([photo('a'), photo('b'), photo('c')]);
+
+      service.setPanoFrames([
+        { id: 'a', name: 'a' },
+        { id: 'x', name: 'x' },
+      ]);
+
+      const unit = photos()[0];
+      expect(unit.kind).toBe('pano');
+      expect((unit as Pano).frames.map((f) => f.id)).toEqual(['a', 'x']);
+      expect(unit.id).toBe('pano:a'); // re-typed, so the stored verdict follows it
+    });
+
+    /**
+     * The correction is filed against what detection found — here, the lone photograph — so a
+     * re-scan finds it again and the panorama comes back rather than falling apart overnight.
+     */
+    it('records the assertion against the photo detection left alone', () => {
+      photos.set([photo('a')]);
+
+      service.setPanoFrames([
+        { id: 'a', name: 'a' },
+        { id: 'x', name: 'x' },
+      ]);
+
+      expect(memberships).toEqual([
+        expect.objectContaining({ memberIds: ['a'], frameIds: ['a', 'x'] }),
+      ]);
+    });
+
+    /** Two frames is the least that is a sweep rather than a photograph. */
+    it('does nothing when only the photo itself is chosen', () => {
+      photos.set([photo('a')]);
+
+      service.setPanoFrames([{ id: 'a', name: 'a' }]);
+
+      expect(photos()[0].kind).toBe('photo');
+      expect(memberships).toEqual([]);
+    });
+
+    /**
+     * The photograph has to be in the panorama it is claiming to join. Without this it would leave
+     * the deck replaced by a sweep it is not part of, never having been decided.
+     */
+    it('refuses a set the photo itself is not in', () => {
+      photos.set([photo('a')]);
+
+      service.setPanoFrames([
+        { id: 'x', name: 'x' },
+        { id: 'y', name: 'y' },
+      ]);
+
+      expect(photos()[0].kind).toBe('photo');
+    });
+  });
+
   it('toggleStar() flips the star without advancing', () => {
     service.toggleStar();
     expect((photos()[0] as Photo).starred).toBe(true);

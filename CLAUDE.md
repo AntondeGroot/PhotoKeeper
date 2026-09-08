@@ -28,11 +28,13 @@ session — it renders only when authenticated.
 
 ## Tests and gates
 
-- **Run frontend tests from `frontend/`.** Several specs (pano fixtures, the celebration catalog)
-  resolve paths relative to the working directory, so running them from anywhere else fails about
-  seven of them for reasons that have nothing to do with the change under test.
-- `ng test` is the entry point; invoking `vitest` directly fails with `describe is not defined`,
-  because the Angular builder supplies the environment.
+- **Run frontend tests as `npm --prefix frontend run test -- --watch=false`**, which works from
+  any directory. Several specs (pano fixtures, the celebration catalog) resolve paths relative to
+  the working directory, so a bare `ng test` from a subdirectory fails about seven of them for
+  reasons that have nothing to do with the change under test. `--prefix` sets the directory for
+  you, which is why this is written as a command rather than as a reminder to `cd` first.
+- `ng test` is the entry point behind that script; invoking `vitest` directly fails with
+  `describe is not defined`, because the Angular builder supplies the environment.
 - Both sides have pre-commit hooks. Backend formatting is enforced by spotless — `mvn spotless:apply`
   fixes it. Frontend runs prettier + `eslint --max-warnings=0` on staged files.
 

@@ -9,7 +9,7 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { Pano, PanoFrame } from '../../../photo';
+import { PanoFrame } from '../../../photo';
 import { PanoCandidate, toggleFrame } from '../../pano-frames';
 import { PanoFramesService } from '../../pano-frames.service';
 import { PreviewCacheService } from '../../preview-cache.service';
@@ -30,7 +30,13 @@ import { PreviewCacheService } from '../../preview-cache.service';
   imports: [],
 })
 export class PanoFramePickerComponent {
-  readonly pano = input.required<Pano>();
+  /**
+   * The frames to start from — a detected pano's own, or the single photograph that prompted this.
+   *
+   * The seed rather than the unit it came from: what the picker needs is somewhere to centre the
+   * neighbourhood and a set of gold rings, and a lone photo can supply both.
+   */
+  readonly seed = input.required<readonly PanoFrame[]>();
 
   /** The confirmed frames, in capture order. Empty means nothing was changed. */
   @Output() confirmed = new EventEmitter<PanoFrame[]>();
@@ -53,16 +59,16 @@ export class PanoFramePickerComponent {
 
   /** Whether anything has actually changed, so Done can say nothing rather than re-saving a no-op. */
   protected readonly changed = computed(() => {
-    const before = this.pano().frames.map((frame) => frame.id);
+    const before = this.seed().map((frame) => frame.id);
     const after = this.selected();
     return before.length !== after.length || before.some((id, i) => id !== after[i]);
   });
 
   constructor() {
     effect(() => {
-      const pano = this.pano();
-      this.selected.set(pano.frames.map((frame) => frame.id));
-      void this.load(pano);
+      const seed = this.seed();
+      this.selected.set(seed.map((frame) => frame.id));
+      void this.load(seed.map((frame) => frame.id));
     });
   }
 
@@ -88,9 +94,9 @@ export class PanoFramePickerComponent {
     );
   }
 
-  private async load(pano: Pano): Promise<void> {
+  private async load(frameIds: readonly string[]): Promise<void> {
     this.loaded.set(false);
-    const candidates = await this.frames.candidatesFor(pano);
+    const candidates = await this.frames.candidatesFor(frameIds);
     this.candidates.set(candidates);
     this.loaded.set(true);
     // Warm the neighbours' previews: they are not part of the review deck, so nothing else fetches
