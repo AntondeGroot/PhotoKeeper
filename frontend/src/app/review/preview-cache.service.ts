@@ -3,6 +3,7 @@ import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../lightroom.service';
 import { PreviewStore } from '../storage/review/preview-store';
+import { NetworkService } from '../network.service';
 
 /** Preview size requested + cached (Lightroom 2048px preview). */
 const PREVIEW_SIZE = '2048';
@@ -29,6 +30,7 @@ export class PreviewCacheService {
   private readonly svc = inject(LightroomService);
   private readonly previewStore = inject(PreviewStore);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly network = inject(NetworkService);
 
   // Asset id → decoded preview. A signal so the cards re-render as previews arrive.
   private readonly cache = signal<Map<string, CachedPreview>>(new Map());
@@ -76,6 +78,10 @@ export class PreviewCacheService {
     try {
       let blob = await this.previewStore.get(assetId, PREVIEW_SIZE);
       if (!blob) {
+        // "Wi-Fi only", and this is not Wi-Fi. The card keeps its placeholder rather than costing
+        // someone their data plan — and only the *download* is held back: a preview already on the
+        // device is served above, so a warmed session carries on exactly as before.
+        if (!this.network.mayDownloadRenditions()) return;
         blob = await firstValueFrom(this.svc.getPhotoBlob(assetId, PREVIEW_SIZE));
         // An empty body is not a picture. Storing one poisoned the cache permanently: every later
         // read found "a preview", skipped the network, and handed the card zero bytes to draw.
@@ -101,6 +107,7 @@ export class PreviewCacheService {
   async warmDurable(assetId: string): Promise<void> {
     if (await this.previewStore.get(assetId, PREVIEW_SIZE)) return;
     try {
+      if (!this.network.mayDownloadRenditions()) return; // precompute can always wait for Wi-Fi
       const blob = await firstValueFrom(this.svc.getPhotoBlob(assetId, PREVIEW_SIZE));
       if (blob.size === 0) return; // see ensure(): an empty body must never reach the store
       await this.previewStore.put(assetId, PREVIEW_SIZE, blob);

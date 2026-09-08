@@ -15,6 +15,7 @@ import { StorageUsageService } from '../storage/storage-usage.service';
 import { KeeperFilingService } from '../review/keeper-filing.service';
 import { KeeperAlbumsService } from '../keeper-albums.service';
 import { albumSearchLinks } from '../keeper-albums';
+import { NetworkService } from '../network.service';
 import { formatBytes } from '../storage/storage-usage';
 
 @Component({
@@ -90,6 +91,8 @@ export class SettingsComponent implements OnInit {
   // Persisted preferences are read and written straight on PreferencesService — the host no longer
   // prop-drills them in. The template binds `prefs.<name>()` and writes `prefs.<name>.set(...)`.
   readonly prefs = inject(PreferencesService);
+  /** So the Wi-Fi-only row can say when it is actually holding downloads back. */
+  readonly network = inject(NetworkService);
 
   // Inputs that remain are session/detection state the host owns (not preferences).
   @Input() burstWindowSeconds = 3;

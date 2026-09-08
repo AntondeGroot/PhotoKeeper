@@ -11,6 +11,7 @@ import { routes } from './app.routes';
 import { authRefreshInterceptor } from './auth-refresh.interceptor';
 import { apiBaseInterceptor } from './api-base.interceptor';
 import { ReminderSchedulerService } from './notifications/reminder-scheduler.service';
+import { NetworkService } from './network.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -24,6 +25,11 @@ export const appConfig: ApplicationConfig = {
     // than an injection into a component that doesn't use it.
     provideAppInitializer(() => {
       inject(ReminderSchedulerService);
+    }),
+    // Whether the app is on Wi-Fi has to be known before the first rendition is asked for, and only
+    // the platform can say — so the reading is started here rather than by whoever asks first.
+    provideAppInitializer(() => {
+      inject(NetworkService).start();
     }),
   ],
 };

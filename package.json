@@ -9,7 +9,8 @@
     "assets": "bash scripts/generate-assets.sh"
   },
   "dependencies": {
-    "@capacitor/local-notifications": "^8.2.1"
+    "@capacitor/local-notifications": "^8.2.1",
+    "@capacitor/network": "^8.0.1"
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.0",
