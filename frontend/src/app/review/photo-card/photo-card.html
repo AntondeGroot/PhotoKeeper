@@ -4,10 +4,9 @@
   (pointermove)="onPointerMove($event)"
   (pointerup)="onPointerUp()"
   (pointercancel)="onPointerUp()"
-  [style.transform]="dragTransform()"
   [class.dragging]="dragging()"
 >
-  <div class="photo-area">
+  <div class="photo-area" [style.transform]="dragTransform()">
     @if (photo.edit; as edit) {
       <!-- One photo, shown as what Lightroom started with and what it produced. There is no "keep
            A or B" here: both files are the same shot, so the swipe decides the pair. Tapping a half

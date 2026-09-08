@@ -10,11 +10,11 @@
   cursor: grab;
   user-select: none;
   touch-action: none;
-  transition: transform 0.25s ease;
-
   &.dragging {
-    transition: none;
     cursor: grabbing;
+    .photo-area {
+      transition: none;
+    }
   }
 }
 
@@ -70,6 +70,9 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(160deg, var(--c-panel2) 0%, var(--c-bg) 100%);
+  // The dragged element, so the labels around it can stay where they are put.
+  transition: transform 0.25s ease;
+  will-change: transform;
 }
 
 .photo-img {
