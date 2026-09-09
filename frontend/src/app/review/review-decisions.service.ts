@@ -495,12 +495,16 @@ export class ReviewDecisionsService {
     const detectedIds = current.kind === 'pano' ? current.frames.map((f) => f.id) : [current.id];
     const updated = asGroup(type, current, frames);
     const absorbed = this.unitsAbsorbedBy(frames, current);
-    this.feed.photos.update((list) =>
-      list.flatMap((item) => {
-        if (item.id === current.id) return [updated];
-        return absorbed.includes(item) ? [] : [item];
-      }),
-    );
+    const rebuilt = this.feed.photos().flatMap((item) => {
+      if (item.id === current.id) return [updated];
+      return absorbed.includes(item) ? [] : [item];
+    });
+    this.feed.photos.set(rebuilt);
+    // The cursor is put back on the group, not left where it stood. Absorbing a photo that sat
+    // *before* it shifts everything after left, so the cursor ended up past the panorama just made —
+    // or past the end of the deck, where nothing would take a verdict at all. The card looked like
+    // an unrelated photograph and refused every swipe, and only a restart put it right.
+    this.feed.index.set(Math.max(0, rebuilt.indexOf(updated)));
     this.persistDay();
     void this.recordMembers(detectedIds, frames);
     // What kind of group it is, recorded beside what it consists of. For a lone photograph the two
