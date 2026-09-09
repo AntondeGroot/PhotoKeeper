@@ -7,6 +7,7 @@ import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewUndoService } from './review-undo.service';
+import { isUnitId } from '../photo';
 
 /** What became of one album's filings: what it has lost, and what was deleted as intended. */
 export interface AlbumFilingGap {
@@ -188,6 +189,10 @@ export class KeeperFilingService {
     const filed = await this.filed.getAll();
     const expected = new Map<string, string[]>();
     for (const [assetId, record] of filed) {
+      // Unit ids already on record from before they were kept out of filing. Lightroom never held
+      // them, so they are missing from every album for ever, and no amount of putting back would fix
+      // that — they are not photographs.
+      if (isUnitId(assetId)) continue;
       for (const album of record.albums) {
         expected.set(album, [...(expected.get(album) ?? []), assetId]);
       }
@@ -243,7 +248,10 @@ export class KeeperFilingService {
     const undoable = this.undoStack.heldAssetIds();
     const byAlbum = new Map<string, string[]>();
     for (const [assetId, verdict] of verdicts) {
-      if (undoable.has(assetId)) continue;
+      // A burst or pano card carries a verdict under its own synthetic id. That is not a photograph,
+      // and asking Lightroom to file one is asking it to add an asset that does not exist. Its frames
+      // carry their own verdicts and are filed on their own account.
+      if (undoable.has(assetId) || isUnitId(assetId)) continue;
       const album = albumForVerdict(verdict.status);
       // Compared by album, not by "has it been filed at all": a photo that went to KeeperEdit and is
       // later sent to print has to reach KeeperPrint too.

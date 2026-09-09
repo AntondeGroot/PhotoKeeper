@@ -56,6 +56,23 @@ export function isDevicePhoto(item: ReviewItem): boolean {
   return item.kind === 'photo' && item.source === 'device';
 }
 
+/**
+ * Whether an id names a review *unit* rather than a photograph.
+ *
+ * A group unit is minted with a type prefix — `burst:<album>:<frame>`, `pano:…`, `stereo:…`,
+ * `stereo-gap:<asset>` — and carries a verdict of its own, so the deck knows the card was decided.
+ * Lightroom asset ids are plain hex and never contain a colon, which is the whole test.
+ *
+ * It matters wherever a verdict id is about to be used as an asset id. Filing walks the verdicts, and
+ * these went with them: KeeperDelete had nine `burst:…` ids on record as filed, KeeperEdit seven
+ * `pano:…` ones. Lightroom ignores an id it does not know, so the writes looked fine — until the
+ * check for photos an album had lost reported those ids as missing and offered to put back things
+ * that were never photographs, which could not be done then or ever.
+ */
+export function isUnitId(id: string): boolean {
+  return id.includes(':');
+}
+
 /** Every real asset id a review unit references — its own, or all the frames of a group. */
 export function unitAssetIds(item: ReviewItem): string[] {
   switch (item.kind) {

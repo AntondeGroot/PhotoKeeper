@@ -176,6 +176,21 @@ describe('KeeperFilingService', () => {
     expect(sent).toEqual([]);
   });
 
+  /**
+   * Found on a real catalogue: KeeperDelete had nine `burst:…` ids on record as filed and KeeperEdit
+   * seven `pano:…` ones. A group card carries a verdict under its own synthetic id, filing walked the
+   * verdicts, and Lightroom silently ignores an id it does not know — so the writes looked fine and
+   * the ids sat there until the lost-photo check offered to put back things that were never photos.
+   */
+  it('never asks Lightroom to file a review unit — only its photographs', async () => {
+    verdicts.set('burst:alb-1:a', { status: 'rejected', starred: false, saveOnly: false });
+    verdicts.set('a', { status: 'rejected', starred: false, saveOnly: false });
+
+    await filing.sweep();
+
+    expect(sent).toEqual([{ albumId: 'al-del', assetIds: ['a'] }]);
+  });
+
   it('does not file the same photo into the same album twice', async () => {
     verdicts.set('a', verdict('rejected'));
     await filing.sweep();
@@ -281,6 +296,15 @@ describe('KeeperFilingService', () => {
     it('says nothing about an album that is not in the catalogue', async () => {
       albumIds.delete('KeeperDelete');
       filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+
+      expect(await filing.filingGaps()).toEqual([]);
+    });
+
+    /** The same junk, already on record from before it was kept out. It can never be put back. */
+    it('does not report a review unit as a photo the album lost', async () => {
+      filed.set('burst:alb-1:a', { albums: ['KeeperDelete'], at: 1 });
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      heldByAlbum.set('al-del', ['a']);
 
       expect(await filing.filingGaps()).toEqual([]);
     });
