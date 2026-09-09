@@ -516,6 +516,59 @@ describe('ReviewDecisionsService', () => {
     expect(verdicts.map((v) => v.id)).toEqual(['e1']);
   });
 
+  /**
+   * Marking five photos as a panorama showed an unrelated photograph afterwards, and no verdict
+   * could be given to it; quitting and reopening the app showed the panorama correctly.
+   *
+   * The absorbed photos are taken off the deck, and any of them standing *before* the cursor shifts
+   * everything after it left — so the cursor, left where it was, ends up past the panorama it just
+   * made, or past the end of the deck entirely, which is why nothing would take a verdict.
+   */
+  it('leaves the cursor on the group it just assembled', () => {
+    photos.set([photo('f1'), photo('seed'), photo('later')]);
+    index.set(1); // standing on the seed photo
+
+    service.assembleGroup('pano', [
+      { id: 'f1', name: 'f1' },
+      { id: 'seed', name: 'seed' },
+    ]);
+
+    expect(photos().map((p) => p.id)).toEqual(['pano:seed', 'later']);
+    expect(index()).toBe(0);
+    expect(photos()[index()].kind).toBe('pano');
+  });
+
+  /** The seed standing first: nothing shifts, and the cursor must still land on the group. */
+  it('leaves the cursor on the group when nothing before it was absorbed', () => {
+    photos.set([photo('seed'), photo('f1'), photo('later')]);
+    index.set(0);
+
+    service.assembleGroup('pano', [
+      { id: 'seed', name: 'seed' },
+      { id: 'f1', name: 'f1' },
+    ]);
+
+    expect(photos().map((p) => p.id)).toEqual(['pano:seed', 'later']);
+    expect(index()).toBe(0);
+  });
+
+  /** Several absorbed from in front of it — the case the five-photo panorama actually hit. */
+  it('lands on the group however many were taken from in front of it', () => {
+    photos.set([photo('f1'), photo('f2'), photo('f3'), photo('seed'), photo('later')]);
+    index.set(3);
+
+    service.assembleGroup('pano', [
+      { id: 'f1', name: 'f1' },
+      { id: 'f2', name: 'f2' },
+      { id: 'f3', name: 'f3' },
+      { id: 'seed', name: 'seed' },
+    ]);
+
+    expect(photos().map((p) => p.id)).toEqual(['pano:seed', 'later']);
+    expect(index()).toBe(0);
+    expect(photos()[index()].kind).toBe('pano');
+  });
+
   it('resolveBurst() rejects the losers and puts the survivor back as a photo to judge', async () => {
     photos.set([burst('grp', ['f1', 'f2', 'f3']), photo('later')]);
     index.set(0);
