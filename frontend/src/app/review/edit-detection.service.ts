@@ -10,6 +10,8 @@ import { HashStore } from '../storage/detection/hash-store';
 import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewStore } from '../storage/review/review-store';
+import { ReviewFeedService } from './review-feed.service';
+import { DailyProgressService } from './daily-progress.service';
 import { EditBaseline, EditVerdict, edited, stampMoved, verdictFor } from './edit-detection';
 import { PhotoAsset } from '../lightroom-types';
 
@@ -51,6 +53,8 @@ export class EditDetectionService {
   private readonly reviews = inject(ReviewStore);
   private readonly hasher = inject(ImageHasher);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly feed = inject(ReviewFeedService);
+  private readonly progress = inject(DailyProgressService);
 
   /** What the last check found, newest run replacing the last. Null until one has been run. */
   readonly findings = signal<EditFinding[] | null>(null);
@@ -322,7 +326,13 @@ export class EditDetectionService {
   /**
    * "These are done" — the edits are finished, so the photos become printable.
    *
-   * Their baselines go with them: they have left the queue, and a baseline for a photo nobody is
+   * <p>Everything finishing an edit means, not just the stored verdict. This wrote to the store
+   * alone, and the store is not what the Edit tab reads: the queue is built from the deck held in
+   * memory, so a photo said to be finished here sat in the list of things to edit until the app was
+   * next reloaded, and the day's edit tally never moved. Two taps of the same meaning — "Done
+   * editing" on a row, and this — have to leave the app in the same state.
+   *
+   * <p>Their baselines go with them: they have left the queue, and a baseline for a photo nobody is
    * editing is a row that can only ever be stale.
    */
   async sendToPrint(assetIds: readonly string[]): Promise<void> {
@@ -334,6 +344,13 @@ export class EditDetectionService {
         saveOnly: verdict?.saveOnly ?? false,
       });
       await this.forget(id);
+      // A photo the check found need not be on today's deck at all — the check reads the whole
+      // KeeperEdit album — so this is a no-op for the ones that are not, and the tally counts the
+      // finished edit either way.
+      this.feed.photos.update((list) =>
+        list.map((item) => (item.id === id ? { ...item, status: 'toPrint' as const } : item)),
+      );
+      this.progress.recordEdit();
     }
     this.dropFindings(assetIds);
   }
