@@ -57,6 +57,24 @@
   color: var(--c-dim);
 }
 
+// The name is the thing you take to the app, so tapping it is copying it; the arrow beside it is
+// the browser route, kept small because on a phone it is the lesser of the two.
+.copy-name {
+  padding: 5px 9px;
+  border-radius: 8px 0 0 8px;
+  border: 1px solid var(--c-line);
+  border-right: none;
+  background: var(--c-panel2);
+  color: var(--c-dim);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--c-text);
+  }
+}
+
 // The photos to take out, each openable on its own — the count above is only useful if every one of
 // them can actually be reached.
 .tidy-photos {
@@ -66,12 +84,16 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+
+  li {
+    display: flex;
+  }
 }
 
 .open-photo {
   display: inline-block;
-  padding: 5px 9px;
-  border-radius: 8px;
+  padding: 5px 8px;
+  border-radius: 0 8px 8px 0;
   border: 1px solid var(--c-line);
   background: var(--c-panel2);
   color: var(--c-dim);
@@ -93,6 +115,13 @@
 
 .open-album {
   flex: 1 1 auto;
+  // The second door is the sharper one — deleting, not filing — so it is stated more quietly.
+  &.subtle {
+    border-color: var(--c-line);
+    background: transparent;
+    color: var(--c-dim);
+  }
+
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid rgba(229, 160, 69, 0.35);

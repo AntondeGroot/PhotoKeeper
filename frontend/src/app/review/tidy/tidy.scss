@@ -6,9 +6,51 @@
 }
 
 // Why this screen exists, said once at the top rather than repeated on each half.
-.tidy-intro {
-  margin: 0 2px 14px;
+.tidy-screen > p {
+  margin: 0 2px 8px;
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--c-dim);
+}
+
+// The way round the one-at-a-time problem, as two steps.
+//
+// Numbered by a counter rather than by the list's own markers: a marker cannot be styled apart from
+// its text, and the number is the thing worth seeing here — it says there is an order to this, and
+// which half of the screen each step belongs to.
+.tidy-intro {
+  counter-reset: tidy-step;
+  list-style: none;
+  margin: 0 2px 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  li {
+    counter-increment: tidy-step;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--c-dim);
+  }
+
+  li::before {
+    content: counter(tidy-step);
+    flex: none;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid rgba(229, 160, 69, 0.45);
+    background: rgba(229, 160, 69, 0.1);
+    color: var(--c-amber);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
 }
