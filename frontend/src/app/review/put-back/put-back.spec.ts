@@ -38,14 +38,12 @@ describe('PutBackComponent', () => {
     root = fixture.nativeElement as HTMLElement;
   });
 
-  const notes = () => [...root.querySelectorAll('.storage-note')].map((n) => n.textContent?.trim());
+  const notes = () => [...root.querySelectorAll('.tidy-note')].map((n) => n.textContent?.trim());
   const buttons = () =>
-    [...root.querySelectorAll<HTMLButtonElement>('.put-back-btn')].map((b) =>
-      b.textContent?.trim(),
-    );
+    [...root.querySelectorAll<HTMLButtonElement>('.tidy-btn')].map((b) => b.textContent?.trim());
 
   async function press(label: string) {
-    const button = [...root.querySelectorAll<HTMLButtonElement>('.put-back-btn')].find((b) =>
+    const button = [...root.querySelectorAll<HTMLButtonElement>('.tidy-btn')].find((b) =>
       b.textContent?.includes(label),
     );
     button?.click();
@@ -66,7 +64,7 @@ describe('PutBackComponent', () => {
 
     await press('Check');
 
-    expect([...root.querySelectorAll('.storage-row-title')].map((e) => e.textContent)).toEqual([
+    expect([...root.querySelectorAll('.tidy-album')].map((e) => e.textContent)).toEqual([
       'KeeperDelete',
       'KeeperEdit',
     ]);
@@ -123,7 +121,7 @@ describe('PutBackComponent', () => {
 
     expect(notes().join(' ')).toContain('49 already deleted');
     expect(buttons()).not.toContain('Put 49 back');
-    expect(root.querySelectorAll('.storage-row-title')).toHaveLength(0);
+    expect(root.querySelectorAll('.tidy-album')).toHaveLength(0);
   });
 
   it('offers to put back only what was actually lost', async () => {

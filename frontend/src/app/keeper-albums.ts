@@ -118,6 +118,19 @@ export function albumSearchLinks(
 }
 
 /**
+ * Deep-link to one asset in the Lightroom web app.
+ *
+ * The web app routes to a single asset via *search* — the `/search/assets/<id>` path plus a `q` that
+ * names the file — rather than a plain `/assets/<id>` path, which 404s. The id is in the path, which
+ * is what makes this reliable where a name search is not: proved against a real catalogue on a photo
+ * that an album search could not find under any form of its name, while this opened it directly.
+ */
+export function lightroomAssetUrl(catalogId: string, assetId: string, fileName: string): string {
+  const base = `https://lightroom.adobe.com/libraries/${catalogId}/search/assets/${assetId}`;
+  return `${base}?q=${encodeURIComponent(fileName)}`;
+}
+
+/**
  * Deep-link into an album showing only the photos whose names are listed.
  *
  * The web app scopes a search to one album with `albumFilter`, and takes a comma-separated list of

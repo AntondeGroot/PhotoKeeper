@@ -10,14 +10,13 @@ import {
 import { PrintsService } from './prints.service';
 import { PhotoStackComponent } from './photo-stack/photo-stack';
 import { PrintPickerComponent } from './print-picker/print-picker';
-import { TidyUpComponent } from '../review/tidy-up/tidy-up';
 import { printsIn } from './prints.types';
 import { AlbumGroup, Photo } from '../photo';
 
 @Component({
   selector: 'app-prints',
   templateUrl: './prints.html',
-  imports: [PhotoStackComponent, PrintPickerComponent, TidyUpComponent],
+  imports: [PhotoStackComponent, PrintPickerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './prints.scss',
 })

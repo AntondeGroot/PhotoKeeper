@@ -1,0 +1,136 @@
+// The card language the Tidy up screen's two halves share.
+//
+// Its own stylesheet, listed by both components, because Angular scopes styles to the component that
+// declares them: these class names were borrowed from Settings when this work lived there, and on a
+// screen of their own they matched nothing and inherited nothing — the screen rendered bare. Shared
+// as a file rather than as global CSS so the names stay this screen's own.
+
+.tidy-section {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--c-faint);
+  margin: 6px 2px 6px;
+}
+
+.tidy-card {
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.tidy-note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--c-dim);
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.tidy-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--c-line);
+  font-size: 13px;
+  color: var(--c-text);
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+}
+
+.tidy-album {
+  font-weight: 600;
+}
+
+.tidy-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-dim);
+}
+
+// The photos to take out, each openable on its own — the count above is only useful if every one of
+// them can actually be reached.
+.tidy-photos {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.open-photo {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel2);
+  color: var(--c-dim);
+  font-size: 11.5px;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--c-text);
+  }
+}
+
+// The way to the photos themselves, in the amber the app uses for "go and do this in Lightroom".
+.tidy-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.open-album {
+  flex: 1 1 auto;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(229, 160, 69, 0.35);
+  background: rgba(229, 160, 69, 0.08);
+  color: var(--c-amber);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+
+  &:hover {
+    background: rgba(229, 160, 69, 0.14);
+  }
+}
+
+// The one thing this screen does itself rather than sending you to Lightroom, so it is a real button
+// rather than a link — quiet until it has something to offer.
+.tidy-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-dim);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  &.primary {
+    border-color: rgba(127, 168, 160, 0.45);
+    background: rgba(127, 168, 160, 0.12);
+    color: var(--c-print);
+    font-weight: 600;
+  }
+}

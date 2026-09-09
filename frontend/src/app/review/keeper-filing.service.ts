@@ -5,9 +5,31 @@ import { KeeperAlbumsService } from '../keeper-albums.service';
 import { albumForVerdict, belongsInPrintBin, isPrintBin } from '../keeper-albums';
 import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
+import { StoredVerdict } from '../storage/photokeeper-db';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewUndoService } from './review-undo.service';
-import { isUnitId } from '../photo';
+import { isUnitId, splitFileName } from '../photo';
+
+/**
+ * A filename as the album search matches it: the name Lightroom shows the photo under, `DSC_4390`.
+ *
+ * Two things come off what the listing gives. The extension, because the search matches names rather
+ * than files. And an import-date prefix: a file imported as `2021-05-24-DSC_4390.NEF` is a photograph
+ * *called* DSC_4390, and searching for the prefixed form finds nothing at all — which is worse than
+ * the missing rows this naming fixed, because a list of four photos and a link that opens on an empty
+ * album reads as the app being wrong about the photos rather than about the query.
+ */
+function searchTerm(fileName: string | undefined): string | undefined {
+  if (!fileName) return undefined;
+  return splitFileName(fileName).name.replace(/^\d{4}-\d{2}-\d{2}-/, '');
+}
+
+/** One photo an album is holding that has moved on: enough to name it and to open it. */
+export interface StalePhoto {
+  assetId: string;
+  /** As Lightroom shows it, `DSC_2609` — for the label. */
+  name: string;
+}
 
 /** What became of one album's filings: what it has lost, and what was deleted as intended. */
 export interface AlbumFilingGap {
@@ -127,38 +149,70 @@ export class KeeperFilingService {
   }
 
   /**
-   * Photos sitting in an album their verdict has moved on from — album name → their filenames.
+   * Photos an album is holding that their verdict has moved on from — album name → the photos.
    *
-   * The residue of a one-way API. Filing adds and can never remove, so a photo sent to edit and then
-   * promoted to print stays in KeeperEdit for good as far as this app is concerned. It cannot tidy
-   * that up, but it knows exactly what needs tidying, and a search link can put the user in front of
-   * precisely those photos.
+   * <p>The residue of a one-way API. Filing adds and can never remove, so a photo sent to edit and
+   * then promoted to print stays in KeeperEdit for good as far as this app is concerned. It cannot
+   * tidy that up, but it knows exactly what needs tidying and can put the user in front of it.
    *
-   * Filenames rather than ids, because the search matches on names — which is also why a photo whose
-   * metadata has not been scanned is left out: without a name there is nothing to search for.
+   * <p>Asked of Lightroom rather than worked out from the records alone, which was the first shape
+   * and got two things wrong, both of which hid work rather than inventing it. A photo is only in
+   * the metadata store once a scan has reached it, and an unnamed one was dropped for want of
+   * something to search for: of the six finished photos left behind in a real KeeperEdit, five had
+   * no scanned name and the screen listed one. And a photo already taken out by hand is still on
+   * record as filed, so the record-only answer went on asking for it to be removed for ever.
+   *
+   * <p>Costs a listing per album, so it belongs to the Tidy up screen — where someone has gone
+   * specifically to do this work — rather than to anything that runs on its own.
    */
-  async staleFilings(): Promise<Map<string, string[]>> {
-    const [verdicts, filed, meta] = await Promise.all([
-      this.reviews.getVerdicts(),
-      this.filed.getAll(),
-      this.meta.getAll(),
-    ]);
+  async staleInAlbums(): Promise<Map<string, StalePhoto[]>> {
+    await this.albums.ensure();
+    const [stale, meta] = await Promise.all([this.staleIdsByAlbum(), this.meta.getAll()]);
+    const byAlbum = new Map<string, StalePhoto[]>();
+    for (const [album, assetIds] of stale) {
+      const albumId = this.albums.idFor(album);
+      if (!albumId) continue;
+      const held = await firstValueFrom(this.svc.getAllAlbumAssets(albumId));
+      // A tombstone is not something to remove: that photo has been deleted, which is the end of it.
+      const nameById = new Map(
+        held
+          .filter((asset) => asset.subtype !== 'deleted_image')
+          .map((asset) => [asset.id, searchTerm(asset.payload?.importSource?.fileName)]),
+      );
+      const photos = assetIds
+        .filter((id) => nameById.has(id))
+        .map((id) => ({ assetId: id, name: nameById.get(id) ?? meta.get(id)?.name ?? id }));
+      if (photos.length > 0) byAlbum.set(album, photos);
+    }
+    return byAlbum;
+  }
+
+  /**
+   * Whether a photo with this verdict belongs in this album — the one rule both halves of tidying
+   * ask, from opposite ends.
+   *
+   * <p>A print bin is asked a different question. It is not a filing any verdict implies — it is a
+   * snapshot of one order — so it is not wrong merely for holding a photo the verdict map would not
+   * have put there. It stops belonging once the decision behind the photo is withdrawn: the edit
+   * undone, the photo rejected, or set aside as keep-but-do-not-print.
+   */
+  private belongsIn(album: string, verdict: StoredVerdict | undefined): boolean {
+    const status = verdict?.status ?? 'backlog';
+    return isPrintBin(album)
+      ? belongsInPrintBin(status, verdict?.saveOnly ?? false)
+      : album === albumForVerdict(status);
+  }
+
+  /** Which photos are sitting in an album their verdict has moved on from — album name → asset ids. */
+  private async staleIdsByAlbum(): Promise<Map<string, string[]>> {
+    const [verdicts, filed] = await Promise.all([this.reviews.getVerdicts(), this.filed.getAll()]);
     const byAlbum = new Map<string, string[]>();
     for (const [assetId, record] of filed) {
+      if (isUnitId(assetId)) continue; // never a photograph; see isUnitId
       const verdict = verdicts.get(assetId);
-      const belongs = albumForVerdict(verdict?.status ?? 'backlog');
-      const name = meta.get(assetId)?.name;
-      if (!name) continue;
       for (const album of record.albums) {
-        // A print bin is asked a different question. It is not a filing any verdict implies — it is
-        // a snapshot of one order — so it is not stale merely for holding a photo the verdict map
-        // would not have put there. It is stale once the decision behind the photo is withdrawn:
-        // the edit undone, the photo rejected, or set aside as keep-but-do-not-print.
-        const stale = isPrintBin(album)
-          ? !belongsInPrintBin(verdict?.status ?? 'backlog', verdict?.saveOnly ?? false)
-          : album !== belongs;
-        if (!stale) continue;
-        byAlbum.set(album, [...(byAlbum.get(album) ?? []), name]);
+        if (this.belongsIn(album, verdict)) continue;
+        byAlbum.set(album, [...(byAlbum.get(album) ?? []), assetId]);
       }
     }
     return byAlbum;
@@ -186,7 +240,7 @@ export class KeeperFilingService {
    */
   async filingGaps(): Promise<AlbumFilingGap[]> {
     await this.albums.ensure();
-    const filed = await this.filed.getAll();
+    const [filed, verdicts] = await Promise.all([this.filed.getAll(), this.reviews.getVerdicts()]);
     const expected = new Map<string, string[]>();
     for (const [assetId, record] of filed) {
       // Unit ids already on record from before they were kept out of filing. Lightroom never held
@@ -194,6 +248,10 @@ export class KeeperFilingService {
       // that — they are not photographs.
       if (isUnitId(assetId)) continue;
       for (const album of record.albums) {
+        // Only a photo that still belongs there can have been lost from it. One whose verdict has
+        // moved on is *meant* to leave, so its absence is the tidying done — and offering to put it
+        // back would undo that, while the other half of this very screen asks for it to be removed.
+        if (!this.belongsIn(album, verdicts.get(assetId))) continue;
         expected.set(album, [...(expected.get(album) ?? []), assetId]);
       }
     }

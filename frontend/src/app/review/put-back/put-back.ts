@@ -4,7 +4,7 @@ import { AlbumFilingGap, KeeperFilingService } from '../keeper-filing.service';
 /**
  * "These photos should be in a Keeper album and are not — put them back."
  *
- * <p>The mirror of {@link TidyUpComponent}, and the more damaging of the two. Removing a photo from
+ * <p>The mirror of the list above it on this screen, and the more damaging of the two. Removing a photo from
  * KeeperDelete in Lightroom does not delete the photograph, and it is an easy thing to do by
  * accident while meaning to; but the app records a filing once and never questions it, so no later
  * sweep would ever notice. The photos were simply lost — still in the catalogue, no longer on any
@@ -18,7 +18,7 @@ import { AlbumFilingGap, KeeperFilingService } from '../keeper-filing.service';
   templateUrl: './put-back.html',
   imports: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styleUrl: './put-back.scss',
+  styleUrl: '../tidy/tidy-card.scss',
 })
 export class PutBackComponent {
   private readonly filing = inject(KeeperFilingService);

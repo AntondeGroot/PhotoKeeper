@@ -14,13 +14,12 @@ import { SceneComponent } from '../scene/scene';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
 import { EditDetectionService } from '../edit-detection.service';
 import { EditCheckComponent } from '../edit-check/edit-check';
-import { TidyUpComponent } from '../tidy-up/tidy-up';
-import { KEEPER_EDIT_ALBUM, lightroomAlbumUrl } from '../../keeper-albums';
+import { KEEPER_EDIT_ALBUM, lightroomAlbumUrl, lightroomAssetUrl } from '../../keeper-albums';
 
 @Component({
   selector: 'app-review-edit',
   templateUrl: './review-edit.html',
-  imports: [EditCheckComponent, TidyUpComponent, SceneComponent],
+  imports: [EditCheckComponent, SceneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './review-edit.scss',
 })
@@ -93,12 +92,9 @@ export class ReviewEditComponent implements OnInit {
     return albumId && this.catalogId ? lightroomAlbumUrl(this.catalogId, albumId) : null;
   }
 
-  /** Deep-link to the asset in the Lightroom web app (opened in a new tab). The web app routes to a
-   *  single asset via *search* — the `/search/assets/<id>` path plus a `q` query matching the filename
-   *  — rather than a plain `/assets/<id>` path (which 404s the asset and never opens). */
+  /** Deep-link to the asset in the Lightroom web app (opened in a new tab). */
   lightroomUrl(photo: Photo): string {
     const filename = photo.ext ? `${photo.name}.${photo.ext}` : photo.name;
-    const base = `https://lightroom.adobe.com/libraries/${this.catalogId}/search/assets/${photo.id}`;
-    return `${base}?q=${encodeURIComponent(filename)}`;
+    return lightroomAssetUrl(this.catalogId ?? '', photo.id, filename);
   }
 }

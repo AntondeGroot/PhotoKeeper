@@ -1,23 +1,20 @@
-<div class="settings-section-label">Put back what Lightroom lost</div>
-<div class="storage-card">
-  <p class="storage-note">
-    Removing a photo from KeeperDelete in Lightroom does not delete it — and the app cannot see that
-    it happened. This asks each Keeper album what it still holds. Photos you actually deleted are
-    left alone: Lightroom keeps them in the album as deleted until it purges them.
+<div class="tidy-section">Put back what Lightroom lost</div>
+<div class="tidy-card">
+  <p class="tidy-note">
+    Removing a photo from KeeperDelete does not delete it, and the app cannot see that it happened.
+    This asks each album what it still holds. Photos you actually deleted are left alone.
   </p>
 
   <!-- Outside the rows block on purpose: a failed read leaves no rows, so a message nested in them
        could never appear, and the panel would answer a failure with silence. -->
   @if (failed()) {
-    <p class="storage-note">Couldn’t read your albums just now. Nothing has been changed.</p>
+    <p class="tidy-note">Couldn’t read your albums just now. Nothing has been changed.</p>
   } @else if (rows(); as checked) {
     @if (deleted() > 0) {
-      <p class="storage-note">
-        {{ deleted() }} already deleted in Lightroom — nothing to do there.
-      </p>
+      <p class="tidy-note">{{ deleted() }} already deleted in Lightroom — nothing to do there.</p>
     }
     @if (lost().length === 0) {
-      <p class="storage-note">
+      <p class="tidy-note">
         @if (restored(); as done) {
           Put {{ done.filed }} back.
           @if (done.lost > 0) {
@@ -30,21 +27,19 @@
       </p>
     } @else {
       @for (row of lost(); track row.album) {
-        <div class="storage-row">
-          <div class="storage-row-head">
-            <span class="storage-row-title">{{ row.album }}</span>
-            <span class="storage-row-bytes">{{ row.missing.length }} missing</span>
-          </div>
+        <div class="tidy-row">
+          <span class="tidy-album">{{ row.album }}</span>
+          <span class="tidy-count">{{ row.missing.length }} missing</span>
         </div>
       }
-      <button class="put-back-btn" [disabled]="checking()" (click)="putBack()">
+      <button class="tidy-btn primary" [disabled]="checking()" (click)="putBack()">
         {{ checking() ? 'Putting back…' : 'Put ' + total() + ' back' }}
       </button>
     }
   }
 
   @if (nothingToPutBack()) {
-    <button class="put-back-btn subtle" [disabled]="checking()" (click)="check()">
+    <button class="tidy-btn" [disabled]="checking()" (click)="check()">
       {{ checking() ? 'Checking…' : 'Check the Keeper albums' }}
     </button>
   }

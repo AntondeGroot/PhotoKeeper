@@ -1,0 +1,14 @@
+// Only the screen's own frame; the cards inside it are the shared language (see tidy-card.scss).
+.tidy-screen {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 24px;
+}
+
+// Why this screen exists, said once at the top rather than repeated on each half.
+.tidy-intro {
+  margin: 0 2px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--c-dim);
+}
