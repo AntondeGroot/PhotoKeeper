@@ -165,8 +165,9 @@
               Tidy up
             </button>
           </div>
-          <!-- Above the mode switch: decisions are made in Sort and in Edit, and a mis-tap in
-               either wants the same way back. -->
+          <!-- Above the mode switch: a decision is made in every pass — sorted, edited, tagged —
+               and a mis-tap in any of them wants the same way back, in one list that shows the
+               photograph beside what it was given. -->
           @if (decisions.canUndo()) {
             <div class="undo-bar">
               <button class="undo-btn" (click)="decisions.openUndoList()">

@@ -12,6 +12,7 @@ import { KeeperFilingService } from './keeper-filing.service';
 import { EditDetectionService } from './edit-detection.service';
 import { DecisionOutcome, ReviewUndoService, UndoEntry, bringBack } from './review-undo.service';
 import { HeadsUp } from '../notifications/heads-up/heads-up.types';
+import { TagReviewService } from '../tagging/tag-review.service';
 import {
   Burst,
   Pano,
@@ -135,6 +136,7 @@ export class ReviewDecisionsService {
   private readonly progress = inject(DailyProgressService);
   private readonly filing = inject(KeeperFilingService);
   private readonly undoStack = inject(ReviewUndoService);
+  private readonly tags = inject(TagReviewService);
   private readonly editDetection = inject(EditDetectionService);
   // The day is read from the service rather than the clock, so every per-day record — the stored
   // deck, the once-a-day celebration, the tally — agrees about which day it is even in the seconds
@@ -207,6 +209,12 @@ export class ReviewDecisionsService {
    * counted off the deck, so putting the deck back corrects it.
    */
   async undo(entry: UndoEntry): Promise<void> {
+    // A tag is put back by the pass that made it: no verdict moved, no deck to mend, and a cursor of
+    // its own to return to. One list, because a mis-swipe is a mis-swipe wherever it happened.
+    if (entry.tag) {
+      await this.tags.undoTag(entry);
+      return;
+    }
     const taken = await this.undoStack.take(entry);
     if (!taken) return;
     const restored = bringBack(this.feed.photos(), this.feed.index(), taken.unit, taken.returnTo);

@@ -32,7 +32,8 @@ import { ReviewStore } from '../storage/review/review-store';
 export const MAX_UNDO = 20;
 
 /** What a decision did, as the list shows it. A skip is not a verdict — it stored none. */
-export type DecisionOutcome = 'kept' | 'rejected' | 'toEdit' | 'maybe' | 'toPrint' | 'skipped';
+export type DecisionOutcome =
+  'kept' | 'rejected' | 'toEdit' | 'maybe' | 'toPrint' | 'skipped' | 'tagged';
 
 /**
  * Where a unit goes when its decision is taken back.
@@ -57,6 +58,23 @@ export interface UndoEntry {
    * be restored as an absence rather than as a stored 'backlog', or the photo counts as decided.
    */
   verdicts: ReadonlyMap<string, StoredVerdict | undefined>;
+  /**
+   * What the row says instead of the outcome's own name. A tag decision's answer is the tag — the
+   * row is only useful if it says *which* — while a verdict's answer is the outcome itself.
+   */
+  label?: string;
+  /** What putting a tag decision back needs; absent on every other kind. */
+  tag?: TagUndo;
+}
+
+/** A tag decision as it stood before it was made. */
+export interface TagUndo {
+  /** The tags the photo carried beforehand — usually none. */
+  previous: string[];
+  /** Where the tag pass's cursor stood, so undo lands on the photo the tag was about. */
+  cursor: number;
+  /** Whether it counted toward the day, and so whether taking it back un-counts. */
+  counted: boolean;
 }
 
 /** Adds an entry, dropping the oldest once the stack is full. */
@@ -183,6 +201,24 @@ export class ReviewUndoService {
    */
   shownAssetIds(): Set<string> {
     return new Set(this.stack().flatMap((entry) => unitAssetIds(entry.unit)));
+  }
+
+  /**
+   * Records a tag decision, which is put back differently from every other kind.
+   *
+   * <p>No verdict moves, so there is nothing for {@link take} to restore and nothing here for the
+   * Lightroom sweep to hold back — a tag is written to this device and no further. What it does
+   * carry is the tag's name, because "Tagged" on a row would leave out the only part worth reading,
+   * and the pass's cursor, so taking it back lands on the photograph it was about.
+   *
+   * <p>Kept in the same stack as the verdicts deliberately: a mis-swipe is a mis-swipe whichever
+   * pass it happened in, and one list showing the photograph beside what it was given answers
+   * "where did that go?" for both.
+   */
+  captureTag(unit: ReviewItem, label: string, tag: TagUndo): void {
+    this.stack.update((s) =>
+      pushEntry(s, { outcome: 'tagged', unit, returnTo: 'place', verdicts: new Map(), label, tag }),
+    );
   }
 
   /**

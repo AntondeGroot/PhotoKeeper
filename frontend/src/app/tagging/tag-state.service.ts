@@ -86,6 +86,17 @@ export class TagState {
     this.apply(assetId, tagId);
   }
 
+  /**
+   * Puts a photo's tags back to exactly this set, empty included.
+   *
+   * For undo, which is the one caller that knows what was there before and means it literally —
+   * {@link apply} and {@link toggle} each decide the new set from the old one, and neither can
+   * express "back to nothing".
+   */
+  restore(assetId: string, tagIds: readonly string[]): void {
+    this.write(assetId, [...tagIds]);
+  }
+
   private write(assetId: string, tagIds: string[]): void {
     this.assignments.update((map) => ({ ...map, [assetId]: tagIds }));
     void this.assetTags.set(assetId, tagIds);

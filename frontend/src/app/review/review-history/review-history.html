@@ -24,7 +24,7 @@
               }
             </span>
           </div>
-          <span class="chip chip-{{ tone(entry.outcome) }}">{{ label(entry.outcome) }}</span>
+          <span class="chip chip-{{ tone(entry.outcome) }}">{{ label(entry) }}</span>
           <button class="take-back" (click)="undone.emit(entry)">Undo</button>
         </li>
       } @empty {
