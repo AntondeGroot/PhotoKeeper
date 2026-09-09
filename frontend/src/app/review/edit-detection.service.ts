@@ -22,7 +22,7 @@ export interface EditFinding extends EditVerdict {
 interface EditQueue {
   queued: PhotoAsset[];
   baselines: ReadonlyMap<string, EditBaseline>;
-  name: (assetId: string) => string;
+  name: (asset: PhotoAsset) => string;
 }
 
 /** The hash is computed from the smallest rendition; the downscale throws the rest away anyway. */
@@ -206,7 +206,13 @@ export class EditDetectionService {
     for (const assetId of baselines.keys()) {
       if (!stillQueued.has(assetId)) void this.forget(assetId);
     }
-    return { queued, baselines, name: (id: string) => meta.get(id)?.name ?? id };
+    // Named from the listing first. A photo is only in the metadata store if a scan has reached it,
+    // and five of the thirty-six in a real KeeperEdit had not been — so those rows showed a 32-digit
+    // asset id where a filename belongs, which is no more use for picking than nothing at all. The
+    // listing carries `importSource.fileName` for every asset, and it was already in hand.
+    const named = (asset: PhotoAsset): string =>
+      asset.payload?.importSource?.fileName ?? meta.get(asset.id)?.name ?? asset.id;
+    return { queued, baselines, name: named };
   }
 
   private async runCheck(queue: EditQueue): Promise<EditFinding[]> {
@@ -219,7 +225,7 @@ export class EditDetectionService {
         : undefined;
       findings.push({
         ...verdictFor(asset.id, baseline, asset.updated, hash),
-        name: queue.name(asset.id),
+        name: queue.name(asset),
       });
     }
     return findings;
@@ -231,7 +237,7 @@ export class EditDetectionService {
       assetId: asset.id,
       state: 'unknown' as const,
       updated: asset.updated,
-      name: queue.name(asset.id),
+      name: queue.name(asset),
     }));
   }
 

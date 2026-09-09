@@ -15,6 +15,10 @@ import { StoredVerdict } from '../storage/photokeeper-db';
 
 const asset = (id: string, updated: string): PhotoAsset => ({ id, updated }) as PhotoAsset;
 
+/** An asset as the album listing gives it: carrying the filename Lightroom imported it under. */
+const namedAsset = (id: string, updated: string, fileName: string): PhotoAsset =>
+  ({ id, updated, payload: { importSource: { fileName } } }) as PhotoAsset;
+
 /** A rendition whose "pixels" are just the hash the fake hasher will report. */
 const rendition = (hash: string): Blob => Object.assign(new Blob(), { hash });
 
@@ -272,6 +276,28 @@ describe('EditDetectionService', () => {
 
       await service.listQueue();
       expect(service.shownFindings().map((f) => f.assetId)).toEqual(['a', 'b']);
+    });
+
+    /**
+     * The rows are for picking from, and five of thirty-six in a real KeeperEdit had never been
+     * scanned — so they showed a 32-digit asset id where a filename belongs. The listing carries the
+     * name for every asset and was already in hand.
+     */
+    it('names a photo the scan has never reached, from the listing itself', async () => {
+      albumAssets = [namedAsset('a', 'stamp-1', 'DJI_0615.DNG')];
+
+      await service.listQueue();
+
+      expect(service.findings()?.[0].name).toBe('DJI_0615.DNG');
+    });
+
+    it('falls back to the id only when Lightroom offers no name either', async () => {
+      verdicts.set('z', { status: 'toEdit', starred: false, saveOnly: false });
+      albumAssets = [asset('z', 'stamp-1')];
+
+      await service.listQueue();
+
+      expect(service.findings()?.[0].name).toBe('z');
     });
 
     it('says so when the album cannot be read', async () => {
