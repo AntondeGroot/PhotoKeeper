@@ -72,6 +72,33 @@ describe('ReviewHistoryComponent', () => {
     expect(root.querySelector('.where')?.textContent).toContain('3 frames');
   });
 
+  /**
+   * A tag decision in the same list as the verdicts. The chip has to name the *tag*: "Tagged" would
+   * leave out the only part worth checking, which is where that swipe actually went.
+   */
+  it('names a tag decision by its tag, beside the photograph', () => {
+    render([
+      {
+        outcome: 'tagged',
+        unit: photo('a'),
+        returnTo: 'place',
+        verdicts: new Map(),
+        label: 'Animals',
+        tag: { previous: [], cursor: 3, counted: true },
+      },
+    ]);
+
+    expect(root.querySelector('.chip')?.textContent?.trim()).toBe('Animals');
+    expect(root.querySelector('.name')?.textContent?.trim()).toContain('a');
+  });
+
+  /** Without a label of its own, a row still says something rather than nothing. */
+  it('falls back to the outcome when an entry carries no label', () => {
+    render([entry(photo('a'), 'tagged')]);
+
+    expect(root.querySelector('.chip')?.textContent?.trim()).toBe('Tagged');
+  });
+
   it('emits the entry whose Undo was pressed', () => {
     const entries = [entry(photo('a'), 'kept'), entry(photo('b'), 'rejected')];
     render(entries);

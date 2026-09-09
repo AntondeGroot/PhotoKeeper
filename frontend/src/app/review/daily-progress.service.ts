@@ -81,6 +81,17 @@ export class DailyProgressService {
     this.write({ ...this.progress(), tags: this.progress().tags + 1 });
   }
 
+  /**
+   * Takes back a tag counted earlier today.
+   *
+   * The review tally needs no such thing — it is counted off the deck, so putting a unit back
+   * corrects it by itself. The tag tally is a running count, so undoing a tag has to say so here or
+   * the day stays one ahead of the work.
+   */
+  forgetTag(): void {
+    this.write({ ...this.progress(), tags: Math.max(0, this.progress().tags - 1) });
+  }
+
   private write(next: Progress): void {
     const stamped = { ...next, day: this.day.today() };
     this.stored.set(stamped);

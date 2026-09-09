@@ -6,6 +6,7 @@ import { ReviewStore } from '../storage/review/review-store';
 import { PreviewCacheService } from '../review/preview-cache.service';
 import { PreferencesService } from '../preferences.service';
 import { TagState } from './tag-state.service';
+import { ReviewUndoService } from '../review/review-undo.service';
 import { DEFAULT_TAG_DIRECTIONS, TagDirections } from './tags';
 import { Photo } from '../photo';
 import { AssetMeta, StoredVerdict } from '../storage/photokeeper-db';
@@ -72,10 +73,29 @@ describe('TagReviewService', () => {
         },
         {
           provide: TagState,
+          // Writes as well as records: the real one stores what it is given, and the service now
+          // asks afterwards whether anything actually changed — a stub that only remembered the
+          // call would answer no, and nothing would be counted or made undoable.
           useValue: {
+            // The catalogue, so an undo row can be named by the tag rather than by "Tagged".
+            tags: () => [
+              { id: 't1', name: 'Tag one' },
+              { id: 't2', name: 'Tag two' },
+            ],
             tagsFor: (id: string) => assignments().get(id) ?? [],
-            apply: (assetId: string, tagId: string) => applied.push({ assetId, tagId }),
-            toggle: (assetId: string, tagId: string) => toggled.push({ assetId, tagId }),
+            apply: (assetId: string, tagId: string) => {
+              applied.push({ assetId, tagId });
+              assignments.update((map) => new Map(map).set(assetId, [tagId]));
+            },
+            toggle: (assetId: string, tagId: string) => {
+              toggled.push({ assetId, tagId });
+              const had = assignments().get(assetId) ?? [];
+              assignments.update((map) =>
+                new Map(map).set(assetId, had.includes(tagId) ? [] : [tagId]),
+              );
+            },
+            restore: (assetId: string, tagIds: string[]) =>
+              assignments.update((map) => new Map(map).set(assetId, [...tagIds])),
           },
         },
         { provide: PreferencesService, useValue: { tagGoal: () => 2, tagDirections } },
@@ -224,6 +244,100 @@ describe('TagReviewService', () => {
   it('toggle() toggles the tag on the current photo', () => {
     service.toggle('t1');
     expect(toggled).toEqual([{ assetId: 'a', tagId: 't1' }]);
+  });
+
+  /**
+   * The other half of the undo the Sort and Edit passes already had, and the same list: a mis-swipe
+   * is a mis-swipe wherever it happened, and a tag is the easiest of all to make — one swipe, no
+   * confirmation. The row has to name the tag, not just say "Tagged", or it answers nothing.
+   */
+  describe('taking a tag back', () => {
+    let undoStack: ReviewUndoService;
+
+    beforeEach(() => {
+      tagDirections.set({ up: 't1', down: 't2' });
+      undoStack = TestBed.inject(ReviewUndoService);
+    });
+
+    it('records the swipe in the shared list, named by the tag', () => {
+      const photo = service.currentPhoto()?.id;
+
+      service.swipe('up');
+
+      const [entry] = undoStack.recent();
+      expect(entry.outcome).toBe('tagged');
+      expect(entry.label).toBe('Tag one'); // the tag's name, not "Tagged"
+      expect(entry.unit.id).toBe(photo);
+    });
+
+    it('puts the photo back to having no tag, and the cursor back to it', async () => {
+      const photo = service.currentPhoto()?.id ?? '';
+      service.swipe('up');
+      expect(service.cursor()).toBe(1);
+
+      await service.undoTag(undoStack.recent()[0]);
+
+      expect(assignments().get(photo)).toEqual([]);
+      expect(service.cursor()).toBe(0);
+      expect(undoStack.recent()).toHaveLength(0);
+    });
+
+    /** Correcting a tag is undoable too, and back to the earlier tag rather than to nothing. */
+    it('restores the tag a correction replaced', async () => {
+      const photo = service.currentPhoto()?.id ?? '';
+      service.swipe('up'); // t1
+      service.cursor.set(0);
+      service.swipe('down'); // corrected to t2
+
+      await service.undoTag(undoStack.recent()[0]);
+
+      expect(assignments().get(photo)).toEqual(['t1']);
+    });
+
+    /**
+     * The day's tag tally is a running count, unlike the review one which is read off the deck. So
+     * taking a tag back has to un-count it, or the day stays one ahead of the work.
+     */
+    it('takes the day’s count back with it', async () => {
+      service.swipe('up');
+      expect(service.taggedCount()).toBe(1);
+
+      await service.undoTag(undoStack.recent()[0]);
+
+      expect(service.taggedCount()).toBe(0);
+    });
+
+    /** Only the first tag on a photo counted, so only that one un-counts. */
+    it('does not un-count a correction, which never counted', async () => {
+      service.swipe('up');
+      service.cursor.set(0);
+      service.swipe('down'); // a correction: the photo was already tagged
+      expect(service.taggedCount()).toBe(1);
+
+      await service.undoTag(undoStack.recent()[0]);
+
+      expect(service.taggedCount()).toBe(1);
+    });
+
+    /** Any of them, not just the last — which is the point of a list rather than one button. */
+    it('takes back the one that was chosen', async () => {
+      const first = service.currentPhoto()?.id ?? '';
+      service.swipe('up');
+      const second = service.currentPhoto()?.id ?? '';
+      service.swipe('down');
+
+      const older = undoStack.recent()[1]; // newest first, so this is the first swipe
+      await service.undoTag(older);
+
+      expect(assignments().get(first)).toEqual([]);
+      expect(assignments().get(second)).toEqual(['t2']);
+    });
+
+    it('holds nothing back from the Lightroom sweep — a tag is not filed', () => {
+      service.swipe('up');
+
+      expect(undoStack.heldAssetIds().size).toBe(0);
+    });
   });
 
   it('taggedCount + progressPercent count what the day has labelled', () => {

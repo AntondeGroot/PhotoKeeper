@@ -5,8 +5,9 @@ import { ReviewStore } from '../storage/review/review-store';
 import { PreviewCacheService } from '../review/preview-cache.service';
 import { PreferencesService } from '../preferences.service';
 import { DailyProgressService } from '../review/daily-progress.service';
+import { ReviewUndoService, UndoEntry } from '../review/review-undo.service';
 import { TagState } from './tag-state.service';
-import { ASSIGNABLE_DIRS, NO_TAG_DIR, NO_TAG_ID, SwipeDir, TagDirections } from './tags';
+import { ASSIGNABLE_DIRS, NO_TAG, NO_TAG_DIR, NO_TAG_ID, SwipeDir, TagDirections } from './tags';
 import { Photo, ReviewStatus } from '../photo';
 
 /** Previews warmed either side of the cursor, so the next card is ready before you reach it. */
@@ -47,6 +48,7 @@ export class TagReviewService {
   private readonly tagState = inject(TagState);
   private readonly prefs = inject(PreferencesService);
   private readonly progress = inject(DailyProgressService);
+  private readonly undoStack = inject(ReviewUndoService);
 
   /** Cursor over the keepers pool while in the Tag step. */
   readonly cursor = signal(0);
@@ -179,10 +181,12 @@ export class TagReviewService {
     if (!photo) return;
     const tagId = dir === NO_TAG_DIR ? NO_TAG_ID : this.prefs.tagDirections()[dir];
     if (!tagId) return;
-    const wasUntagged = !this.tagState.tagsFor(photo.id).length;
+    const before = this.tagState.tagsFor(photo.id);
+    const counted = !before.length;
     this.tagState.apply(photo.id, tagId);
-    if (wasUntagged) {
-      this.progress.recordTag();
+    if (this.tagState.tagsFor(photo.id).join() !== before.join()) {
+      if (counted) this.progress.recordTag();
+      this.remember(photo, tagId, before, counted);
     }
     this.next();
   }
@@ -209,11 +213,39 @@ export class TagReviewService {
   toggle(tagId: string): void {
     const photo = this.currentPhoto();
     if (!photo) return;
-    const wasUntagged = !this.tagState.tagsFor(photo.id).length;
+    const before = this.tagState.tagsFor(photo.id);
     this.tagState.toggle(photo.id, tagId);
-    if (wasUntagged && this.tagState.tagsFor(photo.id).length) {
-      this.progress.recordTag();
-    }
+    const after = this.tagState.tagsFor(photo.id);
+    if (after.join() === before.join()) return;
+    const counted = !before.length && after.length > 0;
+    if (counted) this.progress.recordTag();
+    this.remember(photo, after[0] ?? NO_TAG_ID, before, counted);
+  }
+
+  /**
+   * Takes a tag decision back: the photo has whatever it had before, and the cursor returns to it.
+   *
+   * Back to the photo rather than staying put, because a tag is only ever wrong about one
+   * photograph and the point of taking it back is to answer that one again. Entries come from the
+   * same list the swipes and edits are taken back from, so this is handed the one that was chosen
+   * rather than assuming the last.
+   */
+  async undoTag(entry: UndoEntry): Promise<void> {
+    if (!entry.tag) return;
+    if (!(await this.undoStack.take(entry))) return;
+    this.tagState.restore(entry.unit.id, entry.tag.previous);
+    if (entry.tag.counted) this.progress.forgetTag();
+    this.cursor.set(entry.tag.cursor);
+  }
+
+  /** Names the row by the tag rather than by "Tagged", which would leave out the answer. */
+  private remember(photo: Photo, tagId: string, previous: string[], counted: boolean): void {
+    const name = this.tagState.tags().find((tag) => tag.id === tagId)?.name;
+    this.undoStack.captureTag(photo, name ?? (tagId === NO_TAG_ID ? NO_TAG.name : tagId), {
+      previous: [...previous],
+      cursor: this.cursor(),
+      counted,
+    });
   }
 
   /**

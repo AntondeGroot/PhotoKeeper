@@ -19,6 +19,8 @@ const OUTCOMES: Record<DecisionOutcome, { label: string; tone: string }> = {
   maybe: { label: 'Maybe', tone: 'maybe' },
   toPrint: { label: 'Done editing', tone: 'print' },
   skipped: { label: 'Skipped', tone: 'dim' },
+  // Named by the tag itself on the row; this is only the fallback and the colour.
+  tagged: { label: 'Tagged', tone: 'holiday' },
 };
 
 /**
@@ -50,8 +52,14 @@ export class ReviewHistoryComponent {
   @Output() undone = new EventEmitter<UndoEntry>();
   @Output() closed = new EventEmitter<void>();
 
-  label(outcome: DecisionOutcome): string {
-    return OUTCOMES[outcome].label;
+  /**
+   * What the row's chip says: the entry's own label when it has one, else the outcome's name.
+   *
+   * A tag decision carries the tag's name, because the answer *is* which tag — a row reading
+   * "Tagged" would leave out the only part worth checking.
+   */
+  label(entry: UndoEntry): string {
+    return entry.label ?? OUTCOMES[entry.outcome].label;
   }
 
   tone(outcome: DecisionOutcome): string {
