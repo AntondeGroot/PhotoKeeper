@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { EditDetectionService } from './edit-detection.service';
 import { LightroomService } from '../lightroom.service';
@@ -8,6 +9,8 @@ import { HashStore } from '../storage/detection/hash-store';
 import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewStore } from '../storage/review/review-store';
+import { ReviewFeedService } from './review-feed.service';
+import { DailyProgressService } from './daily-progress.service';
 import { ImageHasher } from '../detection/detectors/image-hasher';
 import { EditBaseline } from './edit-detection';
 import { PhotoAsset } from '../lightroom-types';
@@ -32,6 +35,10 @@ describe('EditDetectionService', () => {
   let editAlbumId: string | null;
   /** What the detection scan has hashed. Undefined for most photos — see the baseline tests. */
   let storedHash: string | undefined;
+  /** Today's deck, which is what the Edit tab's queue is built from — not the verdict store. */
+  let deck: ReturnType<typeof signal<{ id: string; status: string }[]>>;
+  /** How many finished edits the day has been told about. */
+  let edits: number;
 
   beforeEach(() => {
     albumAssets = [];
@@ -43,6 +50,8 @@ describe('EditDetectionService', () => {
     blobRequests = [];
     editAlbumId = 'al-edit';
     storedHash = 'stored-hash';
+    deck = signal<{ id: string; status: string }[]>([]);
+    edits = 0;
 
     TestBed.configureTestingModule({
       providers: [
@@ -93,6 +102,8 @@ describe('EditDetectionService', () => {
             hash: (blob: Blob) => Promise.resolve((blob as Blob & { hash: string }).hash),
           },
         },
+        { provide: ReviewFeedService, useValue: { photos: deck } },
+        { provide: DailyProgressService, useValue: { recordEdit: () => edits++ } },
         {
           provide: ReviewStore,
           useValue: {
@@ -376,6 +387,42 @@ describe('EditDetectionService', () => {
 
     expect(verdicts.get('a')).toEqual({ status: 'toPrint', starred: true, saveOnly: false });
     expect(baselines.has('a')).toBe(false);
+  });
+
+  /**
+   * The Edit tab's queue is built from the deck held in memory, not from the verdict store, so a
+   * photo said to be finished here stayed in the list of things to edit until the app was next
+   * reloaded. Two taps of the same meaning have to leave the app in the same state.
+   */
+  it('takes the photo out of the edit queue on the deck it is standing in', async () => {
+    deck.set([
+      { id: 'a', status: 'toEdit' },
+      { id: 'b', status: 'toEdit' },
+    ]);
+
+    await service.sendToPrint(['a']);
+
+    expect(deck()).toEqual([
+      { id: 'a', status: 'toPrint' },
+      { id: 'b', status: 'toEdit' },
+    ]);
+  });
+
+  it('counts each finished edit toward the day', async () => {
+    await service.sendToPrint(['a', 'b']);
+
+    expect(edits).toBe(2);
+  });
+
+  /** The check reads the whole KeeperEdit album, so most of what it finds is not on today's deck. */
+  it('still counts one that was never on the deck', async () => {
+    deck.set([{ id: 'other', status: 'toEdit' }]);
+
+    await service.sendToPrint(['a']);
+
+    expect(edits).toBe(1);
+    expect(deck()).toEqual([{ id: 'other', status: 'toEdit' }]);
+    expect(verdicts.get('a')?.status).toBe('toPrint');
   });
 
   /**
