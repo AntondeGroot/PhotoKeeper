@@ -1,0 +1,64 @@
+<div class="tidy-section">Change your mind about a photo</div>
+<div class="tidy-card">
+  <p class="tidy-note">
+    Undo reaches only this session. This is for the rest: a photo has been in KeeperDelete for a
+    week and you find you like it after all. Give it a new verdict here and it will be filed where
+    it now belongs — the album it used to be in then shows up above, to take it out of.
+  </p>
+
+  @if (changed(); as done) {
+    <p class="tidy-note">{{ done }}</p>
+  }
+
+  @if (album() === null) {
+    <div class="tidy-links">
+      @for (name of albums; track name) {
+        <button class="tidy-btn" [disabled]="opening() !== null" (click)="open(name)">
+          {{ opening() === name ? 'Opening…' : 'Look through ' + name }}
+        </button>
+      }
+    </div>
+  } @else if (failed()) {
+    <p class="tidy-note">Couldn’t read {{ album() }} just now. Nothing has been changed.</p>
+    <button class="tidy-btn" (click)="close()">Back</button>
+  } @else if (chosen(); as photo) {
+    <!-- One photo, its picture as large as the card allows: this is the moment of deciding again,
+         and a thumbnail in a grid is not enough to decide anything from. -->
+    <div class="chosen">
+      @if (thumbnail(photo.assetId); as url) {
+        <img class="chosen-img" [src]="url" alt="" />
+      } @else {
+        <span class="tile-blank"></span>
+      }
+      <p class="tidy-note">{{ photo.name }} — currently {{ standing(photo.status) }}.</p>
+    </div>
+    <div class="verdict-row">
+      @for (verdict of verdicts; track verdict.status) {
+        <button class="verdict-btn tone-{{ verdict.tone }}" (click)="reverdict(verdict.status)">
+          {{ verdict.label }}
+        </button>
+      }
+    </div>
+    <button class="tidy-btn" (click)="cancel()">Back to {{ album() }}</button>
+  } @else {
+    <p class="tidy-note">
+      {{ photos().length }} in {{ album() }}. Tap the one you want to judge again.
+    </p>
+    <ul class="tidy-photos grid">
+      @for (photo of photos(); track photo.assetId) {
+        <li>
+          <button class="tile" (click)="choose(photo)" [attr.aria-label]="photo.name">
+            @if (thumbnail(photo.assetId); as url) {
+              <img class="tile-img" [src]="url" alt="" />
+            } @else {
+              <span class="tile-blank"></span>
+            }
+          </button>
+        </li>
+      } @empty {
+        <li class="tidy-note">Nothing in {{ album() }} that this app decided.</li>
+      }
+    </ul>
+    <button class="tidy-btn" (click)="close()">Done</button>
+  }
+</div>

@@ -15,7 +15,7 @@ import { ReviewItem, unitAssetIds } from '../../photo';
 const OUTCOMES: Record<DecisionOutcome, { label: string; tone: string }> = {
   kept: { label: 'Kept', tone: 'keep' },
   rejected: { label: 'Rejected', tone: 'reject' },
-  toEdit: { label: 'To edit', tone: 'print' },
+  toEdit: { label: 'To edit', tone: 'amber' },
   maybe: { label: 'Maybe', tone: 'maybe' },
   toPrint: { label: 'Done editing', tone: 'print' },
   skipped: { label: 'Skipped', tone: 'dim' },

@@ -163,3 +163,86 @@
     font-weight: 600;
   }
 }
+
+// ── Changing a verdict ────────────────────────────────────────────────────────────────────────
+// The grid is for finding a photograph, so the pictures are the whole of it; the chosen one is for
+// deciding about, so it is as large as the card allows.
+.tidy-photos.grid {
+  gap: 4px;
+
+  .tile {
+    padding: 0;
+    border: 1px solid var(--c-line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--c-panel2);
+    cursor: pointer;
+  }
+
+  .tile-img,
+  .tile-blank {
+    display: block;
+    width: 76px;
+    height: 76px;
+    object-fit: cover;
+  }
+}
+
+.chosen {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+
+  .chosen-img {
+    width: 100%;
+    max-height: 320px;
+    object-fit: contain;
+    border-radius: 10px;
+    background: var(--c-panel2);
+  }
+
+  .tile-blank {
+    display: block;
+    height: 180px;
+    border-radius: 10px;
+    background: var(--c-panel2);
+  }
+}
+
+// The four answers, in the colours the review cards already use for them.
+.verdict-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.verdict-btn {
+  flex: 1;
+  padding: 10px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: var(--c-panel2);
+  color: var(--c-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &.tone-keep {
+    border-color: var(--c-keep);
+    color: var(--c-keep);
+  }
+  &.tone-reject {
+    border-color: var(--c-reject);
+    color: var(--c-reject);
+  }
+  &.tone-amber {
+    border-color: var(--c-amber);
+    color: var(--c-amber);
+  }
+  &.tone-maybe {
+    border-color: var(--c-maybe);
+    color: var(--c-maybe);
+  }
+}

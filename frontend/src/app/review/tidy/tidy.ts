@@ -11,6 +11,7 @@ import { KeeperAlbumsService } from '../../keeper-albums.service';
 import { KeeperFilingService } from '../keeper-filing.service';
 import { albumSearchLinks, lightroomAlbumUrl, lightroomAssetUrl } from '../../keeper-albums';
 import { PutBackComponent } from '../put-back/put-back';
+import { ReconsiderComponent } from '../reconsider/reconsider';
 
 /** One album's worth of tidying: the album, a way into it, and every photo to take out of it. */
 interface TidyRow {
@@ -76,7 +77,7 @@ function copyBySelection(text: string): boolean {
 @Component({
   selector: 'app-tidy',
   templateUrl: './tidy.html',
-  imports: [PutBackComponent],
+  imports: [PutBackComponent, ReconsiderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrls: ['./tidy-card.scss', './tidy.scss'],
 })
