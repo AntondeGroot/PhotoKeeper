@@ -96,6 +96,21 @@ both KeeperEdit and KeeperPrint. PhotoKeeper files the current verdict's album b
 the alternative — not re-filing — would leave promoted photos missing from KeeperPrint,
 which is worse than an untidy inbox you empty as you work.
 
+**Deleting a photo does not take it out of its albums.** Lightroom replaces the asset
+with a tombstone: a _new_ asset of `subtype: "deleted_image"`, under a new id, carrying
+`original.id` (the id the photo had), `payload.purgeDate` (thirty days out) and the
+original's metadata down to the filename. That tombstone stays in every album the photo
+was in.
+
+So an album listing mixes photographs with the headstones of photographs, and anything
+comparing ids against a listing must map a `deleted_image` back through `original.id`
+first. Compared by id alone every correctly-deleted photo reads as _missing from the
+album_: probed against a real KeeperDelete holding 87 filings, that was 85 "missing", of
+which 49 were simply deleted and awaiting the purge and only 36 had genuinely been taken
+out of the album by hand. Settings' **Put back what Lightroom lost** relies on this
+distinction — offering to re-file a photo the user had correctly deleted would undo the
+work the app exists to help them finish.
+
 So Settings carries a **Tidy up Lightroom** section listing the photos left behind, with
 a link that opens their album showing only them — select all, remove, done. The web app
 scopes a search to one album with `albumFilter` and takes a comma-separated list of

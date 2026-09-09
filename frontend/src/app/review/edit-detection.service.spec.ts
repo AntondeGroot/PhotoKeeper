@@ -15,6 +15,10 @@ import { StoredVerdict } from '../storage/photokeeper-db';
 
 const asset = (id: string, updated: string): PhotoAsset => ({ id, updated }) as PhotoAsset;
 
+/** An asset as the album listing gives it: carrying the filename Lightroom imported it under. */
+const namedAsset = (id: string, updated: string, fileName: string): PhotoAsset =>
+  ({ id, updated, payload: { importSource: { fileName } } }) as PhotoAsset;
+
 /** A rendition whose "pixels" are just the hash the fake hasher will report. */
 const rendition = (hash: string): Blob => Object.assign(new Blob(), { hash });
 
@@ -219,6 +223,54 @@ describe('EditDetectionService', () => {
     });
   });
 
+  /**
+   * The 26 photos that were already in the queue when the baseline bug was fixed could never be
+   * answered for: every run downloaded them, hashed them, threw the measurement away and reported
+   * the same nothing. Keeping the hash costs nothing and makes the *next* run able to answer.
+   */
+  describe('a photo it could not speak for', () => {
+    it('still admits it does not know, this time', async () => {
+      albumAssets = [asset('a', 'stamp-1')];
+      renditions.set('a', rendition('now'));
+
+      await service.check();
+
+      expect(service.findings()?.[0].state).toBe('unknown');
+    });
+
+    it('measures it from now on', async () => {
+      albumAssets = [asset('a', 'stamp-1')];
+      renditions.set('a', rendition('now'));
+
+      await service.check();
+
+      expect(baselines.get('a')).toMatchObject({ hash: 'now', updated: 'stamp-1' });
+    });
+
+    /** The point of it: an edit made after this run is found, where before none ever could be. */
+    it('finds the next edit it is given', async () => {
+      albumAssets = [asset('a', 'stamp-1')];
+      renditions.set('a', rendition('before'));
+      await service.check();
+
+      albumAssets = [asset('a', 'stamp-2')];
+      renditions.set('a', rendition('after'));
+      await service.check();
+
+      expect(service.editedFindings().map((f) => f.assetId)).toEqual(['a']);
+    });
+
+    /** Nothing to record when the photo could not be fetched — and nothing false written down. */
+    it('records nothing when it could not be measured at all', async () => {
+      albumAssets = [asset('a', 'stamp-1')]; // no rendition staged: the download fails
+
+      await service.check();
+
+      expect(service.findings()?.[0].state).toBe('unknown');
+      expect(baselines.has('a')).toBe(false);
+    });
+  });
+
   it('says so when the album cannot be read, rather than reporting nothing found', async () => {
     editAlbumId = null;
 
@@ -272,6 +324,28 @@ describe('EditDetectionService', () => {
 
       await service.listQueue();
       expect(service.shownFindings().map((f) => f.assetId)).toEqual(['a', 'b']);
+    });
+
+    /**
+     * The rows are for picking from, and five of thirty-six in a real KeeperEdit had never been
+     * scanned — so they showed a 32-digit asset id where a filename belongs. The listing carries the
+     * name for every asset and was already in hand.
+     */
+    it('names a photo the scan has never reached, from the listing itself', async () => {
+      albumAssets = [namedAsset('a', 'stamp-1', 'DJI_0615.DNG')];
+
+      await service.listQueue();
+
+      expect(service.findings()?.[0].name).toBe('DJI_0615.DNG');
+    });
+
+    it('falls back to the id only when Lightroom offers no name either', async () => {
+      verdicts.set('z', { status: 'toEdit', starred: false, saveOnly: false });
+      albumAssets = [asset('z', 'stamp-1')];
+
+      await service.listQueue();
+
+      expect(service.findings()?.[0].name).toBe('z');
     });
 
     it('says so when the album cannot be read', async () => {
