@@ -99,6 +99,19 @@ describe('ReviewHistoryComponent', () => {
     expect(root.querySelector('.chip')?.textContent?.trim()).toBe('Tagged');
   });
 
+  /**
+   * Amber is "to edit" everywhere else — the card's ↑, the viewer's Edit — and this row said teal,
+   * which is the Prints colour and so a different answer. Print keeps teal; it earns it.
+   */
+  it('colours a verdict the way the rest of the app states it', () => {
+    render([entry(photo('a'), 'toEdit'), entry(photo('b'), 'toPrint')]);
+
+    const chips = [...root.querySelectorAll('.chip')].map(
+      (c) => [...c.classList].find((name) => name.startsWith('chip-')) ?? '',
+    );
+    expect(chips).toEqual(['chip-amber', 'chip-print']);
+  });
+
   it('emits the entry whose Undo was pressed', () => {
     const entries = [entry(photo('a'), 'kept'), entry(photo('b'), 'rejected')];
     render(entries);
