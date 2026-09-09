@@ -2,8 +2,6 @@
   <app-print-picker [album]="album" (toggled)="toggleSaveOnly($event)" (closed)="choose(null)" />
 } @else {
   <div class="prints">
-    <app-tidy-up [catalogId]="catalogId" scope="print" />
-
     <!-- To print — finished albums whose prints have not been ordered yet. Three steps, in order:
          put the photos somewhere Lightroom can export, order them, then say they arrived. Only the
          first one writes anything, and it cannot be taken back. -->

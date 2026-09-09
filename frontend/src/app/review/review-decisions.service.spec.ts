@@ -217,6 +217,19 @@ describe('ReviewDecisionsService', () => {
       expect(photos()[0].status).toBe('backlog');
     });
 
+    /** The frames were written to as well, so taking the decision back has to clear them too. */
+    it('clears the frame verdicts a group decision wrote', async () => {
+      photos.set([pano('pano:alb:f1', ['f1', 'f2'])]);
+      index.set(0);
+      service.decide('toEdit');
+      await Promise.resolve();
+      expect(stored.size).toBe(3); // the card and its two frames
+
+      await undoLatest();
+
+      expect(stored.size).toBe(0);
+    });
+
     /** The dissolve is part of the decision, so it comes back with it. */
     it('lets the burst form again by forgetting the dissolve', async () => {
       photos.set([burst('b1', ['f1', 'f2'])]);
@@ -466,6 +479,43 @@ describe('ReviewDecisionsService', () => {
    * The duel culls, it does not judge: the survivor is a photograph nobody has said keep, edit or
    * reject about yet, so it takes the burst's place on the deck and is asked next.
    */
+  /**
+   * A group card's id is synthetic, and Lightroom has never heard of it. Recorded only there, the
+   * decision settled nothing outside this phone: seven panoramas sent to edit on a real catalogue
+   * had written one unfileable id each, reached KeeperEdit never, and never appeared in the queue.
+   */
+  it('writes a group verdict against each of its photographs', async () => {
+    photos.set([pano('pano:alb:f1', ['f1', 'f2', 'f3'])]);
+    index.set(0);
+
+    service.decide('toEdit');
+    await Promise.resolve();
+
+    expect(photos()[0].status).toBe('toEdit'); // the card, so the deck remembers
+    for (const id of ['f1', 'f2', 'f3']) {
+      expect(verdicts).toContainEqual({
+        id,
+        verdict: { status: 'toEdit', starred: false, saveOnly: false },
+      });
+    }
+  });
+
+  /**
+   * An edit and the original it came from are one unit on purpose — you sort the shot, not each file
+   * Lightroom wrote beside it — so the original must not be filed on its own account.
+   */
+  it('leaves a single photo to speak for itself', async () => {
+    photos.set([
+      { ...photo('e1'), edit: { originalId: 'o1', originalName: 'o1', originalExt: 'NEF' } },
+    ]);
+    index.set(0);
+
+    service.decide('kept');
+    await Promise.resolve();
+
+    expect(verdicts.map((v) => v.id)).toEqual(['e1']);
+  });
+
   it('resolveBurst() rejects the losers and puts the survivor back as a photo to judge', async () => {
     photos.set([burst('grp', ['f1', 'f2', 'f3']), photo('later')]);
     index.set(0);

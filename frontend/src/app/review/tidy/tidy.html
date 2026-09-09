@@ -1,0 +1,46 @@
+<div class="tidy-screen">
+  <p class="tidy-intro">
+    Lightroom lets PhotoKeeper put a photo into an album, but never take it out again. So the Keeper
+    albums drift: they hold photos that have moved on, and they lose ones nobody meant to remove.
+  </p>
+
+  <div class="tidy-section">Take out what has moved on</div>
+  <div class="tidy-card">
+    <p class="tidy-note">
+      These are sitting in an album they no longer belong in. Open them together and remove them
+      there — then whatever is still listed here can be opened one at a time.
+    </p>
+    @for (row of tidyRows(); track row.album) {
+      <div class="tidy-row">
+        <span class="tidy-album">{{ row.album }}</span>
+        <span class="tidy-count">{{ row.photos.length }} to remove</span>
+      </div>
+      <!-- The search first: it puts the whole set on screen, where select-all and remove does the
+           lot. It cannot be trusted to reach every one of them, though — Lightroom finds a photo by
+           the name it shows, and some files are findable by no form of theirs — so the per-photo
+           links below are what is left when the count here is still not zero afterwards. -->
+      <div class="tidy-links">
+        @for (link of row.albumLinks; track link; let i = $index) {
+          <a class="open-album" [href]="link" target="_blank" rel="noopener">
+            Open them together{{ row.albumLinks.length > 1 ? ' · part ' + (i + 1) : '' }} ↗
+          </a>
+        }
+      </div>
+      <ul class="tidy-photos">
+        @for (photo of row.photos; track photo.url) {
+          <li>
+            <a class="open-photo" [href]="photo.url" target="_blank" rel="noopener">
+              {{ photo.name }} ↗
+            </a>
+          </li>
+        }
+      </ul>
+    } @empty {
+      @if (looked()) {
+        <p class="tidy-note">Nothing is sitting in an album it has moved on from.</p>
+      }
+    }
+  </div>
+
+  <app-put-back />
+</div>

@@ -157,6 +157,13 @@
                 Tag
               </button>
             }
+            <button
+              class="tab-btn"
+              (click)="nav.setReviewMode('tidy')"
+              [class.active]="reviewMode() === 'tidy'"
+            >
+              Tidy up
+            </button>
           </div>
           <!-- Above the mode switch: decisions are made in Sort and in Edit, and a mis-tap in
                either wants the same way back. -->
@@ -262,6 +269,8 @@
               [editDone]="stats.editDone()"
               (promoted)="promoteToPrint($event)"
             />
+          } @else if (reviewMode() === 'tidy') {
+            <app-tidy [catalogId]="catalogId()" />
           } @else {
             <app-tag-review
               [photo]="tagReview.currentPhoto()"
@@ -296,7 +305,6 @@
           />
         } @else {
           <app-settings
-            [catalogId]="catalogId()"
             [burstWindowSeconds]="burstWindowSeconds()"
             [lightroomConnected]="authenticated()"
             [lightroomConnecting]="connecting()"

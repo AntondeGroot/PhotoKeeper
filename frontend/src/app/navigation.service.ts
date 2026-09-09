@@ -17,8 +17,16 @@ export type Tab = 'review' | 'prints' | 'settings';
  */
 export type AssembledGroup = 'pano' | 'burst';
 
-/** The steps within Daily review. Tag is optional (Settings → Features). */
-export type ReviewMode = 'sort' | 'edit' | 'tag';
+/**
+ * The steps within Daily review. Tag is optional (Settings → Features).
+ *
+ * Tidy is the one that is not about photographs but about Lightroom: album membership is the only
+ * thing this app can write and it can only ever add, so both kinds of residue — photos left in an
+ * album they have moved on from, and photos taken out of one by hand — need somewhere to be dealt
+ * with. That is work on the library, done in a session, so it belongs beside the other three rather
+ * than in Settings among the preferences.
+ */
+export type ReviewMode = 'sort' | 'edit' | 'tag' | 'tidy';
 
 /**
  * Which screen the app is on: the tab, the step within Daily review, and whether a Settings

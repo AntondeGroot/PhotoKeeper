@@ -32,7 +32,10 @@ describe('KeeperFilingService', () => {
    * What each Lightroom album actually holds right now — album id → rows. A string is a photograph;
    * `{tombstone}` is what Lightroom leaves in place of one that has been deleted.
    */
-  let heldByAlbum: Map<string, (string | { tombstone: string })[]>;
+  let heldByAlbum: Map<
+    string,
+    (string | { tombstone: string } | { named: string; fileName: string })[]
+  >;
 
   beforeEach(() => {
     verdicts = new Map();
@@ -60,15 +63,21 @@ describe('KeeperFilingService', () => {
           useValue: {
             getAllAlbumAssets: (albumId: string) =>
               of(
-                (heldByAlbum.get(albumId) ?? []).map((row, i) =>
-                  typeof row === 'string'
-                    ? { id: row, subtype: 'image' }
-                    : {
-                        id: `tomb-${i}`,
-                        subtype: 'deleted_image',
-                        original: { id: row.tombstone },
-                      },
-                ),
+                (heldByAlbum.get(albumId) ?? []).map((row, i) => {
+                  if (typeof row === 'string') return { id: row, subtype: 'image' };
+                  if ('named' in row) {
+                    return {
+                      id: row.named,
+                      subtype: 'image',
+                      payload: { importSource: { fileName: row.fileName } },
+                    };
+                  }
+                  return {
+                    id: `tomb-${i}`,
+                    subtype: 'deleted_image',
+                    original: { id: row.tombstone },
+                  };
+                }),
               ),
             addToAlbum: (albumId: string, assetIds: string[]) => {
               if (failNext) return throwError(() => new Error('network'));
@@ -223,7 +232,9 @@ describe('KeeperFilingService', () => {
     verdicts.set('a', verdict('kept'));
     filed.set('a', { albums: ['KeeperPrint'], at: 1 });
 
-    expect(await filing.staleFilings()).toEqual(new Map());
+    heldByAlbum.set('al-print', ['a']);
+
+    expect(await filing.staleInAlbums()).toEqual(new Map());
   });
 
   /**
@@ -234,16 +245,22 @@ describe('KeeperFilingService', () => {
   it('reports a photo whose decision was taken back after it was sent', async () => {
     verdicts.set('a', verdict('toEdit')); // undone: back in the edit queue
     filed.set('a', { albums: ['KeeperPrint'], at: 1 });
+    heldByAlbum.set('al-print', [{ named: 'a', fileName: 'DSC_0001.NEF' }]);
 
-    expect(await filing.staleFilings()).toEqual(new Map([['KeeperPrint', ['DSC_0001']]]));
+    expect(await filing.staleInAlbums()).toEqual(
+      new Map([['KeeperPrint', [{ assetId: 'a', name: 'DSC_0001' }]]]),
+    );
   });
 
   /** The same is true of setting one aside on the Prints tab after the set has been sent. */
   it('reports a photo set aside as keep-but-do-not-print after it was sent', async () => {
     verdicts.set('a', { status: 'kept', starred: false, saveOnly: true });
     filed.set('a', { albums: ['KeeperPrint'], at: 1 });
+    heldByAlbum.set('al-print', [{ named: 'a', fileName: 'DSC_0001.NEF' }]);
 
-    expect(await filing.staleFilings()).toEqual(new Map([['KeeperPrint', ['DSC_0001']]]));
+    expect(await filing.staleInAlbums()).toEqual(
+      new Map([['KeeperPrint', [{ assetId: 'a', name: 'DSC_0001' }]]]),
+    );
   });
 
   /**
@@ -251,11 +268,75 @@ describe('KeeperFilingService', () => {
    * deleted, and the app could not tell. A filing is recorded once and never questioned, so no later
    * sweep would ever put them back — they were simply gone.
    */
+  /**
+   * The finished photos left behind in KeeperEdit: Lightroom cannot be told to take a photo out of an
+   * album, so a photo promoted to print stays where it was sent. Five of the six in a real KeeperEdit
+   * had never been scanned, and the record-only list drops a photo it cannot name — so the screen
+   * offered one of the six and said nothing about the others.
+   */
+  describe('what an album is holding that has moved on', () => {
+    beforeEach(() => {
+      filed.set('a', { albums: ['KeeperEdit'], at: 1 });
+      verdicts.set('a', { status: 'toPrint', starred: false, saveOnly: false });
+    });
+
+    /**
+     * The name Lightroom shows, not the file as imported. These links are a search, and a term of
+     * `2021-05-24-DSC_4390.NEF` matches nothing: the photograph is called DSC_4390. Four listed as
+     * needing removal behind a link that opened on an empty album read as the app being wrong about
+     * the photos rather than about the query.
+     */
+    it('names a photo the way Lightroom shows it, whatever the file was imported as', async () => {
+      names.delete('a');
+      heldByAlbum.set('al-edit', [{ named: 'a', fileName: '2021-05-24-DSC_4390.NEF' }]);
+
+      expect(await filing.staleInAlbums()).toEqual(
+        new Map([['KeeperEdit', [{ assetId: 'a', name: 'DSC_4390' }]]]),
+      );
+    });
+
+    it('leaves a plain filename alone', async () => {
+      names.delete('a');
+      heldByAlbum.set('al-edit', [{ named: 'a', fileName: 'DSC_2609.NEF' }]);
+
+      expect(await filing.staleInAlbums()).toEqual(
+        new Map([['KeeperEdit', [{ assetId: 'a', name: 'DSC_2609' }]]]),
+      );
+    });
+
+    /** Already taken out by hand: the record still says filed, so the record-only answer never stops. */
+    it('says nothing about a photo the album no longer holds', async () => {
+      heldByAlbum.set('al-edit', []);
+
+      expect(await filing.staleInAlbums()).toEqual(new Map());
+    });
+
+    /** Deleting it is an end to it — there is nothing left in the album to take out. */
+    it('says nothing about one that was deleted', async () => {
+      heldByAlbum.set('al-edit', [{ tombstone: 'a' }]);
+
+      expect(await filing.staleInAlbums()).toEqual(new Map());
+    });
+
+    it('leaves a photo that is still where it belongs alone', async () => {
+      verdicts.set('a', { status: 'toEdit', starred: false, saveOnly: false });
+      heldByAlbum.set('al-edit', [{ named: 'a', fileName: 'DSC_1.NEF' }]);
+
+      expect(await filing.staleInAlbums()).toEqual(new Map());
+    });
+  });
+
   describe('what an album has lost', () => {
+    /** Rejected photos belong in KeeperDelete, so an absence there is the album having lost them. */
+    function rejected(...ids: string[]): void {
+      for (const id of ids) {
+        filed.set(id, { albums: ['KeeperDelete'], at: 1 });
+        verdicts.set(id, { status: 'rejected', starred: false, saveOnly: false });
+      }
+    }
+
     it('names the photos it filed that the album no longer holds', async () => {
-      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
-      filed.set('b', { albums: ['KeeperDelete'], at: 1 });
-      filed.set('c', { albums: ['KeeperDelete'], at: 1 });
+      rejected('a', 'b', 'c');
       heldByAlbum.set('al-del', ['b']); // a and c were taken out of the album
 
       expect(await filing.filingGaps()).toEqual([
@@ -264,15 +345,16 @@ describe('KeeperFilingService', () => {
     });
 
     it('reports nothing when every album still holds what it was given', async () => {
-      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      rejected('a');
       heldByAlbum.set('al-del', ['a']);
 
       expect(await filing.filingGaps()).toEqual([]);
     });
 
     it('checks each album against its own contents', async () => {
-      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      rejected('a');
       filed.set('b', { albums: ['KeeperEdit'], at: 1 });
+      verdicts.set('b', { status: 'toEdit', starred: false, saveOnly: false });
       heldByAlbum.set('al-del', ['a']);
       heldByAlbum.set('al-edit', []);
 
@@ -283,19 +365,22 @@ describe('KeeperFilingService', () => {
 
     /** A photo filed into two albums is missing only from the one that lost it. */
     it('separates a photo’s albums', async () => {
-      filed.set('a', { albums: ['KeeperEdit', 'KeeperPrint'], at: 1 });
+      filed.set('a', { albums: ['KeeperEdit', 'KeeperDelete'], at: 1 });
+      verdicts.set('a', { status: 'rejected', starred: false, saveOnly: false });
       heldByAlbum.set('al-edit', ['a']);
-      heldByAlbum.set('al-print', []);
+      heldByAlbum.set('al-del', []);
 
+      // It belongs in KeeperDelete now, so only that album has lost anything — KeeperEdit is holding
+      // one it should not, which is the other half of tidying and not this list's business.
       expect(await filing.filingGaps()).toEqual([
-        { album: 'KeeperPrint', missing: ['a'], deleted: 0 },
+        { album: 'KeeperDelete', missing: ['a'], deleted: 0 },
       ]);
     });
 
     /** An album the catalogue does not have says nothing about its contents — not that all is lost. */
     it('says nothing about an album that is not in the catalogue', async () => {
       albumIds.delete('KeeperDelete');
-      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      rejected('a');
 
       expect(await filing.filingGaps()).toEqual([]);
     });
@@ -303,10 +388,26 @@ describe('KeeperFilingService', () => {
     /** The same junk, already on record from before it was kept out. It can never be put back. */
     it('does not report a review unit as a photo the album lost', async () => {
       filed.set('burst:alb-1:a', { albums: ['KeeperDelete'], at: 1 });
-      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      verdicts.set('burst:alb-1:a', { status: 'rejected', starred: false, saveOnly: false });
+      rejected('a');
       heldByAlbum.set('al-del', ['a']);
 
       expect(await filing.filingGaps()).toEqual([]);
+    });
+
+    /**
+     * The contradiction this rule exists to make impossible: the screen said three photos should be
+     * put back into KeeperEdit while its own other half said those three no longer belonged there.
+     * A photo whose verdict has moved on is *meant* to leave, so its absence is the tidying done —
+     * and offering to put it back would undo the work the user had just finished.
+     */
+    it('never asks for back a photo the other half says should go', async () => {
+      filed.set('a', { albums: ['KeeperEdit'], at: 1 });
+      verdicts.set('a', { status: 'toPrint', starred: false, saveOnly: false }); // done editing
+      heldByAlbum.set('al-edit', []); // and already taken out of KeeperEdit by hand
+
+      expect(await filing.filingGaps()).toEqual([]);
+      expect(await filing.staleInAlbums()).toEqual(new Map());
     });
 
     /**
@@ -316,8 +417,7 @@ describe('KeeperFilingService', () => {
      * offering to put those back is the worst thing this could do.
      */
     it('counts a deleted photo as dealt with, not as one the album lost', async () => {
-      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
-      filed.set('b', { albums: ['KeeperDelete'], at: 1 });
+      rejected('a', 'b');
       heldByAlbum.set('al-del', [{ tombstone: 'a' }, 'b']);
 
       expect(await filing.filingGaps()).toEqual([
@@ -326,9 +426,7 @@ describe('KeeperFilingService', () => {
     });
 
     it('tells the two apart in the same album', async () => {
-      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
-      filed.set('b', { albums: ['KeeperDelete'], at: 1 });
-      filed.set('c', { albums: ['KeeperDelete'], at: 1 });
+      rejected('a', 'b', 'c');
       heldByAlbum.set('al-del', [{ tombstone: 'a' }]); // a deleted, b and c taken out by hand
 
       expect(await filing.filingGaps()).toEqual([
@@ -436,26 +534,18 @@ describe('KeeperFilingService', () => {
 
     verdicts.set('a', verdict('toPrint'));
     await filing.sweep();
+    heldByAlbum.set('al-edit', [{ named: 'a', fileName: 'DSC_0001.NEF' }]);
 
-    expect(await filing.staleFilings()).toEqual(new Map([['KeeperEdit', ['DSC_0001']]]));
+    expect(await filing.staleInAlbums()).toEqual(
+      new Map([['KeeperEdit', [{ assetId: 'a', name: 'DSC_0001' }]]]),
+    );
   });
 
   it('reports nothing stale while a photo is where its verdict says', async () => {
     verdicts.set('a', verdict('rejected'));
     await filing.sweep();
+    heldByAlbum.set('al-del', ['a']);
 
-    expect(await filing.staleFilings()).toEqual(new Map());
-  });
-
-  // The search matches on filenames, so a photo the scan has never described cannot be searched for
-  // — listing it would produce a link that silently finds nothing.
-  it('leaves out a photo whose name is not known', async () => {
-    verdicts.set('a', verdict('toEdit'));
-    await filing.sweep();
-    verdicts.set('a', verdict('toPrint'));
-    await filing.sweep();
-    names.delete('a');
-
-    expect(await filing.staleFilings()).toEqual(new Map());
+    expect(await filing.staleInAlbums()).toEqual(new Map());
   });
 });

@@ -227,10 +227,23 @@ export class ReviewDecisionsService {
     this.isAuthenticated = isAuthenticated;
   }
 
+  /**
+   * The verdict swiped on the current card.
+   *
+   * <p>A group card's own id is synthetic — `pano:<album>:<frame>` — and Lightroom has never heard of
+   * it, so a verdict recorded only there settles nothing outside this phone: a panorama sent to edit
+   * wrote one unfileable id, never reached KeeperEdit and never appeared in the edit queue. Seven of
+   * them had accumulated on a real catalogue. Its frames are the photographs, so they carry the
+   * decision, exactly as the burst duel already writes one per frame.
+   *
+   * <p>A single photo is left alone. `unitAssetIds` pairs an edit with the original it came from, and
+   * that pair is deliberately one unit: you sort the shot, not each file Lightroom wrote beside it.
+   */
   decide(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {
     const current = this.feed.current();
     if (!current) return;
-    this.capture(verdict, [current.id]);
+    const frames = current.kind === 'photo' ? [] : unitAssetIds(current);
+    this.capture(verdict, [current.id, ...frames]);
     // Sending a photo to edit is the moment its "before" is still true, and the only moment it is
     // certain to be — a later scan would overwrite the stores this is copied from.
     if (verdict === 'toEdit') {
@@ -238,6 +251,10 @@ export class ReviewDecisionsService {
     }
     this.setStatus(current.id, verdict);
     void this.persistVerdict(current.id);
+    // The photographs the card stands for carry the decision too — see below.
+    for (const id of frames) {
+      void this.reviewStore.setVerdict(id, { status: verdict, starred: false, saveOnly: false });
+    }
     this.feed.advance();
   }
 

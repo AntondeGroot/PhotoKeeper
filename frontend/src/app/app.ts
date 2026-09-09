@@ -45,6 +45,7 @@ import { TagManagerComponent } from './tagging/tag-manager/tag-manager';
 import { TagState } from './tagging/tag-state.service';
 import { TagReviewService } from './tagging/tag-review.service';
 import { TagReviewComponent } from './tagging/tag-review/tag-review';
+import { TidyComponent } from './review/tidy/tidy';
 import { SwipeDir } from './tagging/tags';
 import { PreferencesService } from './preferences.service';
 import { NavigationService } from './navigation.service';
@@ -81,6 +82,7 @@ const SPLASH_MIN_MS = 1800;
     AlbumSetupNoticeComponent,
     TagManagerComponent,
     TagReviewComponent,
+    TidyComponent,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
