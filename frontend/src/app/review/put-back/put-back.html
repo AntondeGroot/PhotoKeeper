@@ -1,8 +1,14 @@
-<div class="tidy-section">Put back what Lightroom lost</div>
+<div class="tidy-section">Check which photos need to be put back</div>
 <div class="tidy-card">
   <p class="tidy-note">
     Removing a photo from KeeperDelete does not delete it, and the app cannot see that it happened.
     This asks each album what it still holds. Photos you actually deleted are left alone.
+  </p>
+  <!-- The way round the one-at-a-time problem above: Lightroom will happily empty a whole album in
+       one gesture, and this half knows exactly which of them still belonged there. -->
+  <p class="tidy-note">
+    Quicker when a lot have piled up: empty the album in Lightroom — select all, remove from album —
+    then check here. Only the photos that still belong come back; the finished ones stay out.
   </p>
 
   <!-- Outside the rows block on purpose: a failed read leaves no rows, so a message nested in them

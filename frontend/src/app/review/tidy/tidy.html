@@ -1,37 +1,54 @@
 <div class="tidy-screen">
-  <p class="tidy-intro">
-    Lightroom lets PhotoKeeper put a photo into an album, but never take it out again. So the Keeper
-    albums drift: they hold photos that have moved on, and they lose ones nobody meant to remove.
+  <p>
+    Lightroom lets PhotoKeeper put a photo into an album, but only you can take one out again. So
+    when a lot have piled up, the way round it is:
   </p>
+  <ol class="tidy-intro">
+    <li>Remove all photos from the Keeper album</li>
+    <li>Restore the photos that belong there</li>
+  </ol>
+  <p>Note: Lightroom's synching might take a while.</p>
 
-  <div class="tidy-section">Take out what has moved on</div>
+  <div class="tidy-section">Check which photos you need to remove</div>
   <div class="tidy-card">
     <p class="tidy-note">
-      These are sitting in an album they no longer belong in. Open them together and remove them
-      there — then whatever is still listed here can be opened one at a time.
+      These are sitting in an album they no longer belong in. Lightroom only offers
+      <em>remove from this album</em> inside the album itself; a search can show just these photos,
+      but there it can only delete them outright. So: open the album to take them out, or the search
+      to delete them.
     </p>
     @for (row of tidyRows(); track row.album) {
       <div class="tidy-row">
         <span class="tidy-album">{{ row.album }}</span>
         <span class="tidy-count">{{ row.photos.length }} to remove</span>
       </div>
-      <!-- The search first: it puts the whole set on screen, where select-all and remove does the
-           lot. It cannot be trusted to reach every one of them, though — Lightroom finds a photo by
-           the name it shows, and some files are findable by no form of theirs — so the per-photo
-           links below are what is left when the count here is still not zero afterwards. -->
+      <!-- Two doors, because Lightroom does a different thing behind each: the album is the only
+           place that offers "remove from this album", and the search is the only one that shows just
+           these photos — where the same menu can delete them but not take them out. -->
       <div class="tidy-links">
+        <a class="open-album" [href]="row.albumUrl" target="_blank" rel="noopener">
+          Open {{ row.album }} — take them out ↗
+        </a>
         @for (link of row.albumLinks; track link; let i = $index) {
-          <a class="open-album" [href]="link" target="_blank" rel="noopener">
-            Open them together{{ row.albumLinks.length > 1 ? ' · part ' + (i + 1) : '' }} ↗
+          <a class="open-album subtle" [href]="link" target="_blank" rel="noopener">
+            Just these {{ row.photos.length }}, to delete{{
+              row.albumLinks.length > 1 ? ' · part ' + (i + 1) : ''
+            }}
+            ↗
           </a>
         }
       </div>
+      <!-- One name at a time: the app's search takes a single filename and nothing more, so a list
+           would be a string that cannot be used where it is meant to be pasted. Tap, paste in the
+           app, select, remove, come back for the next. The arrow opens the same photo in a browser,
+           which is the desktop way round and reaches files the album search cannot name. -->
       <ul class="tidy-photos">
         @for (photo of row.photos; track photo.url) {
           <li>
-            <a class="open-photo" [href]="photo.url" target="_blank" rel="noopener">
-              {{ photo.name }} ↗
-            </a>
+            <button class="copy-name" (click)="copyName(photo)">
+              {{ copied() === photo.name ? 'copied ✓' : photo.name }}
+            </button>
+            <a class="open-photo" [href]="photo.url" target="_blank" rel="noopener">↗</a>
           </li>
         }
       </ul>
