@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Builds the frontend, packages it into the APK, and installs that on a phone.
 #
 # Installing is not deploying, and this script exists because the two used to be
