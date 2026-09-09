@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { DeviceSourceComponent } from '../device-source/device-source';
+import { PutBackComponent } from '../review/put-back/put-back';
 import { PreferencesService } from '../preferences.service';
 import { BatteryOptimizationService } from '../notifications/battery-optimization.service';
 import { StorageUsageService } from '../storage/storage-usage.service';
@@ -23,7 +24,7 @@ import { formatBytes } from '../storage/storage-usage';
   templateUrl: './settings.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './settings.scss',
-  imports: [DeviceSourceComponent],
+  imports: [DeviceSourceComponent, PutBackComponent],
 })
 export class SettingsComponent implements OnInit {
   /** Android's background restriction — shown here because it decides whether reminders arrive. */

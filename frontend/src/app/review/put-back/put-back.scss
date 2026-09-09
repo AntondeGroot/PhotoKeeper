@@ -1,0 +1,17 @@
+// Sits inside the Settings card stack, so it borrows that card's shape and adds only its button.
+.put-back-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--c-line);
+  background: transparent;
+  color: var(--c-dim);
+  font-size: 13px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}

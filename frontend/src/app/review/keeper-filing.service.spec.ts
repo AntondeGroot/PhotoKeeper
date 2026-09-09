@@ -28,6 +28,11 @@ describe('KeeperFilingService', () => {
   let names: Map<string, { name: string }>;
   /** Assets whose decision the user can still take back, which the sweep must leave alone. */
   let undoable: Set<string>;
+  /**
+   * What each Lightroom album actually holds right now — album id → rows. A string is a photograph;
+   * `{tombstone}` is what Lightroom leaves in place of one that has been deleted.
+   */
+  let heldByAlbum: Map<string, (string | { tombstone: string })[]>;
 
   beforeEach(() => {
     verdicts = new Map();
@@ -36,6 +41,7 @@ describe('KeeperFilingService', () => {
     failNext = false;
     unfilable = new Set();
     undoable = new Set();
+    heldByAlbum = new Map();
     names = new Map([
       ['a', { name: 'DSC_0001' }],
       ['b', { name: 'DSC_0002' }],
@@ -52,6 +58,18 @@ describe('KeeperFilingService', () => {
         {
           provide: LightroomService,
           useValue: {
+            getAllAlbumAssets: (albumId: string) =>
+              of(
+                (heldByAlbum.get(albumId) ?? []).map((row, i) =>
+                  typeof row === 'string'
+                    ? { id: row, subtype: 'image' }
+                    : {
+                        id: `tomb-${i}`,
+                        subtype: 'deleted_image',
+                        original: { id: row.tombstone },
+                      },
+                ),
+              ),
             addToAlbum: (albumId: string, assetIds: string[]) => {
               if (failNext) return throwError(() => new Error('network'));
               if (assetIds.some((id) => unfilable.has(id))) {
@@ -211,6 +229,102 @@ describe('KeeperFilingService', () => {
     filed.set('a', { albums: ['KeeperPrint'], at: 1 });
 
     expect(await filing.staleFilings()).toEqual(new Map([['KeeperPrint', ['DSC_0001']]]));
+  });
+
+  /**
+   * The accident this exists for: the photos were removed from KeeperDelete in Lightroom rather than
+   * deleted, and the app could not tell. A filing is recorded once and never questioned, so no later
+   * sweep would ever put them back — they were simply gone.
+   */
+  describe('what an album has lost', () => {
+    it('names the photos it filed that the album no longer holds', async () => {
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      filed.set('b', { albums: ['KeeperDelete'], at: 1 });
+      filed.set('c', { albums: ['KeeperDelete'], at: 1 });
+      heldByAlbum.set('al-del', ['b']); // a and c were taken out of the album
+
+      expect(await filing.filingGaps()).toEqual([
+        { album: 'KeeperDelete', missing: ['a', 'c'], deleted: 0 },
+      ]);
+    });
+
+    it('reports nothing when every album still holds what it was given', async () => {
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      heldByAlbum.set('al-del', ['a']);
+
+      expect(await filing.filingGaps()).toEqual([]);
+    });
+
+    it('checks each album against its own contents', async () => {
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      filed.set('b', { albums: ['KeeperEdit'], at: 1 });
+      heldByAlbum.set('al-del', ['a']);
+      heldByAlbum.set('al-edit', []);
+
+      expect(await filing.filingGaps()).toEqual([
+        { album: 'KeeperEdit', missing: ['b'], deleted: 0 },
+      ]);
+    });
+
+    /** A photo filed into two albums is missing only from the one that lost it. */
+    it('separates a photo’s albums', async () => {
+      filed.set('a', { albums: ['KeeperEdit', 'KeeperPrint'], at: 1 });
+      heldByAlbum.set('al-edit', ['a']);
+      heldByAlbum.set('al-print', []);
+
+      expect(await filing.filingGaps()).toEqual([
+        { album: 'KeeperPrint', missing: ['a'], deleted: 0 },
+      ]);
+    });
+
+    /** An album the catalogue does not have says nothing about its contents — not that all is lost. */
+    it('says nothing about an album that is not in the catalogue', async () => {
+      albumIds.delete('KeeperDelete');
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+
+      expect(await filing.filingGaps()).toEqual([]);
+    });
+
+    /**
+     * Proven against the live API: deleting a photo in Lightroom leaves a `deleted_image` tombstone
+     * in every album it was in, under a *new* id that names the old one. Compared by id alone every
+     * correctly-deleted photo reads as missing — on a real KeeperDelete that was 49 of them — and
+     * offering to put those back is the worst thing this could do.
+     */
+    it('counts a deleted photo as dealt with, not as one the album lost', async () => {
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      filed.set('b', { albums: ['KeeperDelete'], at: 1 });
+      heldByAlbum.set('al-del', [{ tombstone: 'a' }, 'b']);
+
+      expect(await filing.filingGaps()).toEqual([
+        { album: 'KeeperDelete', missing: [], deleted: 1 },
+      ]);
+    });
+
+    it('tells the two apart in the same album', async () => {
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      filed.set('b', { albums: ['KeeperDelete'], at: 1 });
+      filed.set('c', { albums: ['KeeperDelete'], at: 1 });
+      heldByAlbum.set('al-del', [{ tombstone: 'a' }]); // a deleted, b and c taken out by hand
+
+      expect(await filing.filingGaps()).toEqual([
+        { album: 'KeeperDelete', missing: ['b', 'c'], deleted: 1 },
+      ]);
+    });
+
+    it('puts them back where they belong', async () => {
+      const filedBack = await filing.fileSet('KeeperDelete', ['a', 'c']);
+
+      expect(filedBack).toBe(2);
+      expect(sent).toEqual([{ albumId: 'al-del', assetIds: ['a', 'c'] }]);
+    });
+
+    /** A photo genuinely deleted from Lightroom cannot go back, and the count has to say so. */
+    it('reports how many could not be put back', async () => {
+      unfilable = new Set(['c']);
+
+      expect(await filing.fileSet('KeeperDelete', ['a', 'c'])).toBe(1);
+    });
   });
 
   describe('sending a chosen set', () => {

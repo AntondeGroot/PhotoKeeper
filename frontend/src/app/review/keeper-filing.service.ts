@@ -8,6 +8,15 @@ import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewUndoService } from './review-undo.service';
 
+/** What became of one album's filings: what it has lost, and what was deleted as intended. */
+export interface AlbumFilingGap {
+  album: string;
+  /** Filed here, and neither in the album nor deleted — taken out by hand, and only this can tell. */
+  missing: string[];
+  /** Filed here and since deleted in Lightroom. The tombstone is in the album; nothing to do. */
+  deleted: number;
+}
+
 /** How many assets go into one write. Adobe takes a batch; a whole backlog in one call is rude. */
 const BATCH = 50;
 
@@ -152,6 +161,73 @@ export class KeeperFilingService {
       }
     }
     return byAlbum;
+  }
+
+  /**
+   * What has become of everything this app filed, album by album.
+   *
+   * <p>The other half of the one-way API's residue, and the more damaging half. A filing is recorded
+   * once and never questioned again, so a photo taken *out* of KeeperDelete in Lightroom is invisible
+   * to every later sweep: it is on record as filed, so nothing will ever put it back.
+   *
+   * <p>The trap here is that "gone from the album" has two very different causes, and the obvious
+   * reading of the listing gets it backwards. Deleting a photo in Lightroom does **not** remove it
+   * from its albums — it leaves a {@link PhotoAsset.subtype} `deleted_image` tombstone in its place,
+   * under a *new* id, naming the old one in `original.id`. Compared by id alone, every photo the user
+   * correctly deleted therefore reads as missing: on a real KeeperDelete of 87 filings that was 85
+   * "missing" photos, of which 49 were simply deleted, done, and awaiting Lightroom's purge. Offering
+   * to put those back is the worst thing this could do.
+   *
+   * <p>Ids rather than filenames, unlike {@link staleFilings}: these go back through the API rather
+   * than into a search box, and a photo with no scanned metadata can still be re-filed.
+   *
+   * <p>Costs one listing per album with anything on record, so it runs when asked and not on a timer.
+   */
+  async filingGaps(): Promise<AlbumFilingGap[]> {
+    await this.albums.ensure();
+    const filed = await this.filed.getAll();
+    const expected = new Map<string, string[]>();
+    for (const [assetId, record] of filed) {
+      for (const album of record.albums) {
+        expected.set(album, [...(expected.get(album) ?? []), assetId]);
+      }
+    }
+
+    const gaps: AlbumFilingGap[] = [];
+    for (const [album, assetIds] of expected) {
+      const albumId = this.albums.idFor(album);
+      // No album in the catalogue means nothing to compare against — not that everything is missing.
+      if (!albumId) continue;
+      const { present, deleted } = await this.contentsOf(albumId);
+      const missing = assetIds.filter((assetId) => !present.has(assetId));
+      const goneForGood = assetIds.filter((assetId) => deleted.has(assetId)).length;
+      if (missing.length > 0 || goneForGood > 0) {
+        gaps.push({ album, missing, deleted: goneForGood });
+      }
+    }
+    return gaps;
+  }
+
+  /**
+   * What an album holds, in the ids this app knows photos by.
+   *
+   * A tombstone stands where its photograph did, so the album has not lost anything by holding one —
+   * and the id worth knowing is the one it replaced, which is the id that was filed.
+   */
+  private async contentsOf(
+    albumId: string,
+  ): Promise<{ present: ReadonlySet<string>; deleted: ReadonlySet<string> }> {
+    const held = await firstValueFrom(this.svc.getAllAlbumAssets(albumId));
+    const present = new Set<string>();
+    const deleted = new Set<string>();
+    for (const asset of held) {
+      present.add(asset.id);
+      const was = asset.subtype === 'deleted_image' ? asset.original?.id : undefined;
+      if (!was) continue;
+      present.add(was);
+      deleted.add(was);
+    }
+    return { present, deleted };
   }
 
   /**
