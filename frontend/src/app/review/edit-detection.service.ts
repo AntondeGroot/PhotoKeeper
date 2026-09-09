@@ -223,12 +223,28 @@ export class EditDetectionService {
       const hash = stampMoved(baseline, asset.updated)
         ? await this.hashFromRendition(asset.id)
         : undefined;
-      findings.push({
-        ...verdictFor(asset.id, baseline, asset.updated, hash),
-        name: queue.name(asset),
-      });
+      const verdict = verdictFor(asset.id, baseline, asset.updated, hash);
+      await this.baselineTheUnknown(verdict);
+      findings.push({ ...verdict, name: queue.name(asset) });
     }
     return findings;
+  }
+
+  /**
+   * A photo the check could not speak for becomes measurable from now on.
+   *
+   * 'unknown' means there was no earlier version to compare against — and without this that stays
+   * true for ever: every run would download the photo, hash it, throw the measurement away, and
+   * report the same nothing. The hash is in hand at exactly this moment, so it becomes the version
+   * the *next* check compares against.
+   *
+   * This deliberately does not claim the photo is unedited. An edit made before this run is lost to
+   * us either way, since nothing recorded what it looked like beforehand; the choice is between a
+   * photo that can be answered for from now on and one that never can.
+   */
+  private async baselineTheUnknown(verdict: EditVerdict): Promise<void> {
+    if (verdict.state !== 'unknown' || !verdict.hash) return;
+    await this.captureBaseline(verdict.assetId, { hash: verdict.hash, updated: verdict.updated });
   }
 
   /** The queue as it stands, with no verdict on any of it — that is what the user is here to give. */
