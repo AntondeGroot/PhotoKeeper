@@ -2,23 +2,25 @@
   class="photo-card"
   (pointerdown)="onPointerDown($event)"
   (pointermove)="onPointerMove($event)"
-  (pointerup)="onPointerUp()"
+  (pointerup)="onPointerUp($event)"
   (pointercancel)="onPointerUp()"
   [class.dragging]="dragging()"
 >
   <div class="photo-area" [style.transform]="dragTransform()">
     @if (photo.edit; as edit) {
       <!-- One photo, shown as what Lightroom started with and what it produced. There is no "keep
-           A or B" here: both files are the same shot, so the swipe decides the pair. Tapping a half
-           enlarges it. -->
+           A or B" here: both files are the same shot, so the swipe decides the pair — and the swipe
+           has to start anywhere, these two images being the whole of the card. The halves therefore
+           let the pointer through to it, and the card decides afterwards whether the gesture was a
+           swipe or a tap; the click below is what a keyboard reaches them by. -->
       <div class="before-after">
-        <button class="ba-frame" (pointerdown)="$event.stopPropagation()" (click)="openFrame(0)">
+        <button class="ba-frame" (click)="openFrame(0)">
           @if (imageUrls.get(edit.originalId); as url) {
             <img class="photo-img" [src]="url" alt="" draggable="false" />
           }
           <span class="ba-label">Before</span>
         </button>
-        <button class="ba-frame" (pointerdown)="$event.stopPropagation()" (click)="openFrame(1)">
+        <button class="ba-frame" (click)="openFrame(1)">
           @if (imageUrl) {
             <img class="photo-img" [src]="imageUrl" alt="" draggable="false" />
           }
