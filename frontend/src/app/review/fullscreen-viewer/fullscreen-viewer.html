@@ -14,20 +14,31 @@
   }
 
   @if (reviewMode) {
-    <div class="swipe-flag flag-keep" [style.opacity]="flagOpacity('kept')">KEEP →</div>
-    <div class="swipe-flag flag-reject" [style.opacity]="flagOpacity('rejected')">← REJECT</div>
-    <div class="swipe-flag flag-edit" [style.opacity]="flagOpacity('toEdit')">↑ EDIT</div>
-    <div class="swipe-flag flag-maybe" [style.opacity]="flagOpacity('maybe')">↓ MAYBE</div>
+    <!-- The verdict names the flag's wording, its place and its colour together; see photo-card. -->
+    @for (verdict of verdicts; track verdict) {
+      <div
+        class="swipe-flag flag-{{ verdict }}"
+        [style.opacity]="flagOpacity(verdict)"
+        [style.color]="verdictStyle[verdict].colour"
+      >
+        {{ verdictStyle[verdict].hint }}
+      </div>
+    }
   }
 
   <button class="viewer-close" (click)="close()" aria-label="close">✕</button>
 
   @if (reviewMode) {
     <div class="viewer-actions">
-      <button class="viewer-action reject" (click)="chooseVerdict('rejected')">✕ Reject</button>
-      <button class="viewer-action maybe" (click)="chooseVerdict('maybe')">Maybe</button>
-      <button class="viewer-action edit" (click)="chooseVerdict('toEdit')">Edit</button>
-      <button class="viewer-action keep" (click)="chooseVerdict('kept')">✓ Keep</button>
+      @for (verdict of verdicts; track verdict) {
+        <button
+          class="viewer-action"
+          [style.color]="verdictStyle[verdict].colour"
+          (click)="chooseVerdict(verdict)"
+        >
+          {{ verdictStyle[verdict].glyph }} {{ verdictStyle[verdict].label }}
+        </button>
+      }
     </div>
     <div class="viewer-hint">swipe or use the buttons · tap the photo to close</div>
   } @else if (multi()) {

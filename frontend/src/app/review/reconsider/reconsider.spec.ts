@@ -3,6 +3,7 @@ import { signal } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { ReconsiderComponent } from './reconsider';
 import { DecidedPhoto, ReconsiderService } from '../reconsider.service';
+import { VERDICT_STYLE } from '../../verdicts';
 
 describe('ReconsiderComponent', () => {
   let fixture: ComponentFixture<ReconsiderComponent>;
@@ -143,11 +144,16 @@ describe('ReconsiderComponent', () => {
     await openDelete();
     await chooseFirst();
 
+    // The colours come from the shared verdict description, so this asserts the colours themselves
+    // rather than class names that would have to be mapped back to a colour somewhere else.
     expect(
-      [...root.querySelectorAll('.verdict-btn')].map(
-        (b) => [...b.classList].find((name) => name.startsWith('tone-')) ?? '',
-      ),
-    ).toEqual(['tone-keep', 'tone-amber', 'tone-maybe', 'tone-reject']);
+      [...root.querySelectorAll<HTMLElement>('.verdict-btn')].map((b) => b.style.color),
+    ).toEqual([
+      VERDICT_STYLE.kept.colour,
+      VERDICT_STYLE.toEdit.colour,
+      VERDICT_STYLE.maybe.colour,
+      VERDICT_STYLE.rejected.colour,
+    ]);
   });
 
   it('writes the new verdict and takes the photo out of the grid', async () => {

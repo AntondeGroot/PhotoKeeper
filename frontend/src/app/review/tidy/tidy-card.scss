@@ -221,28 +221,13 @@
   flex: 1;
   padding: 10px 6px;
   border-radius: 10px;
-  border: 1px solid var(--c-line);
+  // The outline follows the verdict colour the template binds onto `color`, so the button is
+  // described in one place rather than being told its colour twice.
+  border: 1px solid currentColor;
   background: var(--c-panel2);
   color: var(--c-text);
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-
-  &.tone-keep {
-    border-color: var(--c-keep);
-    color: var(--c-keep);
-  }
-  &.tone-reject {
-    border-color: var(--c-reject);
-    color: var(--c-reject);
-  }
-  &.tone-amber {
-    border-color: var(--c-amber);
-    color: var(--c-amber);
-  }
-  &.tone-maybe {
-    border-color: var(--c-maybe);
-    color: var(--c-maybe);
-  }
 }

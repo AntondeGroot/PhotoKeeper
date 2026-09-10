@@ -19,41 +19,24 @@
     justify-content: center;
     transition: background 0.2s;
 
-    &:nth-child(1) {
-      color: var(--c-reject);
-      border-color: var(--c-reject);
-      &:hover {
-        background: rgba(201, 104, 90, 0.12);
-      }
+    // The border and the hover tint follow `currentColor`, which the template binds from the shared
+    // verdict description — so there is nothing here that has to be told which button is which.
+    &:hover {
+      background: color-mix(in srgb, currentColor 12%, transparent);
     }
 
-    &:nth-child(2) {
+    // Edit and Keep are the two you reach for most, so they are the larger pair.
+    &.primary {
       width: 64px;
       height: 64px;
       font-size: 22px;
-      color: var(--c-amber);
-      border-color: var(--c-amber);
-      &:hover {
-        background: rgba(229, 160, 69, 0.12);
-      }
     }
 
-    &:nth-child(3) {
-      width: 64px;
-      height: 64px;
-      font-size: 22px;
-      color: var(--c-keep);
-      border-color: var(--c-keep);
-      &:hover {
-        background: rgba(143, 174, 126, 0.12);
-      }
-    }
-
-    &:nth-child(4) {
+    &.star {
       color: var(--c-star);
       border-color: var(--c-star);
       &:hover {
-        background: rgba(229, 160, 69, 0.08);
+        background: color-mix(in srgb, currentColor 8%, transparent);
       }
     }
   }

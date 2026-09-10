@@ -106,6 +106,7 @@ export default tseslint.config(
           mode: 'full',
           pattern: [
             'src/app/photo.ts',
+            'src/app/verdicts.ts',
             'src/app/lightroom-types.ts',
             'src/app/keeper-albums.ts',
             'src/app/camera-metadata.ts',

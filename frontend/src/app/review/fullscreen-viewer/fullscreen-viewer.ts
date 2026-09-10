@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { ViewerImage } from './viewer-image';
 import { SwipeAim, SwipeVerdict, VIEWER_SWIPE_COMMIT_PX, swipeAim } from '../../photo';
+import { VERDICT_STYLE, VERDICTS_IN_ORDER } from '../../verdicts';
 
 export type ReviewVerdict = SwipeVerdict;
 
@@ -108,6 +109,10 @@ export class FullscreenViewerComponent {
   onArrowLeft(): void {
     if (this.multi() && !this.reviewMode) this.prev();
   }
+
+  /** The only screen that offers all four, so it shows them in the shared order. */
+  protected readonly verdicts = VERDICTS_IN_ORDER;
+  protected readonly verdictStyle = VERDICT_STYLE;
 
   chooseVerdict(v: ReviewVerdict): void {
     this.verdict.emit(v);

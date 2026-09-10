@@ -9,10 +9,21 @@ import {
   input,
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
-import { PanoFrame, Photo } from '../../photo';
+import { PanoFrame, Photo, SwipeVerdict } from '../../photo';
+import { VERDICT_STYLE } from '../../verdicts';
 import { PhotoCardComponent } from '../photo-card/photo-card';
 import { PanoFramePickerComponent } from '../pano-card/frame-picker/frame-picker';
 import { AssembledGroup, NavigationService } from '../../navigation.service';
+
+/**
+ * The three the card offers at a tap; Maybe is a swipe only, for want of room. Edit and Keep are
+ * the two you reach for most, so they are drawn as the larger pair.
+ */
+const QUICK_VERDICTS: readonly { verdict: SwipeVerdict; primary: boolean }[] = [
+  { verdict: 'rejected', primary: false },
+  { verdict: 'toEdit', primary: true },
+  { verdict: 'kept', primary: true },
+];
 
 @Component({
   selector: 'app-review-sort',
@@ -32,13 +43,16 @@ export class ReviewSortComponent {
   readonly photo = input.required<Photo>();
   @Input() imageUrl: SafeUrl | null = null;
   @Input() imageUrls = new Map<string, SafeUrl>();
-  @Output() swiped = new EventEmitter<'kept' | 'rejected' | 'toEdit' | 'maybe'>();
+  @Output() swiped = new EventEmitter<SwipeVerdict>();
   @Output() starToggle = new EventEmitter<void>();
   @Output() tapped = new EventEmitter<void>();
   /** Forwarded from the card: open an edited photo beside the original it came from. */
   @Output() compare = new EventEmitter<{ ids: string[]; start: number }>();
   /** This photograph turns out to be one of a group — a sweep, or several tries at one thing. */
   @Output() grouped = new EventEmitter<{ type: AssembledGroup; frames: PanoFrame[] }>();
+
+  protected readonly quickVerdicts = QUICK_VERDICTS;
+  protected readonly verdictStyle = VERDICT_STYLE;
 
   // The picker is opened from the strip above the card, so the flag that shows it lives with the
   // rest of "which screen is showing" rather than on either end.

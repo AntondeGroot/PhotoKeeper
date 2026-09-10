@@ -9,18 +9,27 @@ import {
 import { SafeUrl } from '@angular/platform-browser';
 import { DecisionOutcome, UndoEntry } from '../review-undo.service';
 import { PreviewCacheService } from '../preview-cache.service';
+import { VERDICT_STYLE } from '../../verdicts';
 import { ReviewItem, unitAssetIds } from '../../photo';
 
-/** What each outcome is called on a row, and the colour that goes with it. */
-const OUTCOMES: Record<DecisionOutcome, { label: string; tone: string }> = {
-  kept: { label: 'Kept', tone: 'keep' },
-  rejected: { label: 'Rejected', tone: 'reject' },
-  toEdit: { label: 'To edit', tone: 'amber' },
-  maybe: { label: 'Maybe', tone: 'maybe' },
-  toPrint: { label: 'Done editing', tone: 'print' },
-  skipped: { label: 'Skipped', tone: 'dim' },
+/**
+ * What each outcome is called on a row, and the colour that goes with it.
+ *
+ * The four verdicts take theirs from {@link VERDICT_STYLE}, the description every review screen
+ * reads — this list said teal for "to edit" while the card said amber, and a screen built later
+ * copied the wrong one. The other three have no description of their own to read: a photo skipped,
+ * an edit finished, a tag given. Their colours are the app's meanings for those (Prints teal, the
+ * album-tag mauve), restated here for want of a shared description of an outcome.
+ */
+const OUTCOMES: Record<DecisionOutcome, { label: string; colour: string }> = {
+  kept: { label: 'Kept', colour: VERDICT_STYLE.kept.colour },
+  rejected: { label: 'Rejected', colour: VERDICT_STYLE.rejected.colour },
+  toEdit: { label: 'To edit', colour: VERDICT_STYLE.toEdit.colour },
+  maybe: { label: 'Maybe', colour: VERDICT_STYLE.maybe.colour },
+  toPrint: { label: 'Done editing', colour: 'var(--c-print)' },
+  skipped: { label: 'Skipped', colour: 'var(--c-dim)' },
   // Named by the tag itself on the row; this is only the fallback and the colour.
-  tagged: { label: 'Tagged', tone: 'holiday' },
+  tagged: { label: 'Tagged', colour: 'var(--c-holiday)' },
 };
 
 /**
@@ -62,8 +71,9 @@ export class ReviewHistoryComponent {
     return entry.label ?? OUTCOMES[entry.outcome].label;
   }
 
-  tone(outcome: DecisionOutcome): string {
-    return OUTCOMES[outcome].tone;
+  /** The chip's colour; the border follows it through `currentColor`. */
+  colour(outcome: DecisionOutcome): string {
+    return OUTCOMES[outcome].colour;
   }
 
   /** The frame a row shows: a single photo, or the first frame of a group. */
