@@ -5,14 +5,21 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
-    # Group related packages into one PR. Order matters: a package joins the first group it matches, so
-    # the specific (angular) group must come before the broad minor/patch catch-alls. Majors are excluded
-    # from the catch-alls, so a major bump still gets its own PR to review.
+    # Group related packages into one PR. Order is meant to settle it — a package joins the first group
+    # it matches — but ordering alone did not hold: two PRs arrived with the Angular packages split
+    # between the dev and prod catch-alls, `angular-eslint` among them, so the angular group had
+    # claimed nothing. The catch-alls now refuse those names outright, which does not depend on how
+    # the ordering is interpreted. Majors are excluded from the catch-alls, so a major bump still gets
+    # its own PR to review.
     groups:
       angular:
         # The Angular packages are versioned in lockstep — bumped together or CI breaks on peer-version
-        # constraints (e.g. @angular/core ahead of @angular/common won't install). One PR keeps them coherent.
+        # constraints. @angular/compiler-cli is the sharp one: it peers on @angular/compiler at an
+        # *exact* version, and the two sit on opposite sides of the dev/prod line, so a split leaves a
+        # lockfile that `npm install` tolerates and `npm ci` — which is what CI runs — refuses. That
+        # cost two red PRs before this comment existed.
         patterns:
+          - "@angular/*"
           - "@angular*"
           - "@angular-devkit*"
           - "angular-eslint"
@@ -20,11 +27,26 @@ updates:
           - "zone.js"
       dev-minor-patch:
         dependency-type: "development"
+        # Kept out by name as well as by order: see the note above the groups.
+        exclude-patterns:
+          - "@angular/*"
+          - "@angular*"
+          - "@angular-devkit*"
+          - "angular-eslint"
+          - "ng-packagr"
+          - "zone.js"
         update-types:
           - "minor"
           - "patch"
       prod-minor-patch:
         dependency-type: "production"
+        exclude-patterns:
+          - "@angular/*"
+          - "@angular*"
+          - "@angular-devkit*"
+          - "angular-eslint"
+          - "ng-packagr"
+          - "zone.js"
         update-types:
           - "minor"
           - "patch"
