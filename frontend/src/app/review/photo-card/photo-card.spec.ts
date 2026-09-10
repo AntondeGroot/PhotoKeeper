@@ -100,6 +100,108 @@ describe('PhotoCardComponent', () => {
    * own taps stop `pointerdown`, but `pointerup` still reaches the card — and with no movement
    * behind it, the card read it as a tap and opened the picture on top of whatever was happening.
    */
+  /**
+   * The bug this covers: the two halves of an edited pair took `pointerdown` for themselves so a tap
+   * could enlarge one — but they are the whole of the card, so a swipe had nowhere left to begin and
+   * the pair could not be judged at all. It is one photograph in two files, and the verdict is one
+   * verdict, so the gesture belongs to the card.
+   */
+  describe('an edited pair', () => {
+    const edited = {
+      ...photo,
+      edit: { originalId: 'orig', originalName: 'DSC_1878', originalExt: 'NEF' },
+    };
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('photo', edited);
+      fixture.detectChanges();
+    });
+
+    it('lets the swipe start on either half', () => {
+      const card = root.querySelector<HTMLElement>('.photo-card') as HTMLElement;
+      // The test DOM has no pointer capture at all; the card only asks for it to keep the drag.
+      Object.defineProperty(card, 'setPointerCapture', {
+        value: () => undefined,
+        configurable: true,
+      });
+      const halves = root.querySelectorAll<HTMLElement>('.ba-frame');
+      expect(halves).toHaveLength(2);
+
+      for (const half of halves) {
+        fixture.componentInstance.dragging.set(false);
+
+        // Pressed on the picture, as a finger does. Nothing may swallow it: the card is the only
+        // thing that can move the pair, and the pair is the whole of the card.
+        half.dispatchEvent(
+          new PointerEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }),
+        );
+
+        expect(fixture.componentInstance.dragging()).toBe(true);
+      }
+    });
+
+    it('gives the verdict when the pair is swiped', () => {
+      let given: string | null = null;
+      fixture.componentInstance.swiped.subscribe((v: string) => (given = v));
+
+      dragTo(200, 0);
+      fixture.componentInstance.onPointerUp();
+
+      expect(given).toBe('kept');
+    });
+
+    /** A tap still enlarges the half under the finger, which is what the halves were for. */
+    it('enlarges the half a tap lands on', () => {
+      const compared: { ids: string[]; start: number }[] = [];
+      fixture.componentInstance.compare.subscribe((c: { ids: string[]; start: number }) =>
+        compared.push(c),
+      );
+      const card = root.querySelector<HTMLElement>('.photo-card');
+      vi.spyOn(card as HTMLElement, 'getBoundingClientRect').mockReturnValue({
+        left: 0,
+        width: 200,
+      } as DOMRect);
+
+      dragTo(0, 0);
+      fixture.componentInstance.onPointerUp({
+        clientX: 150,
+        currentTarget: card,
+      } as unknown as PointerEvent);
+
+      expect(compared).toEqual([{ ids: ['orig', 'a'], start: 1 }]); // right half → "after"
+    });
+
+    /** And the click the browser fires after that tap must not open it a second time. */
+    it('does not open again on the click behind the tap', () => {
+      const compared: unknown[] = [];
+      fixture.componentInstance.compare.subscribe((c: unknown) => compared.push(c));
+      const card = root.querySelector<HTMLElement>('.photo-card');
+      vi.spyOn(card as HTMLElement, 'getBoundingClientRect').mockReturnValue({
+        left: 0,
+        width: 200,
+      } as DOMRect);
+
+      dragTo(0, 0);
+      fixture.componentInstance.onPointerUp({
+        clientX: 10,
+        currentTarget: card,
+      } as unknown as PointerEvent);
+      fixture.componentInstance.openFrame(0); // the click that follows
+
+      expect(compared).toHaveLength(1);
+    });
+
+    /** A keyboard press reaches the same button with no gesture behind it, and must still work. */
+    it('opens a half for the keyboard', () => {
+      const compared: { start: number }[] = [];
+      fixture.componentInstance.compare.subscribe((c: { start: number }) => compared.push(c));
+
+      fixture.componentInstance.openFrame(1);
+
+      expect(compared).toEqual([{ ids: ['orig', 'a'], start: 1 }]);
+    });
+  });
+
   it('ignores a release it never saw the start of', () => {
     let opened = false;
     fixture.componentInstance.tapped.subscribe(() => (opened = true));
