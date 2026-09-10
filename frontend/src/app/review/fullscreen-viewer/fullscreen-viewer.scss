@@ -27,32 +27,28 @@
   pointer-events: none;
 }
 
-.flag-keep {
+.flag-kept {
   top: 50%;
   right: 8%;
   transform: translateY(-50%);
-  color: var(--c-keep);
 }
 
-.flag-reject {
+.flag-rejected {
   top: 50%;
   left: 8%;
   transform: translateY(-50%);
-  color: var(--c-reject);
 }
 
-.flag-edit {
+.flag-toEdit {
   top: 8%;
   left: 50%;
   transform: translateX(-50%);
-  color: var(--c-amber);
 }
 
 .flag-maybe {
   bottom: 14%;
   left: 50%;
   transform: translateX(-50%);
-  color: var(--c-maybe);
 }
 
 .viewer-close {
@@ -138,22 +134,6 @@
     font-weight: 600;
     font-size: 13px;
     cursor: pointer;
-  }
-
-  .viewer-action.keep {
-    color: var(--c-keep);
-  }
-
-  .viewer-action.reject {
-    color: var(--c-reject);
-  }
-
-  .viewer-action.edit {
-    color: var(--c-amber);
-  }
-
-  .viewer-action.maybe {
-    color: var(--c-maybe);
   }
 }
 

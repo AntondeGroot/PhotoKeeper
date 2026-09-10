@@ -34,36 +34,32 @@
   text-transform: uppercase;
 }
 
-.overlay-keep {
+.overlay-kept {
   top: 28px;
   left: 16px;
-  color: var(--c-keep);
-  border-color: var(--c-keep);
+  border-color: currentColor;
   transform: rotate(-12deg);
 }
 
-.overlay-reject {
+.overlay-rejected {
   top: 28px;
   right: 16px;
-  color: var(--c-reject);
-  border-color: var(--c-reject);
+  border-color: currentColor;
   transform: rotate(12deg);
 }
 
-.overlay-edit {
+.overlay-toEdit {
   bottom: 90px;
   left: 50%;
   transform: translateX(-50%) rotate(-6deg);
-  color: var(--c-amber);
-  border-color: var(--c-amber);
+  border-color: currentColor;
 }
 
 .overlay-maybe {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(6deg);
-  color: var(--c-maybe);
-  border-color: var(--c-maybe);
+  border-color: currentColor;
 }
 
 .photo-area {

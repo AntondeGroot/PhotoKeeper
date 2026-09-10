@@ -33,9 +33,13 @@
       <p class="tidy-note">{{ photo.name }} — currently {{ standing(photo.status) }}.</p>
     </div>
     <div class="verdict-row">
-      @for (verdict of verdicts; track verdict.status) {
-        <button class="verdict-btn tone-{{ verdict.tone }}" (click)="reverdict(verdict.status)">
-          {{ verdict.label }}
+      @for (verdict of verdicts; track verdict) {
+        <button
+          class="verdict-btn"
+          [style.color]="verdictStyle[verdict].colour"
+          (click)="reverdict(verdict)"
+        >
+          {{ verdictStyle[verdict].label }}
         </button>
       }
     </div>

@@ -15,11 +15,21 @@
     (tapped)="tapped.emit()"
     (compare)="compare.emit($event)"
   />
+  <!-- Coloured by what each button means, not by where it stands. They used to be picked out by
+       :nth-child, so reordering them or slipping one in between recoloured the rest — the ✓ turning
+       red while the ✕ turned green, each still doing the right thing and saying the wrong one. -->
   <div class="action-buttons">
-    <button (click)="swiped.emit('rejected')">✕</button>
-    <button (click)="swiped.emit('toEdit')">↑</button>
-    <button (click)="swiped.emit('kept')">✓</button>
-    <button (click)="starToggle.emit()">{{ photo().starred ? '★' : '☆' }}</button>
+    @for (button of quickVerdicts; track button.verdict) {
+      <button
+        [class.primary]="button.primary"
+        [style.color]="verdictStyle[button.verdict].colour"
+        [attr.aria-label]="verdictStyle[button.verdict].label"
+        (click)="swiped.emit(button.verdict)"
+      >
+        {{ verdictStyle[button.verdict].glyph }}
+      </button>
+    }
+    <button class="star" (click)="starToggle.emit()">{{ photo().starred ? '★' : '☆' }}</button>
   </div>
   @if (photo().ai; as hint) {
     <div class="ai-hint">

@@ -118,39 +118,10 @@
   }
 }
 
-// The verdict colours the rest of the app already uses, so a row reads the same way a card does.
-.chip-keep {
-  color: var(--c-keep);
-  border-color: rgba(143, 174, 126, 0.35);
-}
-
-.chip-reject {
-  color: var(--c-reject);
-  border-color: rgba(201, 104, 90, 0.35);
-}
-
-// Amber is "to edit" everywhere else — the card's ↑, the viewer's Edit button — and this row said
-// teal, which is the Prints colour and a different answer. Print stays teal; it earns it.
-.chip-amber {
-  color: var(--c-amber);
-  border-color: rgba(229, 160, 69, 0.35);
-}
-
-.chip-print {
-  color: var(--c-print);
-  border-color: rgba(127, 168, 160, 0.35);
-}
-
-.chip-maybe {
-  color: var(--c-maybe);
-  border-color: rgba(142, 155, 176, 0.35);
-}
-
-// Tag rows, in the colour the app already gives album tags. Without a rule of its own the chip drew
-// in the default text colour and read as a fifth kind of verdict rather than a different pass.
-.chip-holiday {
-  color: var(--c-holiday);
-  border-color: rgba(195, 155, 199, 0.35);
+// The chip's colour is bound from the outcome; the outline is that same colour held well back, the
+// way the rules this replaced softened each border by hand. At full strength it reads as a button.
+.chip {
+  border-color: color-mix(in srgb, currentColor 35%, transparent);
 }
 
 .foot {

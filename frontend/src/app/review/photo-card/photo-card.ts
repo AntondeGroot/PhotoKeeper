@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { CARD_SWIPE_COMMIT_PX, Photo, SwipeVerdict, swipeAim } from '../../photo';
+import { VERDICT_STYLE, VERDICTS_IN_ORDER } from '../../verdicts';
 import { SceneComponent } from '../scene/scene';
 
 @Component({
@@ -70,6 +71,10 @@ export class PhotoCardComponent {
 
   /** Where this drag is heading — the one verdict shown, and the one given on release. */
   readonly aim = computed(() => swipeAim(this.dragX(), this.dragY(), CARD_SWIPE_COMMIT_PX));
+
+  /** The one description of the four verdicts, for the labels to take their wording and colour from. */
+  protected readonly verdictStyle = VERDICT_STYLE;
+  protected readonly verdicts = VERDICTS_IN_ORDER;
 
   /**
    * How strongly to show one verdict's label: nothing at all unless the drag is aimed at it.

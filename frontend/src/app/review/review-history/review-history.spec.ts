@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReviewHistoryComponent } from './review-history';
 import { PreviewCacheService } from '../preview-cache.service';
+import { VERDICT_STYLE } from '../../verdicts';
 import { UndoEntry } from '../review-undo.service';
 import { Burst, Photo } from '../../photo';
 
@@ -106,10 +107,9 @@ describe('ReviewHistoryComponent', () => {
   it('colours a verdict the way the rest of the app states it', () => {
     render([entry(photo('a'), 'toEdit'), entry(photo('b'), 'toPrint')]);
 
-    const chips = [...root.querySelectorAll('.chip')].map(
-      (c) => [...c.classList].find((name) => name.startsWith('chip-')) ?? '',
-    );
-    expect(chips).toEqual(['chip-amber', 'chip-print']);
+    const chips = [...root.querySelectorAll<HTMLElement>('.chip')].map((c) => c.style.color);
+    // Read from the one description the whole app shares, rather than restated here.
+    expect(chips).toEqual([VERDICT_STYLE.toEdit.colour, 'var(--c-print)']);
   });
 
   it('emits the entry whose Undo was pressed', () => {

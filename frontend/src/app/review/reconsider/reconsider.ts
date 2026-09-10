@@ -2,14 +2,10 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { SafeUrl } from '@angular/platform-browser';
 import { DecidedPhoto, ReconsiderService } from '../reconsider.service';
 import { SwipeVerdict } from '../../photo';
+import { VERDICT_STYLE } from '../../verdicts';
 
-/** The verdicts a photo can be given again, and what each is called here. */
-const VERDICTS: { status: SwipeVerdict; label: string; tone: string }[] = [
-  { status: 'kept', label: 'Keep', tone: 'keep' },
-  { status: 'toEdit', label: 'Edit', tone: 'amber' },
-  { status: 'maybe', label: 'Maybe', tone: 'maybe' },
-  { status: 'rejected', label: 'Reject', tone: 'reject' },
-];
+/** Keep first here, unlike the review card: this screen exists to rescue a photo, not to cull one. */
+const OFFERED: readonly SwipeVerdict[] = ['kept', 'toEdit', 'maybe', 'rejected'];
 
 /** What the app currently thinks, said plainly on the chosen photo. */
 const STANDING: Record<string, string> = {
@@ -45,7 +41,8 @@ export class ReconsiderComponent {
 
   /** The albums worth looking through: the two the app files decisions into. */
   readonly albums = ['KeeperDelete', 'KeeperEdit'];
-  readonly verdicts = VERDICTS;
+  readonly verdicts = OFFERED;
+  readonly verdictStyle = VERDICT_STYLE;
 
   /** Which album is open, or null when the grid is closed. */
   readonly album = signal<string | null>(null);
