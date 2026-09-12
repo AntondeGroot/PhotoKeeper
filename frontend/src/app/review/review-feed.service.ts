@@ -184,21 +184,39 @@ export class ReviewFeedService {
     void this.reviewStore.pruneDailyFeedExcept(new Set([today]));
   }
 
+  /** The batch "Review more" is drawing right now, if it is drawing one. */
+  private drawingMore: Promise<void> | null = null;
+
   /**
    * Appends a fresh batch of unseen units when the user is caught up but wants to keep going. Samples
    * generously and keeps only units no asset of which is already queued or already decided; when nothing
    * new remains the population is exhausted and {@link canLoadMore} goes false.
+   *
+   * A tap made while a batch is still being drawn joins that one rather than starting its own. The
+   * draw is slow — a network call and a pass over the whole library — and the button stays on screen
+   * throughout, so it gets pressed again; each press used to draw a batch of its own, and the same
+   * photographs landed on the deck once per press.
    */
-  async loadMore(): Promise<void> {
+  loadMore(): Promise<void> {
+    this.drawingMore ??= this.drawMore().finally(() => (this.drawingMore = null));
+    return this.drawingMore;
+  }
+
+  private async drawMore(): Promise<void> {
+    const goal = this.prefs.dailyGoal();
+    const drawn = await this.selectUnits(goal * 3);
+
+    // Judged against the deck as it is *now*, after the draw, rather than as it was when the draw was
+    // asked for: the deck can change while it is out, and a unit that arrived meanwhile — put back by
+    // an undo, say — is not new any more. Checking first and appending later is what let one photo
+    // onto the deck four times.
     const verdicts = await this.reviewStore.getVerdicts();
     const inQueue = new Set(this.photos().flatMap(unitAssetIds));
     const isFresh = (unit: ReviewItem): boolean =>
       unitAssetIds(unit).every(
         (id) => !inQueue.has(id) && (verdicts.get(id)?.status ?? 'backlog') === 'backlog',
       );
-
-    const goal = this.prefs.dailyGoal();
-    const more = (await this.selectUnits(goal * 3)).filter(isFresh).slice(0, goal);
+    const more = drawn.filter(isFresh).slice(0, goal);
     if (more.length === 0) {
       this.canLoadMore.set(false);
       return;
