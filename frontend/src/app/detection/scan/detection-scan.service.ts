@@ -11,6 +11,7 @@ import { GroupStore } from '../../storage/detection/group-store';
 import { HashStore } from '../../storage/detection/hash-store';
 import { PreviewStore } from '../../storage/review/preview-store';
 import { splitFileName } from '../../photo';
+import { editsWithOriginal } from '../../edit-pairs';
 import { cameraSerial, isCaptureFrame } from '../../camera-metadata';
 import { AssetMeta } from '../../storage/photokeeper-db';
 import { DetectedGroup, FrameSignature, StereoRole } from '../detectors/detection-types';
@@ -114,7 +115,16 @@ export class DetectionScanService {
     // Detection runs on the whole scanned prefix [0, end): both ends sit at a time-gap (the previous
     // pass stopped at one, and we extended this one to one), so no group is split. Re-clustering the
     // prefix is cheap — Stage 2 only hashes the new, un-cached candidates.
-    const prefix = all.slice(0, end);
+    //
+    // Minus Lightroom's own edits, which are not photographs of their own: an edit matches the
+    // original it came from on every criterion the burst detector has — same capture time to the
+    // second, same camera, near-identical pixels — so left in, the two cluster and the shot is
+    // offered as "which is better, A or B?" against its own denoise. The pair is meant to become one
+    // before/after card instead, and it never could while detection had claimed it: selection only
+    // folds a pair whose halves are *ungrouped*. Measured over the whole album, so an original just
+    // outside this slice still counts.
+    const edits = editsWithOriginal(all);
+    const prefix = all.slice(0, end).filter((asset) => !edits.has(asset.id));
     const { hashed, groups, heldBack } = await this.detectPrefix(albumId, prefix, stereoRole);
 
     // A pass that could not download is not a pass that covered anything: the cursor stays where it

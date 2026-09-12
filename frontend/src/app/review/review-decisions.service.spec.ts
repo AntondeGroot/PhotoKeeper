@@ -151,6 +151,46 @@ describe('ReviewDecisionsService', () => {
     expect(refillCalls).toBe(1); // every decision tops up the scan buffer
   });
 
+  /**
+   * A shot and the denoise Lightroom wrote beside it are one card over two files. The verdict has to
+   * reach both: recorded against the card's id alone it left the original counted as backlog — never
+   * filed to Lightroom, and back on the deck the moment anything stopped the two being folded into
+   * one card. On a real catalogue fifty-five photographs had ended up in that state.
+   *
+   * <p>This used to be the other way round, and the reason it gave was that the original should not
+   * be filed on its own account — one shot, not each file Lightroom wrote beside it. The cost of
+   * that turned out to be the higher one: a rejected shot whose original never reaches KeeperDelete
+   * is a shot you delete the denoise of and keep. Both files are the photograph, so both are filed.
+   */
+  describe('an edited pair', () => {
+    const edited: Photo = {
+      ...photo('DSC_1891-Enhanced-NR'),
+      edit: { originalId: 'DSC_1891', originalName: 'DSC_1891', originalExt: 'NEF' },
+    };
+
+    beforeEach(() => {
+      photos.set([edited, photo('b')]);
+      index.set(0);
+    });
+
+    it('records the verdict against the original as well as the edit', async () => {
+      service.decide('rejected');
+      await Promise.resolve();
+
+      expect(stored.get('DSC_1891-Enhanced-NR')?.status).toBe('rejected');
+      expect(stored.get('DSC_1891')?.status).toBe('rejected');
+    });
+
+    /** One card, one decision: the original must not be written twice, nor the edit. */
+    it('writes each file exactly once', async () => {
+      service.decide('kept');
+      await Promise.resolve();
+
+      const written = [...verdicts.map((v) => v.id)].sort((a, b) => a.localeCompare(b));
+      expect(written).toEqual(['DSC_1891', 'DSC_1891-Enhanced-NR']);
+    });
+  });
+
   describe('undo', () => {
     /** Takes back the most recent decision — what the list's top row does. */
     const undoLatest = () => service.undo(service.recentDecisions()[0]);
@@ -498,22 +538,6 @@ describe('ReviewDecisionsService', () => {
         verdict: { status: 'toEdit', starred: false, saveOnly: false },
       });
     }
-  });
-
-  /**
-   * An edit and the original it came from are one unit on purpose — you sort the shot, not each file
-   * Lightroom wrote beside it — so the original must not be filed on its own account.
-   */
-  it('leaves a single photo to speak for itself', async () => {
-    photos.set([
-      { ...photo('e1'), edit: { originalId: 'o1', originalName: 'o1', originalExt: 'NEF' } },
-    ]);
-    index.set(0);
-
-    service.decide('kept');
-    await Promise.resolve();
-
-    expect(verdicts.map((v) => v.id)).toEqual(['e1']);
   });
 
   /**

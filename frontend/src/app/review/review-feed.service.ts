@@ -11,6 +11,8 @@ import { PreferencesService } from '../preferences.service';
 import { ReviewBufferService } from './review-buffer.service';
 import { DayService } from './day.service';
 import { KeeperFilingService } from './keeper-filing.service';
+import { EditVerdictRepairService } from './edit-verdict-repair.service';
+import { CensusService } from '../stats/census.service';
 import { ReviewUndoService } from './review-undo.service';
 import {
   DEVICE_PHOTOS,
@@ -43,6 +45,8 @@ export class ReviewFeedService {
   readonly buffer = inject(ReviewBufferService);
   private readonly day = inject(DayService);
   private readonly filing = inject(KeeperFilingService);
+  private readonly repair = inject(EditVerdictRepairService);
+  private readonly census = inject(CensusService);
   private readonly undoStack = inject(ReviewUndoService);
   /** The day the deck in hand belongs to — see the rollover effect below. */
   private dayOfDeck = this.day.today();
@@ -164,7 +168,7 @@ export class ReviewFeedService {
     // Write decided photos back into the Keeper albums. Here rather than per swipe: loading a day
     // is also the moment to catch up on everything decided while offline, before the albums existed,
     // or before the app could write at all — and it treats those exactly as it treats today's.
-    void this.filing.sweep();
+    void this.catchUp();
 
     // Drop previews + stored selections from earlier days. Today's deck is kept, and so is the
     // buffer's warm front — those previews were fetched precisely so the next batch opens without
@@ -179,21 +183,39 @@ export class ReviewFeedService {
     void this.reviewStore.pruneDailyFeedExcept(new Set([today]));
   }
 
+  /** The batch "Review more" is drawing right now, if it is drawing one. */
+  private drawingMore: Promise<void> | null = null;
+
   /**
    * Appends a fresh batch of unseen units when the user is caught up but wants to keep going. Samples
    * generously and keeps only units no asset of which is already queued or already decided; when nothing
    * new remains the population is exhausted and {@link canLoadMore} goes false.
+   *
+   * A tap made while a batch is still being drawn joins that one rather than starting its own. The
+   * draw is slow — a network call and a pass over the whole library — and the button stays on screen
+   * throughout, so it gets pressed again; each press used to draw a batch of its own, and the same
+   * photographs landed on the deck once per press.
    */
-  async loadMore(): Promise<void> {
+  loadMore(): Promise<void> {
+    this.drawingMore ??= this.drawMore().finally(() => (this.drawingMore = null));
+    return this.drawingMore;
+  }
+
+  private async drawMore(): Promise<void> {
+    const goal = this.prefs.dailyGoal();
+    const drawn = await this.selectUnits(goal * 3);
+
+    // Judged against the deck as it is *now*, after the draw, rather than as it was when the draw was
+    // asked for: the deck can change while it is out, and a unit that arrived meanwhile — put back by
+    // an undo, say — is not new any more. Checking first and appending later is what let one photo
+    // onto the deck four times.
     const verdicts = await this.reviewStore.getVerdicts();
     const inQueue = new Set(this.photos().flatMap(unitAssetIds));
     const isFresh = (unit: ReviewItem): boolean =>
       unitAssetIds(unit).every(
         (id) => !inQueue.has(id) && (verdicts.get(id)?.status ?? 'backlog') === 'backlog',
       );
-
-    const goal = this.prefs.dailyGoal();
-    const more = (await this.selectUnits(goal * 3)).filter(isFresh).slice(0, goal);
+    const more = drawn.filter(isFresh).slice(0, goal);
     if (more.length === 0) {
       this.canLoadMore.set(false);
       return;
@@ -228,6 +250,20 @@ export class ReviewFeedService {
     const deck = [...base, ...device];
     this.photos.set(deck);
     if (this.index() >= deck.length) this.index.set(Math.max(0, deck.length - 1));
+  }
+
+  /**
+   * The catching-up a day's load does: repair, then file, then write the day down.
+   *
+   * In that order because each hands the next its work — an original that inherits its edit's
+   * verdict is a photograph now owed a place in KeeperDelete or KeeperEdit, and the census should
+   * count what the other two have just settled. All three are best-effort: none may take the deck
+   * down with it.
+   */
+  private async catchUp(): Promise<void> {
+    await this.repair.repair().catch(() => 0);
+    await this.filing.sweep().catch(() => undefined);
+    await this.census.recordToday().catch(() => undefined);
   }
 
   /** Chooses the review queue on-device from scanned metadata + detected groups, server feed as fallback. */

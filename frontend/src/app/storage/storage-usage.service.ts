@@ -30,8 +30,8 @@ const USAGE_GROUPS: TypedGroupSpec[] = [
     group: 'work',
     title: 'Your decisions',
     detail:
-      'Verdicts, tags, album marks, print orders, what has reached Lightroom, and what your ' +
-      'photos looked like before you edited them.',
+      'Verdicts, tags, album marks, print orders, what has reached Lightroom, what your photos ' +
+      'looked like before you edited them, and the day-by-day record of your progress.',
     rebuildable: false,
     stores: [
       'verdicts',
@@ -42,6 +42,8 @@ const USAGE_GROUPS: TypedGroupSpec[] = [
       'keeperFiling',
       'editBaseline',
       'albumTags',
+      'dayCensus',
+      'deletionLog',
       'groupOverrides',
       'groupReclass',
       'groupMembers',

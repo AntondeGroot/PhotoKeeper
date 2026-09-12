@@ -106,6 +106,80 @@ describe('ReviewFeedService', () => {
     expect(service.canLoadMore()).toBe(false);
   });
 
+  /**
+   * The bug these exist for: "Review more" stays on screen while a batch is being drawn, and drawing
+   * one is slow — a network call and a pass over the whole library — so it gets tapped again. Each tap
+   * checked for freshness against the deck as it was *before* the draw, so every one of them passed
+   * the same photograph, and it landed on the deck once per tap. A real deck held seven units twice
+   * over and one of them four times, and each copy was judged again.
+   */
+  describe('"Review more" tapped again while a batch is on its way', () => {
+    /** A sampler that answers only when told to, so two taps can both be in flight at once. */
+    function slowSampler(units: ReviewItem[]): { release: () => void; calls: () => number } {
+      let release!: () => void;
+      const answered = new Promise<void>((r) => (release = r));
+      const spy = vi
+        .spyOn(TestBed.inject(DailyUnitsService), 'buildUnits')
+        .mockImplementation(async () => {
+          await answered;
+          return units;
+        });
+      return { release, calls: () => spy.mock.calls.length };
+    }
+
+    it('adds the batch to the deck once', async () => {
+      service.photos.set([photo('a', 'kept')]);
+      const sampler = slowSampler([photo('fresh')]);
+
+      const first = service.loadMore();
+      const second = service.loadMore(); // the impatient second tap
+      sampler.release();
+      await Promise.all([first, second]);
+
+      expect(service.photos().map((p) => p.id)).toEqual(['a', 'fresh']);
+    });
+
+    /** Two taps are one request: the second waits for the first rather than drawing again. */
+    it('draws once for taps that overlap', async () => {
+      const sampler = slowSampler([photo('fresh')]);
+
+      const taps = [service.loadMore(), service.loadMore(), service.loadMore()];
+      sampler.release();
+      await Promise.all(taps);
+
+      expect(sampler.calls()).toBe(1);
+    });
+
+    /** Once a batch has landed the button works as before — the guard is for overlap, not for good. */
+    it('draws again for a tap made after the batch has landed', async () => {
+      const sampler = slowSampler([]);
+      sampler.release();
+
+      await service.loadMore();
+      await service.loadMore();
+
+      expect(sampler.calls()).toBe(2);
+    });
+
+    /**
+     * The guard stops the taps overlapping; this is what makes the append correct without it. The
+     * deck can change while a draw is out — an undo puts a unit back, say — so whether a unit is new
+     * is decided against the deck as it is when the batch is added, not as it was when it was asked for.
+     */
+    it('leaves out a unit that reached the deck while the batch was being drawn', async () => {
+      service.photos.set([photo('a', 'kept')]);
+      vi.spyOn(TestBed.inject(DailyUnitsService), 'buildUnits').mockImplementation(() => {
+        // Arrives by another route while the draw is out — after the tap has begun, before it ends.
+        service.photos.update((deck) => [...deck, photo('b')]);
+        return Promise.resolve([photo('b'), photo('fresh')]);
+      });
+
+      await service.loadMore();
+
+      expect(service.photos().map((p) => p.id)).toEqual(['a', 'b', 'fresh']);
+    });
+  });
+
   it('refreshDeviceDeck() reconciles device photos against the current settings', async () => {
     service.photos.set([photo('lr-1')]); // a Lightroom photo
     prefs.deviceEnabled = () => true;
