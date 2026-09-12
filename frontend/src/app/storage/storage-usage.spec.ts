@@ -95,6 +95,7 @@ describe('storage usage', () => {
       editBaseline: true,
       dayCensus: true,
       deletionLog: true,
+      photoMerge: true,
     };
     const grouped = STORAGE_USAGE_GROUPS.flatMap((g) => g.stores);
 

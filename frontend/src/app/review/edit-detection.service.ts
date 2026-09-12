@@ -9,11 +9,14 @@ import { EditBaselineStore } from '../storage/review/edit-baseline-store';
 import { HashStore } from '../storage/detection/hash-store';
 import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
+import { GroupStore } from '../storage/detection/group-store';
+import { PhotoMergeStore } from '../storage/review/photo-merge-store';
 import { ReviewStore } from '../storage/review/review-store';
 import { ReviewFeedService } from './review-feed.service';
 import { DailyProgressService } from './daily-progress.service';
 import { EditBaseline, EditVerdict, edited, stampMoved, verdictFor } from './edit-detection';
 import { PhotoAsset } from '../lightroom-types';
+import { MergedPhoto, findMerges } from './merged-photo';
 
 /** One row of the check's result: the verdict, plus enough to show it. */
 export interface EditFinding extends EditVerdict {
@@ -50,6 +53,8 @@ export class EditDetectionService {
   private readonly hashes = inject(HashStore);
   private readonly manifests = inject(AlbumManifestStore);
   private readonly meta = inject(AssetMetaStore);
+  private readonly groups = inject(GroupStore);
+  private readonly mergeRecords = inject(PhotoMergeStore);
   private readonly reviews = inject(ReviewStore);
   private readonly hasher = inject(ImageHasher);
   private readonly sanitizer = inject(DomSanitizer);
@@ -58,6 +63,15 @@ export class EditDetectionService {
 
   /** What the last check found, newest run replacing the last. Null until one has been run. */
   readonly findings = signal<EditFinding[] | null>(null);
+
+  /**
+   * Photographs Lightroom has merged out of frames that were sent off to be edited.
+   *
+   * Held apart from the findings because it is a different question with a different answer. A
+   * finding says a photograph changed; this says several photographs became one, and what settles it
+   * is not "this one is done" but "these are finished, and here is what came of them".
+   */
+  readonly merges = signal<MergedPhoto[]>([]);
   readonly checking = signal(false);
   /** True when the album could not be read at all — the panel says so rather than "nothing found". */
   readonly failed = signal(false);
@@ -172,12 +186,14 @@ export class EditDetectionService {
     this.picking.set(picking);
     try {
       this.findings.set(await build(await this.readQueue()));
+      this.merges.set(await this.findMerges());
       // Only what the panel will actually show. Fetching a picture for the rest would undo the cheap
       // pass — whose whole point is that a photo whose revision never moved is never downloaded.
       void this.loadThumbnails(this.shownFindings().map((finding) => finding.assetId));
     } catch {
       this.failed.set(true);
       this.findings.set([]);
+      this.merges.set([]);
     } finally {
       this.checking.set(false);
       this.panelOpen.set(true);
@@ -347,12 +363,88 @@ export class EditDetectionService {
       // A photo the check found need not be on today's deck at all — the check reads the whole
       // KeeperEdit album — so this is a no-op for the ones that are not, and the tally counts the
       // finished edit either way.
-      this.feed.photos.update((list) =>
-        list.map((item) => (item.id === id ? { ...item, status: 'toPrint' as const } : item)),
-      );
+      this.setDeckStatus(id, 'toPrint');
       this.progress.recordEdit();
     }
     this.dropFindings(assetIds);
+  }
+
+  /**
+   * Merges Lightroom has already written, waiting to be settled.
+   *
+   * Read from what the scan has stored rather than from Lightroom: the merge lands in the album its
+   * frames came from, not in KeeperEdit, so the listing this check is built on would never show it.
+   * That does mean a panorama merged since the last scan is not seen until the next one — the same
+   * wait as anything else new in the catalogue.
+   *
+   * Merges already settled are left out: that sweep has left the queue, and the record of what it
+   * became is the thing this would otherwise offer to make again.
+   */
+  private async findMerges(): Promise<MergedPhoto[]> {
+    const [meta, verdicts, groups, settled] = await Promise.all([
+      this.meta.getAll(),
+      this.reviews.getVerdicts(),
+      this.groups.getAll(),
+      this.mergeRecords.getAll(),
+    ]);
+
+    // The set a frame belongs to, so a merge settles every photograph behind it rather than the one
+    // Lightroom happened to name it after. Any kind of group: a sweep arrives as a pano, while the
+    // brackets an HDR is merged from are near-identical frames seconds apart — which is a burst.
+    const setOf = new Map<string, string[]>();
+    for (const group of groups) {
+      for (const frameId of group.memberIds) setOf.set(frameId, group.memberIds);
+    }
+
+    const files = [...meta].map(([id, asset]) => ({ id, name: asset.name }));
+    const found = findMerges(
+      files,
+      (assetId) => verdicts.get(assetId)?.status === 'toEdit',
+      (assetId) => setOf.get(assetId),
+    );
+    return found.filter((merge) => !settled.has(merge.mergedId));
+  }
+
+  /**
+   * "Those are one photograph now": the merge becomes the photograph, and its frames stand down.
+   *
+   * <p>The merge is marked as an edit finished, which is what puts it in front of the Prints tab —
+   * it is the thing worth printing and the thing worth looking at, and until now it was neither,
+   * being a photograph the app had no opinion about at all.
+   *
+   * <p>The frames are kept and set aside from printing. They are the originals and worth keeping, but
+   * printing them beside the photograph they were merged into is not what anybody meant; `saveOnly` is
+   * exactly that distinction and already understood by the print bins. Their baselines go too — they
+   * have left the queue, so there is nothing left to compare them against.
+   *
+   * <p>What links the two is written down first. A merge and its sources are separate assets tied
+   * together by nothing but a filename, and once the frames leave the queue nothing else would say
+   * those photographs are the merge's originals.
+   */
+  async settleMerge(merge: MergedPhoto): Promise<void> {
+    await this.mergeRecords.record(merge.mergedId, merge.frameIds);
+
+    const verdicts = await this.reviews.getVerdicts();
+    for (const frameId of merge.frameIds) {
+      const verdict = verdicts.get(frameId);
+      await this.reviews.setVerdict(frameId, {
+        status: 'kept',
+        starred: verdict?.starred ?? false,
+        saveOnly: true,
+      });
+      await this.forget(frameId);
+      this.setDeckStatus(frameId, 'kept');
+    }
+
+    await this.sendToPrint([merge.mergedId]);
+    this.merges.update((list) => list.filter((one) => one.mergedId !== merge.mergedId));
+  }
+
+  /** Keeps the deck in step with a decision made from a list, for the units that are on it. */
+  private setDeckStatus(assetId: string, status: 'kept' | 'toPrint'): void {
+    this.feed.photos.update((list) =>
+      list.map((item) => (item.id === assetId ? { ...item, status } : item)),
+    );
   }
 
   /**

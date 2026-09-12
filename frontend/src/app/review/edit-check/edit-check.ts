@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
 import { EditDetectionService, EditFinding } from '../edit-detection.service';
+import { MergedPhoto } from '../merged-photo';
 
 /**
  * What the check found, and what to do about it.
@@ -61,6 +62,20 @@ export class EditCheckComponent {
         this.selected.set(picking ? new Set() : new Set(rows.map((row) => row.assetId))),
       );
     });
+  }
+
+  /**
+   * Frames that have become one photograph since they were sent off — a panorama, an HDR, or both.
+   *
+   * Listed above the findings rather than among them: a finding asks "is this one done?", while this
+   * says that several photographs have become one — a different question, and one press of it
+   * settles the whole set.
+   */
+  readonly merges = this.detection.merges;
+
+  /** "Yes, that is it" — the merge becomes the photograph and its frames stand down. */
+  settleMerge(merge: MergedPhoto): void {
+    void this.detection.settleMerge(merge);
   }
 
   /** The photo for a row, once its preview has arrived. */
