@@ -44,6 +44,7 @@ const USAGE_GROUPS: TypedGroupSpec[] = [
       'albumTags',
       'dayCensus',
       'deletionLog',
+      'photoMerge',
       'groupOverrides',
       'groupReclass',
       'groupMembers',

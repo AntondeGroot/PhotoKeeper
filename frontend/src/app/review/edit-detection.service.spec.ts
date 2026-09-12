@@ -8,6 +8,9 @@ import { EditBaselineStore } from '../storage/review/edit-baseline-store';
 import { HashStore } from '../storage/detection/hash-store';
 import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
+import { GroupStore } from '../storage/detection/group-store';
+import { MergedPhotoRecord, PhotoMergeStore } from '../storage/review/photo-merge-store';
+import { DetectedGroup } from '../detection/detectors/detection-types';
 import { ReviewStore } from '../storage/review/review-store';
 import { ReviewFeedService } from './review-feed.service';
 import { DailyProgressService } from './daily-progress.service';
@@ -39,6 +42,12 @@ describe('EditDetectionService', () => {
   let deck: ReturnType<typeof signal<{ id: string; status: string }[]>>;
   /** How many finished edits the day has been told about. */
   let edits: number;
+  /** Detected groups, which say which frames a merged panorama's sweep consists of. */
+  let groups: DetectedGroup[];
+  /** Merges already settled, so a sweep is not offered twice. */
+  let mergeRecords: Map<string, MergedPhotoRecord>;
+  /** What the scan has stored about each asset — where a merged panorama is noticed by name. */
+  let assetMeta: Map<string, { name: string }>;
 
   beforeEach(() => {
     albumAssets = [];
@@ -52,6 +61,9 @@ describe('EditDetectionService', () => {
     storedHash = 'stored-hash';
     deck = signal<{ id: string; status: string }[]>([]);
     edits = 0;
+    groups = [];
+    mergeRecords = new Map();
+    assetMeta = new Map([['a', { name: 'DSC_1.NEF' }]]);
 
     TestBed.configureTestingModule({
       providers: [
@@ -90,7 +102,7 @@ describe('EditDetectionService', () => {
         {
           provide: AssetMetaStore,
           useValue: {
-            getAll: () => Promise.resolve(new Map([['a', { name: 'DSC_1.NEF' }]])),
+            getAll: () => Promise.resolve(assetMeta),
             get: () => Promise.resolve(undefined),
           },
         },
@@ -100,6 +112,17 @@ describe('EditDetectionService', () => {
           provide: ImageHasher,
           useValue: {
             hash: (blob: Blob) => Promise.resolve((blob as Blob & { hash: string }).hash),
+          },
+        },
+        { provide: GroupStore, useValue: { getAll: () => Promise.resolve(groups) } },
+        {
+          provide: PhotoMergeStore,
+          useValue: {
+            getAll: () => Promise.resolve(mergeRecords),
+            record: (mergedId: string, frameIds: string[]) => {
+              mergeRecords.set(mergedId, { frameIds, at: 1 });
+              return Promise.resolve();
+            },
           },
         },
         { provide: ReviewFeedService, useValue: { photos: deck } },
@@ -439,5 +462,118 @@ describe('EditDetectionService', () => {
 
     expect(baselines.get('a')).toMatchObject({ hash: 'bb', updated: 'stamp-2' });
     expect(service.editedFindings()).toEqual([]);
+  });
+
+  /**
+   * What the check could never see before. Merging a sweep does not touch its frames — Lightroom
+   * writes the panorama beside them as a new photograph — so the frames stayed in the queue
+   * reporting "untouched" for ever, while the finished panorama sat in the catalogue with no verdict
+   * at all: not printable, and offered for review as though it were a fresh photo.
+   */
+  describe('frames that have become one photograph', () => {
+    /** Three frames sent to edit, and the panorama Lightroom made of them. */
+    function sweepMergedInLightroom(): void {
+      verdicts = new Map([
+        ['f1', { status: 'toEdit', starred: false, saveOnly: false }],
+        ['f2', { status: 'toEdit', starred: false, saveOnly: false }],
+        ['f3', { status: 'toEdit', starred: false, saveOnly: false }],
+      ]);
+      assetMeta = new Map([
+        ['f1', { name: 'DSC_6468' }],
+        ['f2', { name: 'DSC_6469' }],
+        ['f3', { name: 'DSC_6470' }],
+        ['m1', { name: 'DSC_6470-Pano' }],
+      ]);
+      groups = [{ type: 'pano', sourceAlbumId: 'alb', memberIds: ['f1', 'f2', 'f3'] }];
+    }
+
+    beforeEach(() => sweepMergedInLightroom());
+
+    it('is found by the check, with the whole sweep behind it', async () => {
+      await service.check();
+
+      expect(service.merges()).toEqual([
+        {
+          mergedId: 'm1',
+          mergedName: 'DSC_6470-Pano',
+          kind: 'panorama',
+          frameIds: ['f1', 'f2', 'f3'],
+        },
+      ]);
+    });
+
+    /**
+     * The brackets an HDR is merged from are near-identical frames seconds apart, so detection calls
+     * them a burst. A rule that only looked at panorama groups would settle the one frame Lightroom
+     * named and leave the rest of the bracket sitting in the edit queue.
+     */
+    it('finds an HDR whose brackets were detected as a burst', async () => {
+      assetMeta.set('m1', { name: 'DSC_6470-HDR' });
+      groups = [{ type: 'burst', sourceAlbumId: 'alb', memberIds: ['f1', 'f2', 'f3'] }];
+
+      await service.check();
+
+      expect(service.merges()).toEqual([
+        {
+          mergedId: 'm1',
+          mergedName: 'DSC_6470-HDR',
+          kind: 'HDR photo',
+          frameIds: ['f1', 'f2', 'f3'],
+        },
+      ]);
+    });
+
+    it('makes the merge the one to print', async () => {
+      await service.check();
+      await service.settleMerge(service.merges()[0]);
+
+      expect(verdicts.get('m1')).toMatchObject({ status: 'toPrint', saveOnly: false });
+    });
+
+    /**
+     * The frames are the originals and worth keeping — but printing them beside the panorama they
+     * were merged into is not what anybody meant.
+     */
+    it('keeps the frames, out of print orders', async () => {
+      await service.check();
+      await service.settleMerge(service.merges()[0]);
+
+      for (const frame of ['f1', 'f2', 'f3']) {
+        expect(verdicts.get(frame), frame).toMatchObject({ status: 'kept', saveOnly: true });
+      }
+    });
+
+    /** Which photographs a panorama came from is not recorded anywhere else. */
+    it('writes down where the originals are', async () => {
+      await service.check();
+      await service.settleMerge(service.merges()[0]);
+
+      expect(mergeRecords.get('m1')?.frameIds).toEqual(['f1', 'f2', 'f3']);
+    });
+
+    it('takes the sweep out of the edit queue it was waiting in', async () => {
+      await service.check();
+      await service.settleMerge(service.merges()[0]);
+      await service.check();
+
+      expect(service.merges()).toEqual([]);
+    });
+
+    /** A panorama already settled must not be offered again on the next check. */
+    it('says nothing about a merge already settled', async () => {
+      mergeRecords.set('m1', { frameIds: ['f1', 'f2', 'f3'], at: 1 });
+
+      await service.check();
+
+      expect(service.merges()).toEqual([]);
+    });
+
+    /** The day's work counts it once: one sweep finished is one edit done. */
+    it('counts as an edit finished', async () => {
+      await service.check();
+      await service.settleMerge(service.merges()[0]);
+
+      expect(edits).toBe(1);
+    });
   });
 });

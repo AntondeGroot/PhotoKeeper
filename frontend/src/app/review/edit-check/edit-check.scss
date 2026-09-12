@@ -152,3 +152,63 @@
     cursor: default;
   }
 }
+
+/* ── Merged panoramas ──
+   A wider card than a finding's tile: the panorama is the point, and it is the shape the tile grid
+   cannot show. */
+.merge-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0 16px;
+  display: grid;
+  gap: 10px;
+
+  li {
+    border: 1px solid var(--c-amber);
+    border-radius: 12px;
+    padding: 10px;
+    background: color-mix(in srgb, var(--c-amber) 8%, transparent);
+  }
+}
+
+.merge-what {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.merge-img {
+  width: 96px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.merge-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.merge-note {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--c-dim);
+}
+
+.merge-done {
+  margin-top: 10px;
+  width: 100%;
+  padding: 9px 0;
+  border-radius: 10px;
+  border: 1px solid var(--c-amber);
+  background: transparent;
+  color: var(--c-amber);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}

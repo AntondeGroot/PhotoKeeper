@@ -16,6 +16,35 @@
         moment.
       </p>
     } @else {
+      <!-- Merges first: several photographs that have become one is a bigger answer than any single
+           row below, and settling it takes all of them out of the list at once. -->
+      @if (merges().length > 0) {
+        <ul class="merge-list">
+          @for (merge of merges(); track merge.mergedId) {
+            <li>
+              <div class="merge-what">
+                @if (thumbnail(merge.mergedId); as url) {
+                  <img class="merge-img" [src]="url" alt="" draggable="false" />
+                } @else {
+                  <span class="tile-blank"></span>
+                }
+                <div>
+                  <p class="merge-name">{{ merge.mergedName }}</p>
+                  <p class="merge-note">
+                    A {{ merge.kind }} from {{ merge.frameIds.length }}
+                    {{ merge.frameIds.length === 1 ? 'frame' : 'frames' }}. It becomes the one to
+                    print; the frames are kept, out of print orders.
+                  </p>
+                </div>
+              </div>
+              <button class="merge-done" (click)="settleMerge(merge)">
+                That’s the {{ merge.kind }}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
       <ul class="check-list">
         @for (finding of rows(); track finding.assetId) {
           <li>

@@ -6,6 +6,7 @@ import { AlbumPrintState, PrintBin } from '../prints/prints.types';
 import { EditBaseline } from '../review/edit-detection';
 import { CurrentPick, ShownRecord } from '../celebrations/celebration.types';
 import { DayCensus, DeletionRecord } from '../stats/census';
+import { MergedPhotoRecord } from './review/photo-merge-store';
 import {
   DetectedGroup,
   FrameSignature,
@@ -122,6 +123,7 @@ export interface AlbumManifest {
  * - albumPrint: album name → its print-fulfilment state (ordered/placed) for the Prints tab
  * - dayCensus: 'YYYY-MM-DD' → what the library looked like that day (see stats/census.ts)
  * - deletionLog: assetId → when that photo was first seen deleted (tombstones are purged)
+ * - photoMerge: merged assetId → the frames that panorama or HDR was made from
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -148,6 +150,7 @@ export interface PhotoKeeperSchema extends DBSchema {
   keeperFiling: { key: string; value: FiledRecord };
   dayCensus: { key: string; value: DayCensus };
   deletionLog: { key: string; value: DeletionRecord };
+  photoMerge: { key: string; value: MergedPhotoRecord };
 }
 
 /**
@@ -281,8 +284,10 @@ export class PhotoKeeperDb {
     // because Lightroom purges the tombstone after thirty days). Both are records rather than
     // caches — see the note on STALE_AT above. v32 drops every stored group + manifest so each
     // album is detected again without Lightroom's edits clustered against their own originals.
+    // v33 added 'photoMerge' (which merged photograph came from which frames), a record and not
+    // a cache: once the sources have left the edit queue, nothing else says they are its originals.
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 32, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 33, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -316,6 +321,7 @@ export class PhotoKeeperDb {
           'editBaseline',
           'dayCensus',
           'deletionLog',
+          'photoMerge',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

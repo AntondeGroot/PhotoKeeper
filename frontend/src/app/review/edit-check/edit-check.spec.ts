@@ -3,6 +3,7 @@ import { computed, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { EditCheckComponent } from './edit-check';
 import { EditDetectionService, EditFinding } from '../edit-detection.service';
+import { MergedPhoto } from '../merged-photo';
 import { edited } from '../edit-detection';
 
 const finding = (assetId: string, state: EditFinding['state']): EditFinding => ({
@@ -18,12 +19,18 @@ describe('EditCheckComponent', () => {
   let picking: ReturnType<typeof signal<boolean>>;
   let sent: string[][];
   let thumbnails: ReturnType<typeof signal<ReadonlyMap<string, SafeUrl>>>;
+  /** Sweeps the check found already merged into a panorama. */
+  let merges: ReturnType<typeof signal<MergedPhoto[]>>;
+  /** Which merges the panel settled — what "That's the panorama" does. */
+  let settled: string[];
 
-  function render(rows: EditFinding[], byHand: boolean) {
+  function render(rows: EditFinding[], byHand: boolean, found: MergedPhoto[] = []) {
     findings = signal<EditFinding[] | null>(rows);
     picking = signal(byHand);
     sent = [];
     thumbnails = signal<ReadonlyMap<string, SafeUrl>>(new Map());
+    merges = signal<MergedPhoto[]>(found);
+    settled = [];
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [EditCheckComponent],
@@ -47,6 +54,11 @@ describe('EditCheckComponent', () => {
               return Promise.resolve();
             },
             keepEditing: () => Promise.resolve(),
+            merges,
+            settleMerge: (merge: { mergedId: string }) => {
+              settled.push(merge.mergedId);
+              return Promise.resolve();
+            },
           },
         },
       ],
@@ -130,6 +142,42 @@ describe('EditCheckComponent', () => {
 
       expect(root.querySelector('.check-note')?.textContent).toContain('Tick the ones you have');
       expect(root.querySelector('#check-title')?.textContent?.trim()).toBe('Which ones are done?');
+    });
+  });
+
+  /**
+   * A merged panorama is a bigger answer than any row below it: one press settles a whole sweep, so
+   * it is shown as its own card rather than as another tile to tick.
+   */
+  describe('frames already merged into one photograph', () => {
+    const merge: MergedPhoto = {
+      mergedId: 'm1',
+      mergedName: 'DSC_6470-Pano',
+      kind: 'panorama',
+      frameIds: ['f1', 'f2', 'f3'],
+    };
+
+    it('names the merge and says how many frames it came from', () => {
+      render([finding('a', 'untouched')], false, [merge]);
+
+      const card = root.querySelector('.merge-list');
+      expect(card?.textContent).toContain('DSC_6470-Pano');
+      expect(card?.textContent).toContain('3 frames');
+    });
+
+    it('settles the set when the merge is confirmed', () => {
+      render([], false, [merge]);
+
+      root.querySelector<HTMLButtonElement>('.merge-done')?.click();
+
+      expect(settled).toEqual(['m1']);
+    });
+
+    /** Nothing merged, nothing said: the panel is about edits, and this card is not always relevant. */
+    it('shows no card when nothing has been merged', () => {
+      render([finding('a', 'edited')], false);
+
+      expect(root.querySelector('.merge-list')).toBeNull();
     });
   });
 });
