@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../lightroom.service';
+import { PhotoAsset } from '../lightroom-types';
 import { KeeperAlbumsService } from '../keeper-albums.service';
 import { albumForVerdict, belongsInPrintBin, isPrintBin } from '../keeper-albums';
 import { ReviewStore } from '../storage/review/review-store';
@@ -8,6 +9,7 @@ import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { StoredVerdict } from '../storage/photokeeper-db';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewUndoService } from './review-undo.service';
+import { CensusService } from '../stats/census.service';
 import { isUnitId, splitFileName } from '../photo';
 
 /**
@@ -74,6 +76,7 @@ export class KeeperFilingService {
   private readonly filed = inject(KeeperFilingStore);
   private readonly meta = inject(AssetMetaStore);
   private readonly undoStack = inject(ReviewUndoService);
+  private readonly census = inject(CensusService);
 
   /** Photos filed in the last sweep, for the settings line that says what happened. */
   readonly lastFiled = signal(0);
@@ -173,6 +176,7 @@ export class KeeperFilingService {
       const albumId = this.albums.idFor(album);
       if (!albumId) continue;
       const held = await firstValueFrom(this.svc.getAllAlbumAssets(albumId));
+      this.noteContents(album, held);
       // A tombstone is not something to remove: that photo has been deleted, which is the end of it.
       const nameById = new Map(
         held
@@ -261,7 +265,7 @@ export class KeeperFilingService {
       const albumId = this.albums.idFor(album);
       // No album in the catalogue means nothing to compare against — not that everything is missing.
       if (!albumId) continue;
-      const { present, deleted } = await this.contentsOf(albumId);
+      const { present, deleted } = await this.contentsOf(albumId, album);
       const missing = assetIds.filter((assetId) => !present.has(assetId));
       const goneForGood = assetIds.filter((assetId) => deleted.has(assetId)).length;
       if (missing.length > 0 || goneForGood > 0) {
@@ -279,6 +283,7 @@ export class KeeperFilingService {
    */
   private async contentsOf(
     albumId: string,
+    album?: string,
   ): Promise<{ present: ReadonlySet<string>; deleted: ReadonlySet<string> }> {
     const held = await firstValueFrom(this.svc.getAllAlbumAssets(albumId));
     const present = new Set<string>();
@@ -290,7 +295,30 @@ export class KeeperFilingService {
       present.add(was);
       deleted.add(was);
     }
+    if (album) this.noteContents(album, held);
     return { present, deleted };
+  }
+
+  /**
+   * Tells the census what an album holds, at the one moment its contents are in hand.
+   *
+   * Listing an album costs a request, so the census never asks for itself: it takes what a tidy-up
+   * check was fetching anyway, and a day on which nothing looked simply has no album counts. A
+   * tombstone is a photograph Lightroom has deleted, so the two are counted apart — and the deleted
+   * ones are named rather than tallied, because the tombstone does not last (see the census).
+   *
+   * Best-effort, and never awaited: recording must not slow down, or break, the check it rides on.
+   */
+  private noteContents(album: string, held: readonly PhotoAsset[]): void {
+    // By id, not by count: Lightroom purges a tombstone after thirty days, so a photograph seen to
+    // have been deleted has to be written down while it can still be named.
+    const deletedIds = held
+      .filter((asset) => asset.subtype === 'deleted_image')
+      .map((asset) => asset.original?.id)
+      .filter((id): id is string => !!id);
+    void this.census
+      .recordAlbum(album, { live: held.length - deletedIds.length, deletedIds })
+      .catch(() => undefined);
   }
 
   /**

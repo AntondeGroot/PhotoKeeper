@@ -5,6 +5,7 @@ import { Tag } from '../tagging/tags';
 import { AlbumPrintState, PrintBin } from '../prints/prints.types';
 import { EditBaseline } from '../review/edit-detection';
 import { CurrentPick, ShownRecord } from '../celebrations/celebration.types';
+import { DayCensus, DeletionRecord } from '../stats/census';
 import {
   DetectedGroup,
   FrameSignature,
@@ -119,6 +120,8 @@ export interface AlbumManifest {
  * - tags: tagId → a user-defined content tag (the editable catalog)
  * - assetTags: assetId → the tag ids applied to that photo (the Tag-mode assignments)
  * - albumPrint: album name → its print-fulfilment state (ordered/placed) for the Prints tab
+ * - dayCensus: 'YYYY-MM-DD' → what the library looked like that day (see stats/census.ts)
+ * - deletionLog: assetId → when that photo was first seen deleted (tombstones are purged)
  */
 export interface PhotoKeeperSchema extends DBSchema {
   previews: { key: string; value: Blob };
@@ -143,6 +146,8 @@ export interface PhotoKeeperSchema extends DBSchema {
   celebrationCurrent: { key: string; value: CurrentPick };
   reviewBuffer: { key: string; value: ReviewItem[] };
   keeperFiling: { key: string; value: FiledRecord };
+  dayCensus: { key: string; value: DayCensus };
+  deletionLog: { key: string; value: DeletionRecord };
 }
 
 /**
@@ -171,8 +176,9 @@ export interface FiledRecord {
  * Derived data that a code change invalidated, and the version that did it. On upgrade every entry
  * newer than the DB gets cleared, so each one only has to answer "what did this change make wrong?"
  *
- * Only ever caches and derived state — never anything the user produced. Verdicts, tags and print
- * state are absent by design: those are the record of somebody's work and are not rebuildable.
+ * Only ever caches and derived state — never anything the user produced. Verdicts, tags, print state
+ * and the daily census are absent by design: those are the record of somebody's work — or of a day
+ * that cannot be observed again — and are not rebuildable.
  */
 const STALE_AT: readonly (readonly [number, readonly StaleStore[]])[] = [
   // v10: the aspect gate joined detection, so every album has to be looked at again.
@@ -260,9 +266,12 @@ export class PhotoKeeperDb {
     // 'printBins' (which print bin holds which album's order), for the print set now being sent
     // deliberately from the Prints tab rather than filed the moment a photo was promoted. v30 added
     // 'editBaseline' (what a photo looked like when it was sent to edit), so the Edit pass can tell
-    // which photos have actually been worked on.
+    // which photos have actually been worked on. v31 added 'dayCensus' (one row per day: how big the
+    // library was and what had been decided) and 'deletionLog' (each photo seen deleted, once,
+    // because Lightroom purges the tombstone after thirty days). Both are records rather than
+    // caches — see the note on STALE_AT above.
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 30, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 31, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
@@ -294,6 +303,8 @@ export class PhotoKeeperDb {
           'keeperFiling',
           'printBins',
           'editBaseline',
+          'dayCensus',
+          'deletionLog',
         ] as const) {
           if (!db.objectStoreNames.contains(store)) {
             db.createObjectStore(store);

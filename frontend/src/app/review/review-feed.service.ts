@@ -11,6 +11,7 @@ import { PreferencesService } from '../preferences.service';
 import { ReviewBufferService } from './review-buffer.service';
 import { DayService } from './day.service';
 import { KeeperFilingService } from './keeper-filing.service';
+import { CensusService } from '../stats/census.service';
 import { ReviewUndoService } from './review-undo.service';
 import {
   DEVICE_PHOTOS,
@@ -43,6 +44,7 @@ export class ReviewFeedService {
   readonly buffer = inject(ReviewBufferService);
   private readonly day = inject(DayService);
   private readonly filing = inject(KeeperFilingService);
+  private readonly census = inject(CensusService);
   private readonly undoStack = inject(ReviewUndoService);
   /** The day the deck in hand belongs to — see the rollover effect below. */
   private dayOfDeck = this.day.today();
@@ -165,6 +167,9 @@ export class ReviewFeedService {
     // is also the moment to catch up on everything decided while offline, before the albums existed,
     // or before the app could write at all — and it treats those exactly as it treats today's.
     void this.filing.sweep();
+    // What the library looked like today, written down while it can still be observed: none of it
+    // can be recovered afterwards, so a day that goes unrecorded is a day no chart can ever show.
+    void this.census.recordToday().catch(() => undefined);
 
     // Drop previews + stored selections from earlier days. Today's deck is kept, and so is the
     // buffer's warm front — those previews were fetched precisely so the next batch opens without

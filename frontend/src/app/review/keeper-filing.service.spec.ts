@@ -7,6 +7,7 @@ import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewUndoService } from './review-undo.service';
+import { CensusService } from '../stats/census.service';
 import { FiledRecord, StoredVerdict } from '../storage/photokeeper-db';
 
 const verdict = (status: StoredVerdict['status']): StoredVerdict => ({
@@ -28,6 +29,8 @@ describe('KeeperFilingService', () => {
   let names: Map<string, { name: string }>;
   /** Assets whose decision the user can still take back, which the sweep must leave alone. */
   let undoable: Set<string>;
+  /** What the census was told an album holds — it rides along on the listings these checks make. */
+  let recorded: { album: string; live: number; deletedIds: readonly string[] }[];
   /**
    * What each Lightroom album actually holds right now — album id → rows. A string is a photograph;
    * `{tombstone}` is what Lightroom leaves in place of one that has been deleted.
@@ -45,6 +48,7 @@ describe('KeeperFilingService', () => {
     unfilable = new Set();
     undoable = new Set();
     heldByAlbum = new Map();
+    recorded = [];
     names = new Map([
       ['a', { name: 'DSC_0001' }],
       ['b', { name: 'DSC_0002' }],
@@ -99,6 +103,18 @@ describe('KeeperFilingService', () => {
         { provide: ReviewStore, useValue: { getVerdicts: () => Promise.resolve(verdicts) } },
         { provide: AssetMetaStore, useValue: { getAll: () => Promise.resolve(names) } },
         { provide: ReviewUndoService, useValue: { heldAssetIds: () => undoable } },
+        {
+          provide: CensusService,
+          useValue: {
+            recordAlbum: (
+              album: string,
+              counts: { live: number; deletedIds: readonly string[] },
+            ) => {
+              recorded.push({ album, ...counts });
+              return Promise.resolve();
+            },
+          },
+        },
         {
           provide: KeeperFilingStore,
           useValue: {
@@ -547,5 +563,37 @@ describe('KeeperFilingService', () => {
     heldByAlbum.set('al-del', ['a']);
 
     expect(await filing.staleInAlbums()).toEqual(new Map());
+  });
+
+  /**
+   * The progress chart's Lightroom side. Listing an album costs a request, so the census never asks
+   * for one: it takes what these checks were fetching anyway. A day on which the user never opened
+   * Tidy up simply has no album counts, which is honest — nothing looked.
+   */
+  describe('what it tells the census', () => {
+    it('records an album it listed while looking for what was lost', async () => {
+      verdicts.set('a', { status: 'rejected', starred: false, saveOnly: false });
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      heldByAlbum.set('al-del', ['a', 'b', { tombstone: 'c' }]);
+
+      await filing.filingGaps();
+
+      expect(recorded).toEqual([{ album: 'KeeperDelete', live: 2, deletedIds: ['c'] }]);
+    });
+
+    /**
+     * A tombstone is a deletion carried out, and it is named rather than tallied: Lightroom purges
+     * it after thirty days, so a count taken from the album would fall back to nothing while the
+     * deleting had in fact been done. The id is what the ledger needs to count it once, for ever.
+     */
+    it('names the photographs a tombstone stands for, apart from the live ones', async () => {
+      verdicts.set('a', { status: 'kept', starred: false, saveOnly: false });
+      filed.set('a', { albums: ['KeeperDelete'], at: 1 });
+      heldByAlbum.set('al-del', ['a', { tombstone: 'x' }, { tombstone: 'y' }]);
+
+      await filing.staleInAlbums();
+
+      expect(recorded).toEqual([{ album: 'KeeperDelete', live: 1, deletedIds: ['x', 'y'] }]);
+    });
   });
 });

@@ -93,6 +93,8 @@ describe('storage usage', () => {
       keeperFiling: true,
       printBins: true,
       editBaseline: true,
+      dayCensus: true,
+      deletionLog: true,
     };
     const grouped = STORAGE_USAGE_GROUPS.flatMap((g) => g.stores);
 

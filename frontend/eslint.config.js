@@ -107,6 +107,7 @@ export default tseslint.config(
           pattern: [
             'src/app/photo.ts',
             'src/app/verdicts.ts',
+            'src/app/stats/census.ts',
             'src/app/lightroom-types.ts',
             'src/app/keeper-albums.ts',
             'src/app/camera-metadata.ts',
