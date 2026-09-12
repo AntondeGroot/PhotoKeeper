@@ -46,20 +46,25 @@ const geoImage = (
 // Each asset gets a blob of a unique byte length; the stub hasher maps that length → a chosen hash +
 // signature. Using blob *size* (not content) keeps the mapping stable through a fake-indexeddb round-trip.
 const SIZE_OF: Record<string, number> = {
-  a1: 1,
-  a2: 2,
-  a3: 3,
-  a4: 4,
-  p1: 5,
-  p2: 6,
-  p3: 7,
-  s1: 8,
-  s2: 9,
-  d1: 10, // a derived/combined stereograph (no camera EXIF) that looks near-identical to s1/s2
-  r1: 11, // twin-DSLR rig: two bodies, one scene
-  r2: 12,
-  w1: 13, // a wide-baseline drone pair: too much parallax for the stereo threshold, not for a burst
-  w2: 14,
+  'a1': 1,
+  'a2': 2,
+  'a3': 3,
+  'a4': 4,
+  'p1': 5,
+  'p2': 6,
+  'p3': 7,
+  's1': 8,
+  's2': 9,
+  'd1': 10, // a derived/combined stereograph (no camera EXIF) that looks near-identical to s1/s2
+  'r1': 11, // twin-DSLR rig: two bodies, one scene
+  'r2': 12,
+  'w1': 13, // a wide-baseline drone pair: too much parallax for the stereo threshold, not for a burst
+  'w2': 14,
+  // Lightroom's own edit of a1: same capture second, near-identical pixels — a burst candidate on
+  // every measure detection has, which is exactly why it must never be offered as one.
+  'a1-Enhanced-NR': 15,
+  // An edit whose original is not in this album, so nothing pairs it and it is just a photograph.
+  'q1-Enhanced-NR': 16,
 };
 const HASH_BY_SIZE: Record<number, string> = {
   1: '0000000000000000',
@@ -81,6 +86,8 @@ const HASH_BY_SIZE: Record<number, string> = {
   // the band a wide baseline lands in: parallax moves the frame more than a re-shoot of one scene.
   13: '0000000000000000',
   14: 'fffff00000000000',
+  15: '0000000000000001', // hamming 1 from a1 — it would cluster with it, given the chance
+  16: '0000000000000001', // hamming 1 from a1 likewise, for the unpaired-edit case
 };
 
 // A 1-D "scene" sampled into a 64×64 grayscale signature: column c of a frame starting at scene
@@ -115,6 +122,8 @@ const SIGNATURE_BY_SIZE: Record<number, FrameSignature> = {
   12: flat,
   13: flat,
   14: flat,
+  15: flat,
+  16: flat,
 };
 const blobFor = (id: string) => new Blob(['x'.repeat(SIZE_OF[id])]);
 
@@ -184,6 +193,60 @@ describe('DetectionScanService', () => {
     groupStore = TestBed.inject(GroupStore);
     previewStore = TestBed.inject(PreviewStore);
     metaStore = TestBed.inject(AssetMetaStore);
+  });
+
+  /**
+   * The bug this exists for: Lightroom writes `DSC_1891-Enhanced-NR.dng` beside `DSC_1891.NEF`, and
+   * the two match on every criterion the burst detector has — same capture second, same camera,
+   * near-identical pixels. Clustered, the shot arrived as "which is better, A or B?" against its own
+   * denoise, a question with no answer; and because a grouped asset never reaches the edit-pairing,
+   * the before/after card the two are meant to become could not form either. Twenty such groups
+   * stood on a real catalogue.
+   */
+  describe("Lightroom's own edits", () => {
+    it('never clusters an edit with the original it came from', async () => {
+      albumAssets = [
+        image('a1', '2026-05-01T10:00:00Z'),
+        image('a1-Enhanced-NR', '2026-05-01T10:00:00Z'), // same second, as an edit always is
+      ];
+
+      const report = await service.scanAlbum('alb-e', BUDGET);
+
+      expect(report.groups).toBe(0);
+      expect(await groupStore.getByAlbum('alb-e')).toEqual([]);
+    });
+
+    /** And it is not looked at either: an edit is never a candidate, so its pixels are never fetched. */
+    it('leaves a real burst intact beside it, without hashing the edit', async () => {
+      albumAssets = [
+        image('a1', '2026-05-01T10:00:00Z'),
+        image('a2', '2026-05-01T10:00:02Z'),
+        image('a1-Enhanced-NR', '2026-05-01T10:00:00Z'),
+      ];
+
+      const report = await service.scanAlbum('alb-e', BUDGET);
+
+      expect(report.groups).toBe(1);
+      const [burst] = await groupStore.getByAlbum('alb-e');
+      const members = [...burst.memberIds].sort((a, b) => a.localeCompare(b));
+      expect(members).toEqual(['a1', 'a2']);
+      expect(fetched).not.toContain('a1-Enhanced-NR');
+    });
+
+    /**
+     * The rule is about a *pair*, not a filename. An edit that arrived without its original is a
+     * photograph like any other, and detection has to go on seeing it.
+     */
+    it('still groups an edit whose original is not in the album', async () => {
+      albumAssets = [
+        image('a1', '2026-05-01T10:00:00Z'),
+        image('q1-Enhanced-NR', '2026-05-01T10:00:02Z'),
+      ];
+
+      const report = await service.scanAlbum('alb-e', BUDGET);
+
+      expect(report.groups).toBe(1);
+    });
   });
 
   it('hashes only the burst candidates (not lone photos) and stores the detected burst', async () => {

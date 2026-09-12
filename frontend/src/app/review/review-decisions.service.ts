@@ -244,13 +244,19 @@ export class ReviewDecisionsService {
    * them had accumulated on a real catalogue. Its frames are the photographs, so they carry the
    * decision, exactly as the burst duel already writes one per frame.
    *
-   * <p>A single photo is left alone. `unitAssetIds` pairs an edit with the original it came from, and
-   * that pair is deliberately one unit: you sort the shot, not each file Lightroom wrote beside it.
+   * <p>The same is true of an edited pair, which is one card over two files — the shot and the
+   * denoise Lightroom wrote beside it. The card's id is the edit's, so recording the verdict there
+   * alone left the original with none: it is a decided photograph the app still counts as backlog,
+   * so it is never filed to Lightroom and comes back on the deck the moment anything stops the two
+   * being folded together. Fifty-five of them had built up on a real catalogue.
+   *
+   * <p>So every file the card stood for carries the decision — its own id included, which for a
+   * plain photograph is the only one there is.
    */
   decide(verdict: 'kept' | 'rejected' | 'toEdit' | 'maybe'): void {
     const current = this.feed.current();
     if (!current) return;
-    const frames = current.kind === 'photo' ? [] : unitAssetIds(current);
+    const frames = unitAssetIds(current).filter((id) => id !== current.id);
     this.capture(verdict, [current.id, ...frames]);
     // Sending a photo to edit is the moment its "before" is still true, and the only moment it is
     // certain to be — a later scan would overwrite the stores this is copied from.
@@ -259,7 +265,7 @@ export class ReviewDecisionsService {
     }
     this.setStatus(current.id, verdict);
     void this.persistVerdict(current.id);
-    // The photographs the card stands for carry the decision too — see below.
+    // The other files the card stood for carry the decision too — see above.
     for (const id of frames) {
       void this.reviewStore.setVerdict(id, { status: verdict, starred: false, saveOnly: false });
     }

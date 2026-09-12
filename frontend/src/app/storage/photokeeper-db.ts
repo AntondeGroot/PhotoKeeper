@@ -215,9 +215,19 @@ const STALE_AT: readonly (readonly [number, readonly StaleStore[]])[] = [
   // was dropping real pairs before the careful pass could measure them. It is now a coarse version
   // of the same measurement. Queued units were drawn under the old one.
   [27, ['reviewBuffer', 'dailyFeed']],
+  // v32: Lightroom's own edits were being clustered with the originals they came from — an edit
+  // matches its original on every criterion the burst detector has — so a shot arrived as a duel
+  // against its own denoise, and the before/after card the pair should have become could never
+  // form, selection only folding a pair whose halves are ungrouped. Twenty such groups stood on a
+  // real catalogue. The stored groups say what the old rule found, so they go and every album is
+  // detected again; the queue goes with them, having been drawn from that grouping.
+  //
+  // Today's deck is deliberately spared: it is already decided, so it holds no duel anyone will
+  // meet, and dropping it would reset the day's tally under a streak that has it counted.
+  [32, ['groups', 'albumManifest', 'reviewBuffer']],
 ];
 
-type StaleStore = 'albumManifest' | 'assetHash' | 'reviewBuffer' | 'dailyFeed';
+type StaleStore = 'albumManifest' | 'assetHash' | 'reviewBuffer' | 'dailyFeed' | 'groups';
 
 @Injectable({ providedIn: 'root' })
 export class PhotoKeeperDb {
@@ -269,9 +279,10 @@ export class PhotoKeeperDb {
     // which photos have actually been worked on. v31 added 'dayCensus' (one row per day: how big the
     // library was and what had been decided) and 'deletionLog' (each photo seen deleted, once,
     // because Lightroom purges the tombstone after thirty days). Both are records rather than
-    // caches — see the note on STALE_AT above.
+    // caches — see the note on STALE_AT above. v32 drops every stored group + manifest so each
+    // album is detected again without Lightroom's edits clustered against their own originals.
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 31, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 32, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;

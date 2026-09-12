@@ -9,6 +9,7 @@
 import { PhotoAsset } from '../../lightroom-types';
 import { DetectedGroup } from '../../detection/detectors/detection-types';
 import { cameraSerial } from '../../camera-metadata';
+import { editPairs, splitAsset } from '../../edit-pairs';
 import { haversineMeters } from '../../detection/detectors/stereo';
 import {
   Burst,
@@ -21,7 +22,6 @@ import {
   StereoBaseline,
   StereoFrame,
   StereoGap,
-  splitFileName,
   unitAssetIds,
 } from '../../photo';
 
@@ -45,37 +45,6 @@ export interface AlbumUnits {
    * incomplete stereo unit instead of a photograph — see {@link toIncompleteStereo}.
    */
   stereoGaps?: ReadonlyMap<string, StereoGap>;
-}
-
-/**
- * Suffixes Lightroom appends when it writes an edit beside the original: `DSC_1878.NEF` gains a
- * `DSC_1878-Enhanced-NR.dng`. Deliberately not `-Pano` or `-HDR` — those are merges of *several*
- * originals, so neither one of them is "the same shot" the way a denoise or an edit is.
- */
-const EDIT_SUFFIX = /-(Enhanced-NR|Enhanced|Edit)$/i;
-
-/**
- * Maps each edit's asset id to the original it was derived from, matching on the filename stem.
- *
- * These pairs are why a photo could turn up duelling itself. An edit shares its original's capture
- * time exactly, comes from the same camera, and is near-identical pixel-wise, so it satisfies every
- * burst criterion and arrived as "which is better — A or B?" between a shot and its own denoise.
- */
-function editPairs(assets: readonly PhotoAsset[]): Map<string, PhotoAsset> {
-  const byStem = new Map<string, PhotoAsset>();
-  for (const asset of assets) {
-    const { name } = splitAsset(asset);
-    if (!EDIT_SUFFIX.test(name)) byStem.set(name.toLowerCase(), asset);
-  }
-  const pairs = new Map<string, PhotoAsset>();
-  for (const asset of assets) {
-    const { name } = splitAsset(asset);
-    const stem = name.replace(EDIT_SUFFIX, '');
-    if (stem === name) continue; // not an edit
-    const original = byStem.get(stem.toLowerCase());
-    if (original) pairs.set(asset.id, original);
-  }
-  return pairs;
 }
 
 /** A vacation album is this many times more likely to be drawn than a normal album. */
@@ -467,11 +436,6 @@ function toStereoFrame(asset: PhotoAsset): StereoFrame {
 }
 
 const frameCount = (n: number): string => `${n} frame${n === 1 ? '' : 's'}`;
-
-/** The display name + original extension of an asset, from its import filename (falling back to id). */
-function splitAsset(asset: PhotoAsset): { name: string; ext?: string } {
-  return splitFileName(asset.payload?.importSource?.fileName ?? asset.id);
-}
 
 /** Fisher–Yates with an injected rng, on a copy (never mutates the input). */
 function shuffle<T>(items: readonly T[], rng: () => number): T[] {

@@ -11,6 +11,7 @@ import { PreferencesService } from '../preferences.service';
 import { ReviewBufferService } from './review-buffer.service';
 import { DayService } from './day.service';
 import { KeeperFilingService } from './keeper-filing.service';
+import { EditVerdictRepairService } from './edit-verdict-repair.service';
 import { CensusService } from '../stats/census.service';
 import { ReviewUndoService } from './review-undo.service';
 import {
@@ -44,6 +45,7 @@ export class ReviewFeedService {
   readonly buffer = inject(ReviewBufferService);
   private readonly day = inject(DayService);
   private readonly filing = inject(KeeperFilingService);
+  private readonly repair = inject(EditVerdictRepairService);
   private readonly census = inject(CensusService);
   private readonly undoStack = inject(ReviewUndoService);
   /** The day the deck in hand belongs to — see the rollover effect below. */
@@ -166,10 +168,7 @@ export class ReviewFeedService {
     // Write decided photos back into the Keeper albums. Here rather than per swipe: loading a day
     // is also the moment to catch up on everything decided while offline, before the albums existed,
     // or before the app could write at all — and it treats those exactly as it treats today's.
-    void this.filing.sweep();
-    // What the library looked like today, written down while it can still be observed: none of it
-    // can be recovered afterwards, so a day that goes unrecorded is a day no chart can ever show.
-    void this.census.recordToday().catch(() => undefined);
+    void this.catchUp();
 
     // Drop previews + stored selections from earlier days. Today's deck is kept, and so is the
     // buffer's warm front — those previews were fetched precisely so the next batch opens without
@@ -251,6 +250,20 @@ export class ReviewFeedService {
     const deck = [...base, ...device];
     this.photos.set(deck);
     if (this.index() >= deck.length) this.index.set(Math.max(0, deck.length - 1));
+  }
+
+  /**
+   * The catching-up a day's load does: repair, then file, then write the day down.
+   *
+   * In that order because each hands the next its work — an original that inherits its edit's
+   * verdict is a photograph now owed a place in KeeperDelete or KeeperEdit, and the census should
+   * count what the other two have just settled. All three are best-effort: none may take the deck
+   * down with it.
+   */
+  private async catchUp(): Promise<void> {
+    await this.repair.repair().catch(() => 0);
+    await this.filing.sweep().catch(() => undefined);
+    await this.census.recordToday().catch(() => undefined);
   }
 
   /** Chooses the review queue on-device from scanned metadata + detected groups, server feed as fallback. */
