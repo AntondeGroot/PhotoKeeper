@@ -38,6 +38,14 @@ function readJson(key: string): unknown {
 export class PreferencesService {
   readonly dailyGoal = signal(15);
   readonly editGoal = signal(3);
+  /**
+   * How many photographs KeeperEdit may hold before the app stops sending it more.
+   *
+   * A queue nobody can empty is just a second backlog wearing a different hat, and Lightroom cannot
+   * be told to take a photo *out* of an album — so the only place to hold the line is on the way in.
+   * Decisions are still recorded the moment they are made; what waits is the filing.
+   */
+  readonly editQueueCap = signal(30);
   readonly tagGoal = signal(15);
   readonly morningReminder = signal(true);
   readonly reminderTime = signal('09:00');
@@ -88,6 +96,8 @@ export class PreferencesService {
     if (dailyGoal) this.dailyGoal.set(Number(dailyGoal));
     const editGoal = localStorage.getItem('editGoal');
     if (editGoal) this.editGoal.set(Number(editGoal));
+    const editQueueCap = localStorage.getItem('editQueueCap');
+    if (editQueueCap) this.editQueueCap.set(Number(editQueueCap));
     const tagGoal = localStorage.getItem('tagGoal');
     if (tagGoal) this.tagGoal.set(Number(tagGoal));
     const reminderTime = localStorage.getItem('reminderTime');
@@ -156,6 +166,7 @@ export class PreferencesService {
   private persist(): void {
     localStorage.setItem('dailyGoal', String(this.dailyGoal()));
     localStorage.setItem('editGoal', String(this.editGoal()));
+    localStorage.setItem('editQueueCap', String(this.editQueueCap()));
     localStorage.setItem('tagGoal', String(this.tagGoal()));
     localStorage.setItem('morningReminder', String(this.morningReminder()));
     localStorage.setItem('reminderTime', this.reminderTime());

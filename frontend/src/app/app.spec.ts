@@ -73,7 +73,11 @@ describe('App', () => {
         // would fetch the album list a second time to find out where to file them.
         {
           provide: KeeperFilingService,
-          useValue: { sweep: () => Promise.resolve(), scheduleSweep: () => {} },
+          useValue: {
+            sweep: () => Promise.resolve(),
+            scheduleSweep: () => {},
+            refreshEditQueueSize: () => Promise.resolve(),
+          },
         },
         { provide: TagStore, useValue: { getAll: () => Promise.resolve([]) } },
         {

@@ -210,6 +210,55 @@
     <p class="goal-hint">Keep editing lower — it's slower than sorting.</p>
   </div>
   <div class="settings-card">
+    <h3 class="card-title">Edit queue</h3>
+    <p class="goal-hint queue-intro">
+      How many photos KeeperEdit may hold. Decisions are always recorded — when the album is full,
+      the photos wait here and are sent as you work through it. A panorama is sent whole, even if
+      that takes the album a little over.
+    </p>
+
+    <div class="goal-row">
+      <span class="goal-label">At most</span>
+      <span class="goal-value">{{ prefs.editQueueCap() }} photos</span>
+    </div>
+    <div class="preset-buttons">
+      <button
+        class="preset-btn"
+        [class.active]="prefs.editQueueCap() === 15"
+        (click)="prefs.editQueueCap.set(15)"
+      >
+        <span>Tight</span>
+        <span class="preset-num">15</span>
+      </button>
+      <button
+        class="preset-btn"
+        [class.active]="prefs.editQueueCap() === 30"
+        (click)="prefs.editQueueCap.set(30)"
+      >
+        <span>Steady</span>
+        <span class="preset-num">30</span>
+      </button>
+      <button
+        class="preset-btn"
+        [class.active]="prefs.editQueueCap() === 60"
+        (click)="prefs.editQueueCap.set(60)"
+      >
+        <span>Roomy</span>
+        <span class="preset-num">60</span>
+      </button>
+    </div>
+    <input
+      class="goal-slider"
+      type="range"
+      min="5"
+      max="100"
+      step="5"
+      [value]="prefs.editQueueCap()"
+      (input)="onEditQueueCapChange($event)"
+      aria-label="How many photos KeeperEdit may hold"
+    />
+  </div>
+  <div class="settings-card">
     <h3 class="card-title">Daily reminder</h3>
 
     @if (battery.available) {

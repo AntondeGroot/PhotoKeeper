@@ -90,6 +90,11 @@ export class SettingsComponent implements OnInit {
     this.prefs.editGoal.set(Number((event.target as HTMLInputElement).value));
   }
 
+  /** How many photographs KeeperEdit may hold before the app holds the rest back. */
+  onEditQueueCapChange(event: Event): void {
+    this.prefs.editQueueCap.set(Number((event.target as HTMLInputElement).value));
+  }
+
   onTagGoalChange(event: Event): void {
     this.prefs.tagGoal.set(Number((event.target as HTMLInputElement).value));
   }

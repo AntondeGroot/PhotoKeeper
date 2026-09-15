@@ -36,6 +36,10 @@ describe('EditDetectionService', () => {
   let verdicts: Map<string, StoredVerdict>;
   let blobRequests: string[];
   let editAlbumId: string | null;
+  /** Says whether this attempt at listing the album should fail — a blip, or a sulk. */
+  let failListingUntil: () => boolean;
+  /** Stands in for a store that will not answer when the merge lookup asks it. */
+  let failGroups: boolean;
   /** What the detection scan has hashed. Undefined for most photos — see the baseline tests. */
   let storedHash: string | undefined;
   /** Today's deck, which is what the Edit tab's queue is built from — not the verdict store. */
@@ -59,6 +63,8 @@ describe('EditDetectionService', () => {
     blobRequests = [];
     editAlbumId = 'al-edit';
     storedHash = 'stored-hash';
+    failListingUntil = () => false;
+    failGroups = false;
     deck = signal<{ id: string; status: string }[]>([]);
     edits = 0;
     groups = [];
@@ -70,7 +76,8 @@ describe('EditDetectionService', () => {
         {
           provide: LightroomService,
           useValue: {
-            getAllAlbumAssets: () => of(albumAssets),
+            getAllAlbumAssets: () =>
+              failListingUntil() ? throwError(() => new Error('offline')) : of(albumAssets),
             getPhotoBlob: (id: string) => {
               blobRequests.push(id);
               const blob = renditions.get(id);
@@ -114,7 +121,13 @@ describe('EditDetectionService', () => {
             hash: (blob: Blob) => Promise.resolve((blob as Blob & { hash: string }).hash),
           },
         },
-        { provide: GroupStore, useValue: { getAll: () => Promise.resolve(groups) } },
+        {
+          provide: GroupStore,
+          useValue: {
+            getAll: () =>
+              failGroups ? Promise.reject(new Error('store')) : Promise.resolve(groups),
+          },
+        },
         {
           provide: PhotoMergeStore,
           useValue: {
@@ -574,6 +587,78 @@ describe('EditDetectionService', () => {
       await service.settleMerge(service.merges()[0]);
 
       expect(edits).toBe(1);
+    });
+  });
+
+  /**
+   * "Couldn't read your KeeperEdit album just now" was the answer to every kind of trouble, and it
+   * came up on a phone whose album reads perfectly well most of the time.
+   */
+  describe('when the check cannot run', () => {
+    it('tries the album once more before giving up', async () => {
+      let attempts = 0;
+      albumAssets = [asset('a', 'stamp-1')];
+      failListingUntil = () => ++attempts < 2; // the first attempt blips, the second answers
+
+      await service.check();
+
+      expect(service.failed()).toBe(false);
+      expect(service.findings()?.map((f) => f.assetId)).toEqual(['a']);
+    });
+
+    it('gives up when the album will not answer at all', async () => {
+      failListingUntil = () => true;
+
+      await service.check();
+
+      expect(service.failure()).toBe('unreadable');
+    });
+
+    /** Kept so the next "why did it say that?" can be answered by reading rather than guessing. */
+    it('keeps what went wrong', async () => {
+      failListingUntil = () => true;
+
+      await service.check();
+
+      expect(service.failureDetail()).toBe('offline');
+    });
+
+    it('forgets the last failure once a check runs cleanly', async () => {
+      failListingUntil = () => true;
+      await service.check();
+
+      failListingUntil = () => false;
+      await service.check();
+
+      expect(service.failureDetail()).toBeNull();
+    });
+
+    /** An album nobody has made is a thing to go and do, not a thing to try again in a minute. */
+    it('says so when there is no KeeperEdit album, rather than blaming the network', async () => {
+      editAlbumId = null;
+
+      await service.check();
+
+      expect(service.failure()).toBe('no-album');
+    });
+
+    /**
+     * Merges are read from what the scan has stored, which is a different question from a different
+     * place. A check that found six finished edits must not report itself broken because that
+     * lookup stumbled.
+     */
+    it('still reports its findings when the merge lookup fails', async () => {
+      albumAssets = [asset('a', 'stamp-2')];
+      baselines.set('a', { hash: 'aa', updated: 'stamp-1', at: 0 });
+      renditions.set('a', rendition('bb'));
+      failGroups = true;
+
+      await service.check();
+
+      expect(service.failed()).toBe(false);
+      expect(service.editedFindings().map((f) => f.assetId)).toEqual(['a']);
+      expect(service.merges()).toEqual([]);
+      expect(service.failureDetail()).toContain('merge lookup'); // quiet, but not invisible
     });
   });
 });

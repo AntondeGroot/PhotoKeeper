@@ -24,7 +24,13 @@ describe('EditCheckComponent', () => {
   /** Which merges the panel settled — what "That's the panorama" does. */
   let settled: string[];
 
-  function render(rows: EditFinding[], byHand: boolean, found: MergedPhoto[] = []) {
+  function render(
+    rows: EditFinding[],
+    byHand: boolean,
+    found: MergedPhoto[] = [],
+    failure: 'none' | 'unreadable' | 'no-album' = 'none',
+    detail: string | null = null,
+  ) {
     findings = signal<EditFinding[] | null>(rows);
     picking = signal(byHand);
     sent = [];
@@ -42,7 +48,10 @@ describe('EditCheckComponent', () => {
             picking,
             thumbnails,
             checking: signal(false),
-            failed: signal(false),
+            // Mirrors the real service, where one is derived from the other.
+            failed: computed(() => failure !== 'none'),
+            failure: signal(failure),
+            failureDetail: signal(detail),
             editedFindings: computed(() => edited(findings() ?? [])),
             // Mirrors the real computed; the rule itself is pinned in the service's own spec.
             shownFindings: computed(() =>
@@ -178,6 +187,33 @@ describe('EditCheckComponent', () => {
       render([finding('a', 'edited')], false);
 
       expect(root.querySelector('.merge-list')).toBeNull();
+    });
+  });
+
+  /**
+   * When "try again in a moment" is not the answer, someone has to be able to say what actually
+   * happened. The reason is shown quietly under the apology rather than kept for a log nobody reads.
+   */
+  describe('when the check could not run', () => {
+    it('shows what went wrong underneath', () => {
+      render([], false, [], 'unreadable', 'HTTP 504 Gateway Timeout — api/albums/al-9/assets');
+
+      expect(root.querySelector('.check-detail')?.textContent).toContain('HTTP 504');
+    });
+
+    /** An album nobody has made is not a network problem, and saying so sends them somewhere useless. */
+    it('says an album is missing rather than blaming the connection', () => {
+      render([], false, [], 'no-album');
+
+      const note = root.querySelector('.check-note')?.textContent ?? '';
+      expect(note).toContain('haven’t made a KeeperEdit album');
+      expect(note).not.toContain('Couldn’t read');
+    });
+
+    it('shows no reason when there is none to show', () => {
+      render([finding('a', 'edited')], false);
+
+      expect(root.querySelector('.check-detail')).toBeNull();
     });
   });
 });

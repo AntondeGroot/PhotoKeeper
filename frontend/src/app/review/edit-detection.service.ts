@@ -14,8 +14,27 @@ import { PhotoMergeStore } from '../storage/review/photo-merge-store';
 import { ReviewStore } from '../storage/review/review-store';
 import { ReviewFeedService } from './review-feed.service';
 import { DailyProgressService } from './daily-progress.service';
-import { EditBaseline, EditVerdict, edited, stampMoved, verdictFor } from './edit-detection';
+import {
+  EditBaseline,
+  EditVerdict,
+  describeFailure,
+  edited,
+  stampMoved,
+  verdictFor,
+} from './edit-detection';
 import { PhotoAsset } from '../lightroom-types';
+
+/** Why a check could not run. 'none' while it can. */
+export type CheckFailure = 'none' | 'unreadable' | 'no-album';
+
+/**
+ * The catalogue has no KeeperEdit album — thrown rather than returned so it cannot be mistaken for
+ * an empty queue, and recognised by identity so no message has to be parsed.
+ *
+ * One shared instance rather than a class of its own: a file here holds one class, and this needs
+ * nothing a plain error does not already have.
+ */
+const MISSING_ALBUM = new Error(`no ${KEEPER_EDIT_ALBUM} album`);
 import { MergedPhoto, findMerges } from './merged-photo';
 
 /** One row of the check's result: the verdict, plus enough to show it. */
@@ -74,7 +93,22 @@ export class EditDetectionService {
   readonly merges = signal<MergedPhoto[]>([]);
   readonly checking = signal(false);
   /** True when the album could not be read at all — the panel says so rather than "nothing found". */
-  readonly failed = signal(false);
+  /**
+   * Why the check could not run, if it could not.
+   *
+   * Told apart because the answers are different: an album the user has never made is a thing to go
+   * and do, while a catalogue that would not answer is a thing to try again in a minute. Both used
+   * to read as "couldn't read your KeeperEdit album", which is only true of one of them.
+   */
+  readonly failure = signal<CheckFailure>('none');
+  /**
+   * What actually went wrong last time, kept so it can be read rather than guessed at.
+   *
+   * Session-only on purpose: it is a crumb for the next time someone asks "why did it say that?",
+   * not a record of anything. The panel shows it under the apology.
+   */
+  readonly failureDetail = signal<string | null>(null);
+  readonly failed = computed(() => this.failure() !== 'none');
 
   /** The photos worth acting on: the ones whose picture changed. */
   readonly editedFindings = computed(() => edited(this.findings() ?? []));
@@ -182,29 +216,51 @@ export class EditDetectionService {
   ): Promise<void> {
     if (this.checking()) return;
     this.checking.set(true);
-    this.failed.set(false);
+    this.failure.set('none');
+    this.failureDetail.set(null);
     this.picking.set(picking);
     try {
       this.findings.set(await build(await this.readQueue()));
-      this.merges.set(await this.findMerges());
       // Only what the panel will actually show. Fetching a picture for the rest would undo the cheap
       // pass — whose whole point is that a photo whose revision never moved is never downloaded.
       void this.loadThumbnails(this.shownFindings().map((finding) => finding.assetId));
-    } catch {
-      this.failed.set(true);
+    } catch (error) {
+      this.failure.set(error === MISSING_ALBUM ? 'no-album' : 'unreadable');
+      this.failureDetail.set(describeFailure(error));
       this.findings.set([]);
-      this.merges.set([]);
-    } finally {
-      this.checking.set(false);
-      this.panelOpen.set(true);
     }
+    // Asked separately, and never allowed to fail the check: merges are read from what the scan has
+    // already stored, so they answer a different question from a different place. A check that found
+    // six finished edits should not report itself as broken because that lookup stumbled.
+    try {
+      this.merges.set(await this.findMerges());
+    } catch (error) {
+      // Kept too, quietly: the check itself stands, but a lookup that keeps failing should not do so
+      // invisibly.
+      this.failureDetail.set(`merge lookup: ${describeFailure(error)}`);
+      this.merges.set([]);
+    }
+    this.checking.set(false);
+    this.panelOpen.set(true);
   }
 
   /** Everything still waiting to be edited, with what is known about each. */
   private async readQueue(): Promise<EditQueue> {
+    try {
+      return await this.readQueueOnce();
+    } catch (error) {
+      if (error === MISSING_ALBUM) throw error;
+      // One more go before giving up. The queue is a single request for the whole album — four
+      // hundred photographs of it, on a phone — so a blip on the way is common and a second attempt
+      // costs one request against a panel that otherwise says it cannot do anything at all.
+      return this.readQueueOnce();
+    }
+  }
+
+  private async readQueueOnce(): Promise<EditQueue> {
     await this.albums.ensure();
     const albumId = this.albums.idFor(KEEPER_EDIT_ALBUM);
-    if (!albumId) throw new Error(`no ${KEEPER_EDIT_ALBUM} album`);
+    if (!albumId) throw MISSING_ALBUM;
 
     const [assets, baselines, meta, verdicts] = await Promise.all([
       firstValueFrom(this.svc.getAllAlbumAssets(albumId)),

@@ -261,9 +261,19 @@ export class ReviewFeedService {
    * down with it.
    */
   private async catchUp(): Promise<void> {
-    await this.repair.repair().catch(() => 0);
-    await this.filing.sweep().catch(() => undefined);
-    await this.census.recordToday().catch(() => undefined);
+    // Wrapped as a whole as well as one by one: nothing here is awaited by the caller, so anything
+    // that escapes becomes an unhandled rejection rather than a visible failure — and the deck, which
+    // has already been loaded and painted by this point, must not depend on any of it.
+    try {
+      await this.repair.repair().catch(() => 0);
+      await this.filing.sweep().catch(() => undefined);
+      await this.census.recordToday().catch(() => undefined);
+      // How full KeeperEdit is, which the Edit tab reports and nothing else would ask for: with
+      // nothing waiting to be filed, the sweep above never looks.
+      await this.filing.refreshEditQueueSize();
+    } catch {
+      // Every one of these is a catching-up job: the day's deck stands whether or not they ran.
+    }
   }
 
   /** Chooses the review queue on-device from scanned metadata + detected groups, server feed as fallback. */
