@@ -1,4 +1,11 @@
-import { EditBaseline, EditVerdict, edited, stampMoved, verdictFor } from './edit-detection';
+import {
+  EditBaseline,
+  EditVerdict,
+  describeFailure,
+  edited,
+  stampMoved,
+  verdictFor,
+} from './edit-detection';
 
 const baseline = (hash?: string, updated?: string): EditBaseline => ({ hash, updated, at: 0 });
 
@@ -70,5 +77,34 @@ describe('edited', () => {
     ];
 
     expect(edited(verdicts).map((v) => v.assetId)).toEqual(['a']);
+  });
+});
+
+/**
+ * The check used to throw its reason away, so every kind of trouble read as "couldn't read your
+ * KeeperEdit album just now" — which is where a diagnosis starts and cannot go any further.
+ */
+describe('describing what went wrong', () => {
+  it('names the status a server answered with', () => {
+    expect(describeFailure({ status: 504, statusText: 'Gateway Timeout' })).toContain('HTTP 504');
+  });
+
+  /** Status 0 is not a reply at all — the request never got anywhere — and reads as one if left bare. */
+  it('says plainly when there was no reply', () => {
+    expect(describeFailure({ status: 0, statusText: 'Unknown Error' })).toContain('no reply');
+  });
+
+  it('includes what was being asked for, when it is known', () => {
+    const said = describeFailure({ status: 500, statusText: '', url: 'api/albums/al-9/assets' });
+
+    expect(said).toContain('api/albums/al-9/assets');
+  });
+
+  it('falls back to an ordinary error message', () => {
+    expect(describeFailure(new Error('no KeeperEdit album'))).toBe('no KeeperEdit album');
+  });
+
+  it('says something for whatever it is handed', () => {
+    expect(describeFailure('odd')).toBe('odd');
   });
 });

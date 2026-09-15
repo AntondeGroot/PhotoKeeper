@@ -91,3 +91,29 @@ export function verdictFor(
 export function edited<T extends EditVerdict>(verdicts: readonly T[]): T[] {
   return verdicts.filter((v) => v.state === 'edited');
 }
+
+/**
+ * What went wrong, in a line short enough to read off a screen and specific enough to act on.
+ *
+ * Kept because the check used to throw its reason away: every kind of trouble came out as
+ * "couldn't read your KeeperEdit album just now", which is where a diagnosis has to start and
+ * cannot go any further. A status code says whether the catalogue refused us, timed out, or was
+ * never reached at all — three different problems wearing the same sentence.
+ *
+ * Duck-typed rather than importing Angular's HttpErrorResponse: this file is domain, and the shape
+ * is all that is needed.
+ */
+export function describeFailure(error: unknown): string {
+  const http = error as { status?: unknown; statusText?: unknown; url?: unknown };
+  if (typeof http?.status === 'number') {
+    // Status 0 is the browser's way of saying the request never got anywhere: no network, a refused
+    // connection, or a CORS wall. It is not a reply from the server, and reads as one if left bare.
+    const what = http.status === 0 ? 'no reply (offline or blocked)' : `HTTP ${http.status}`;
+    const said =
+      typeof http.statusText === 'string' && http.statusText ? ` ${http.statusText}` : '';
+    const where = typeof http.url === 'string' && http.url ? ` — ${http.url}` : '';
+    return `${what}${said}${where}`;
+  }
+  if (error instanceof Error) return error.message;
+  return String(error);
+}

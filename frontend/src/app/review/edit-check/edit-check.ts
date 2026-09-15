@@ -32,6 +32,10 @@ export class EditCheckComponent {
 
   readonly checking = this.detection.checking;
   readonly failed = this.detection.failed;
+  /** Why it failed, so the panel can tell a missing album from a catalogue that would not answer. */
+  readonly failure = this.detection.failure;
+  /** What went wrong underneath, for the times "try again" is not the answer. */
+  readonly failureDetail = this.detection.failureDetail;
   /** Whether the user asked for the list rather than for the check — see {@link rows}. */
   readonly picking = this.detection.picking;
 

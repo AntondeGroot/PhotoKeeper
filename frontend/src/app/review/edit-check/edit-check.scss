@@ -212,3 +212,13 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* The technical reason behind a failure. Deliberately quiet: it is there to be read out when
+   something needs diagnosing, not to be understood by everyone who sees it. */
+.check-detail {
+  margin: -4px 16px 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--c-faint);
+  word-break: break-word;
+}

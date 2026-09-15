@@ -10,11 +10,21 @@
 
     @if (checking()) {
       <p class="check-note">Comparing each photo with how it looked when you sent it…</p>
+    } @else if (failure() === 'no-album') {
+      <p class="check-note">
+        You haven’t made a KeeperEdit album in Lightroom yet, so there is nothing to check. Make one
+        with that name and it will be found next time.
+      </p>
     } @else if (failed()) {
       <p class="check-note">
         Couldn’t read your KeeperEdit album just now. Nothing has been changed — try again in a
         moment.
       </p>
+      <!-- What actually went wrong. Small and last, because it is for the rare occasion when "try
+           again" does not work and someone needs to know why. -->
+      @if (failureDetail(); as detail) {
+        <p class="check-detail">{{ detail }}</p>
+      }
     } @else {
       <!-- Merges first: several photographs that have become one is a bigger answer than any single
            row below, and settling it takes all of them out of the list at once. -->
