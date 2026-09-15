@@ -264,6 +264,9 @@ export class ReviewFeedService {
     await this.repair.repair().catch(() => 0);
     await this.filing.sweep().catch(() => undefined);
     await this.census.recordToday().catch(() => undefined);
+    // How full KeeperEdit is, which the Edit tab reports and nothing else would ask for: with nothing
+    // waiting to be filed, the sweep above never looks.
+    await this.filing.refreshEditQueueSize();
   }
 
   /** Chooses the review queue on-device from scanned metadata + detected groups, server feed as fallback. */

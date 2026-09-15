@@ -374,6 +374,12 @@
   margin: 4px 0 0;
 }
 
+// The edit queue's explanation sits above its controls rather than under them, so it needs the room
+// a trailing hint does not.
+.queue-intro {
+  margin-bottom: 12px;
+}
+
 // Storage — what the app is keeping on the device, and which of it is safe to lose.
 .storage-card {
   background: var(--c-panel);

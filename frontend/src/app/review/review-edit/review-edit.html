@@ -1,3 +1,11 @@
+<!-- Above everything, and outside the two branches below: the album can be over its limit while
+     this phone has nothing left to edit — which is exactly when "Edit queue clear" reads as a lie. -->
+@if (filing.editQueueHeld() >= queueCap()) {
+  <p class="queue-note">
+    {{ editAlbumName }} holds too many photos. Edit some, then remove them from the album.
+  </p>
+}
+
 @if (!editDone) {
   <!-- Only once the album exists: the button is a door, and one that opens on nothing is worse than
        no door. Editing a single photo never needed it — that is the per-item link below. -->

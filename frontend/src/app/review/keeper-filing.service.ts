@@ -3,13 +3,22 @@ import { firstValueFrom } from 'rxjs';
 import { LightroomService } from '../lightroom.service';
 import { PhotoAsset } from '../lightroom-types';
 import { KeeperAlbumsService } from '../keeper-albums.service';
-import { albumForVerdict, belongsInPrintBin, isPrintBin } from '../keeper-albums';
+import {
+  KEEPER_EDIT_ALBUM,
+  albumForVerdict,
+  belongsInPrintBin,
+  isPrintBin,
+} from '../keeper-albums';
 import { ReviewStore } from '../storage/review/review-store';
 import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { StoredVerdict } from '../storage/photokeeper-db';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewUndoService } from './review-undo.service';
 import { CensusService } from '../stats/census.service';
+import { PreferencesService } from '../preferences.service';
+import { EditBaselineStore } from '../storage/review/edit-baseline-store';
+import { GroupStore } from '../storage/detection/group-store';
+import { photosToFile } from './edit-queue';
 import { isUnitId, splitFileName } from '../photo';
 
 /**
@@ -77,11 +86,19 @@ export class KeeperFilingService {
   private readonly meta = inject(AssetMetaStore);
   private readonly undoStack = inject(ReviewUndoService);
   private readonly census = inject(CensusService);
+  private readonly prefs = inject(PreferencesService);
+  private readonly baselines = inject(EditBaselineStore);
+  private readonly groups = inject(GroupStore);
 
   /** Photos filed in the last sweep, for the settings line that says what happened. */
   readonly lastFiled = signal(0);
   /** Photos waiting on an album the catalogue does not have yet. */
   readonly blockedByMissingAlbum = signal(0);
+
+  /** How many photographs KeeperEdit was holding when the sweep last looked. */
+  readonly editQueueHeld = signal(0);
+  /** How many decided photographs are waiting on the phone for room in KeeperEdit. */
+  readonly editQueueWaiting = signal(0);
   private running = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -121,7 +138,9 @@ export class KeeperFilingService {
           blocked += assetIds.length; // the user has not made this album yet; the notice asks them to
           continue;
         }
-        filed += await this.fileInto(albumId, album, assetIds);
+        const sending =
+          album === KEEPER_EDIT_ALBUM ? await this.editQueueRoom(albumId, assetIds) : assetIds;
+        filed += await this.fileInto(albumId, album, sending);
       }
       this.lastFiled.set(filed);
       this.blockedByMissingAlbum.set(blocked);
@@ -329,6 +348,80 @@ export class KeeperFilingService {
    * the verdict and Lightroom would keep it for good. The undo stack is in memory, so it is empty by
    * the next app start and the sweep that runs on loading a day files everything it was holding.
    */
+  /**
+   * Asks how full KeeperEdit is, without filing anything.
+   *
+   * Needed because the size of the album is a standing fact about it, not a by-product of sending
+   * something: the Edit tab says the album is over its limit, and with nothing waiting to be filed
+   * there was nothing to make the app look. So the screen said the queue was clear until the first
+   * decision of the day happened to go through the sweep, which is the one moment it was already
+   * counting.
+   *
+   * Best-effort and never awaited for anything that matters: a failure leaves the last known size
+   * standing rather than claiming the album is empty.
+   */
+  async refreshEditQueueSize(): Promise<void> {
+    try {
+      await this.albums.ensure();
+      const albumId = this.albums.idFor(KEEPER_EDIT_ALBUM);
+      if (albumId) await this.countEditAlbum(albumId);
+    } catch {
+      // Offline, or no album yet. Either way the count stands as it was.
+    }
+  }
+
+  /** How many photographs the album holds, told to the census on the way past. */
+  private async countEditAlbum(albumId: string): Promise<number> {
+    const held = await firstValueFrom(this.svc.getAllAlbumAssets(albumId));
+    this.noteContents(KEEPER_EDIT_ALBUM, held);
+    // Tombstones are not photographs and take up no room: that one has been deleted, which is the
+    // end of it.
+    const live = held.filter((asset) => asset.subtype !== 'deleted_image').length;
+    this.editQueueHeld.set(live);
+    return live;
+  }
+
+  /**
+   * As much of the edit queue as KeeperEdit has room for, oldest decision first.
+   *
+   * <p>The album is a working set: a size someone can actually get through, rather than a second
+   * backlog with a different name. Everything decided is still recorded the moment it is decided —
+   * what waits is the sending, and it waits on the phone where the app can still change its mind.
+   *
+   * <p>Counted from what the album *holds*, not from what is still marked "to edit". Photographs
+   * finished long ago sit there for good — Lightroom cannot be told to take one out — and they fill
+   * the shelf just as surely as unfinished ones. Counting only the unfinished would call an album of
+   * four hundred empty and pour more in.
+   *
+   * <p>Costs one listing of KeeperEdit, and only when there is something waiting to go into it.
+   */
+  private async editQueueRoom(albumId: string, waiting: readonly string[]): Promise<string[]> {
+    const [live, baselines, groups] = await Promise.all([
+      this.countEditAlbum(albumId),
+      this.baselines.getAll(),
+      this.groups.getAll(),
+    ]);
+
+    // The set each photograph belongs to, so a sweep is sent whole or not at all.
+    const unitOf = new Map<string, string>();
+    for (const group of groups) {
+      for (const memberId of group.memberIds) unitOf.set(memberId, group.memberIds.join('+'));
+    }
+
+    const queue = waiting.map((assetId) => ({
+      assetId,
+      // When it was sent to edit. The baseline is written at that moment and for that photograph, so
+      // it is the decision's own timestamp; one with none — decided before the app kept baselines —
+      // counts as the oldest there is, since it has certainly waited longest.
+      decidedAt: baselines.get(assetId)?.at ?? 0,
+      unitKey: unitOf.get(assetId) ?? assetId,
+    }));
+
+    const sending = photosToFile(queue, this.prefs.editQueueCap() - live);
+    this.editQueueWaiting.set(waiting.length - sending.length);
+    return sending;
+  }
+
   private async outstanding(): Promise<Map<string, string[]>> {
     const [verdicts, filed] = await Promise.all([this.reviews.getVerdicts(), this.filed.getAll()]);
     const undoable = this.undoStack.heldAssetIds();

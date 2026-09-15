@@ -13,6 +13,8 @@ import { Photo } from '../../photo';
 import { SceneComponent } from '../scene/scene';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
 import { EditDetectionService } from '../edit-detection.service';
+import { KeeperFilingService } from '../keeper-filing.service';
+import { PreferencesService } from '../../preferences.service';
 import { EditCheckComponent } from '../edit-check/edit-check';
 import { KEEPER_EDIT_ALBUM, lightroomAlbumUrl, lightroomAssetUrl } from '../../keeper-albums';
 
@@ -36,6 +38,10 @@ export class ReviewEditComponent implements OnInit {
   // Hosted here rather than in the app shell: the check is about this queue, and the shell is at its
   // line cap for good reason.
   protected readonly detection = inject(EditDetectionService);
+  /** The queue's size and what is waiting behind it — see the note the template renders. */
+  protected readonly filing = inject(KeeperFilingService);
+  /** How large the album is allowed to get, so the note can say what it is up against. */
+  protected readonly queueCap = inject(PreferencesService).editQueueCap;
 
   /** Ask which of the queued photos have actually been worked on since they were sent. */
   checkForEdits(): void {

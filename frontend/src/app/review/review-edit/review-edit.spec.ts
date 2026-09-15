@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { ReviewEditComponent } from './review-edit';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
+import { KeeperFilingService } from '../keeper-filing.service';
 import { Photo } from '../../photo';
 
 const photo = (id: string): Photo => ({
@@ -21,12 +22,24 @@ describe('ReviewEditComponent', () => {
   let root: HTMLElement;
   let ensured: number;
   /** Mounts the Edit list against a catalog that either has the KeeperEdit album or hasn't. */
-  async function render(editAlbumId: string | null, catalogId: string | null = 'cat-1') {
+  async function render(
+    editAlbumId: string | null,
+    catalogId: string | null = 'cat-1',
+    queue: { waiting: number; held: number } = { waiting: 0, held: 0 },
+    editDone = false,
+  ) {
     ensured = 0;
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ReviewEditComponent],
       providers: [
+        {
+          provide: KeeperFilingService,
+          useValue: {
+            editQueueWaiting: signal(queue.waiting),
+            editQueueHeld: signal(queue.held),
+          },
+        },
         {
           provide: KeeperAlbumsService,
           useValue: {
@@ -43,6 +56,7 @@ describe('ReviewEditComponent', () => {
     fixture = TestBed.createComponent(ReviewEditComponent);
     fixture.componentRef.setInput('queue', [photo('IMG_1')]);
     fixture.componentRef.setInput('catalogId', catalogId);
+    fixture.componentRef.setInput('editDone', editDone);
     fixture.detectChanges();
     root = fixture.nativeElement as HTMLElement;
   }
@@ -152,5 +166,48 @@ describe('ReviewEditComponent', () => {
 
     expect(root.querySelector('.open-lr')).not.toBeNull();
     expect(root.querySelector('.edit-done-btn')).not.toBeNull();
+  });
+
+  /**
+   * Photos decided for editing that are deliberately not in Lightroom yet. Without a word about
+   * them the app looks broken: you send ten to edit, and KeeperEdit shows two.
+   */
+  describe('when the album is over its limit', () => {
+    /**
+     * The album can sit over its limit for good: finished photos cannot be taken out of it, so the
+     * only way down is to edit them and take them out by hand. That is the whole of the message —
+     * the numbers are on the Settings card for anyone who wants them.
+     */
+    it('says the album is too full, and what to do about it', async () => {
+      await render('al-9', 'cat-1', { waiting: 12, held: 400 });
+
+      const note = root.querySelector('.queue-note')?.textContent ?? '';
+      expect(note).toContain('KeeperEdit holds too many photos');
+      expect(note).toContain('remove them from the album');
+    });
+
+    /** A queue draining as it should is not news: nothing is said until the album is over its limit. */
+    it('says nothing while the album is under its limit', async () => {
+      await render('al-9', 'cat-1', { waiting: 12, held: 20 });
+
+      expect(root.querySelector('.queue-note')).toBeNull();
+    });
+
+    /**
+     * The case that made the screen contradict itself: nothing left on this phone to edit, so the
+     * tab said "Edit queue clear" — while KeeperEdit held four hundred photographs.
+     */
+    it('says so even when this phone has nothing left to edit', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 400 }, true);
+
+      expect(root.querySelector('.edit-done')).not.toBeNull(); // the queue here really is clear
+      expect(root.querySelector('.queue-note')?.textContent).toContain('too many photos');
+    });
+
+    it('says nothing when the album is empty', async () => {
+      await render('al-9');
+
+      expect(root.querySelector('.queue-note')).toBeNull();
+    });
   });
 });

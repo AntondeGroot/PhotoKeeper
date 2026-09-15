@@ -8,6 +8,11 @@ import { KeeperFilingStore } from '../storage/review/keeper-filing-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewUndoService } from './review-undo.service';
 import { CensusService } from '../stats/census.service';
+import { PreferencesService } from '../preferences.service';
+import { EditBaselineStore } from '../storage/review/edit-baseline-store';
+import { GroupStore } from '../storage/detection/group-store';
+import { EditBaseline } from './edit-detection';
+import { DetectedGroup } from '../detection/detectors/detection-types';
 import { FiledRecord, StoredVerdict } from '../storage/photokeeper-db';
 
 const verdict = (status: StoredVerdict['status']): StoredVerdict => ({
@@ -23,6 +28,8 @@ describe('KeeperFilingService', () => {
   let sent: { albumId: string; assetIds: string[] }[];
   let albumIds: Map<string, string>;
   let failNext: boolean;
+  /** Stands in for "no network": listing an album throws rather than answering. */
+  let failListing: boolean;
   /** Assets Lightroom refuses outright — a stack answers 403, and only ever fails. */
   let unfilable: Set<string>;
   /** Asset metadata, which is where the filenames a tidy-up search matches on come from. */
@@ -31,6 +38,12 @@ describe('KeeperFilingService', () => {
   let undoable: Set<string>;
   /** What the census was told an album holds — it rides along on the listings these checks make. */
   let recorded: { album: string; live: number; deletedIds: readonly string[] }[];
+  /** How many photographs KeeperEdit may hold before the app stops sending it more. */
+  let editQueueCap: number;
+  /** When each photo was sent to edit, which is the order the queue is drained in. */
+  let baselines: Map<string, EditBaseline>;
+  /** Detected groups, so a sweep's frames are sent together or not at all. */
+  let groups: DetectedGroup[];
   /**
    * What each Lightroom album actually holds right now — album id → rows. A string is a photograph;
    * `{tombstone}` is what Lightroom leaves in place of one that has been deleted.
@@ -45,10 +58,14 @@ describe('KeeperFilingService', () => {
     filed = new Map();
     sent = [];
     failNext = false;
+    failListing = false;
     unfilable = new Set();
     undoable = new Set();
     heldByAlbum = new Map();
     recorded = [];
+    editQueueCap = 30;
+    baselines = new Map();
+    groups = [];
     names = new Map([
       ['a', { name: 'DSC_0001' }],
       ['b', { name: 'DSC_0002' }],
@@ -66,23 +83,25 @@ describe('KeeperFilingService', () => {
           provide: LightroomService,
           useValue: {
             getAllAlbumAssets: (albumId: string) =>
-              of(
-                (heldByAlbum.get(albumId) ?? []).map((row, i) => {
-                  if (typeof row === 'string') return { id: row, subtype: 'image' };
-                  if ('named' in row) {
-                    return {
-                      id: row.named,
-                      subtype: 'image',
-                      payload: { importSource: { fileName: row.fileName } },
-                    };
-                  }
-                  return {
-                    id: `tomb-${i}`,
-                    subtype: 'deleted_image',
-                    original: { id: row.tombstone },
-                  };
-                }),
-              ),
+              failListing
+                ? throwError(() => new Error('offline'))
+                : of(
+                    (heldByAlbum.get(albumId) ?? []).map((row, i) => {
+                      if (typeof row === 'string') return { id: row, subtype: 'image' };
+                      if ('named' in row) {
+                        return {
+                          id: row.named,
+                          subtype: 'image',
+                          payload: { importSource: { fileName: row.fileName } },
+                        };
+                      }
+                      return {
+                        id: `tomb-${i}`,
+                        subtype: 'deleted_image',
+                        original: { id: row.tombstone },
+                      };
+                    }),
+                  ),
             addToAlbum: (albumId: string, assetIds: string[]) => {
               if (failNext) return throwError(() => new Error('network'));
               if (assetIds.some((id) => unfilable.has(id))) {
@@ -103,6 +122,9 @@ describe('KeeperFilingService', () => {
         { provide: ReviewStore, useValue: { getVerdicts: () => Promise.resolve(verdicts) } },
         { provide: AssetMetaStore, useValue: { getAll: () => Promise.resolve(names) } },
         { provide: ReviewUndoService, useValue: { heldAssetIds: () => undoable } },
+        { provide: PreferencesService, useValue: { editQueueCap: () => editQueueCap } },
+        { provide: EditBaselineStore, useValue: { getAll: () => Promise.resolve(baselines) } },
+        { provide: GroupStore, useValue: { getAll: () => Promise.resolve(groups) } },
         {
           provide: CensusService,
           useValue: {
@@ -594,6 +616,126 @@ describe('KeeperFilingService', () => {
       await filing.staleInAlbums();
 
       expect(recorded).toEqual([{ album: 'KeeperDelete', live: 1, deletedIds: ['x', 'y'] }]);
+    });
+  });
+
+  /**
+   * KeeperEdit is a working set, not a second backlog. Four hundred photographs waiting to be edited
+   * is the same pile the app exists to clear, moved somewhere else and no longer countable — and
+   * since Lightroom cannot be told to take a photo *out* of an album, the only place to hold the
+   * line is on the way in.
+   */
+  describe('the size of the edit queue', () => {
+    /** Three photographs decided for editing, oldest first by when each was sent. */
+    function threeWaiting(): void {
+      for (const [id, at] of [
+        ['a', 100],
+        ['b', 200],
+        ['c', 300],
+      ] as const) {
+        verdicts.set(id, { status: 'toEdit', starred: false, saveOnly: false });
+        baselines.set(id, { at });
+      }
+    }
+
+    beforeEach(() => threeWaiting());
+
+    it('sends what the album has room for and holds the rest back', async () => {
+      editQueueCap = 2;
+
+      await filing.sweep();
+
+      expect(sent).toEqual([{ albumId: 'al-edit', assetIds: ['a', 'b'] }]);
+    });
+
+    it('sends nothing at all once the album is full', async () => {
+      editQueueCap = 2;
+      heldByAlbum.set('al-edit', ['x', 'y']);
+
+      await filing.sweep();
+
+      expect(sent).toEqual([]);
+    });
+
+    /**
+     * Counted from what the album holds, not from what is still unfinished. Photographs finished
+     * long ago cannot be removed from it and take up the same room — counting only the unfinished
+     * would call an album of four hundred empty and pour more in.
+     */
+    it('counts photographs that were finished but could not be removed', async () => {
+      editQueueCap = 3;
+      heldByAlbum.set('al-edit', ['done-1', 'done-2']);
+      verdicts.set('done-1', { status: 'toPrint', starred: false, saveOnly: false });
+      verdicts.set('done-2', { status: 'toPrint', starred: false, saveOnly: false });
+
+      await filing.sweep();
+
+      expect(sent).toEqual([{ albumId: 'al-edit', assetIds: ['a'] }]);
+    });
+
+    /** A deleted photograph is not taking up room: that one is gone, which is the end of it. */
+    it('does not count a tombstone as a photograph in the way', async () => {
+      editQueueCap = 2;
+      heldByAlbum.set('al-edit', [{ tombstone: 'gone' }]);
+
+      await filing.sweep();
+
+      expect(sent).toEqual([{ albumId: 'al-edit', assetIds: ['a', 'b'] }]);
+    });
+
+    /** A sweep is one photograph to edit, so its frames go together even when they do not fit. */
+    it('sends a whole panorama rather than half of one', async () => {
+      editQueueCap = 1;
+      groups = [{ type: 'pano', sourceAlbumId: 'alb', memberIds: ['a', 'b'] }];
+
+      await filing.sweep();
+
+      expect(sent).toEqual([{ albumId: 'al-edit', assetIds: ['a', 'b'] }]);
+    });
+
+    /** The other albums are not working sets and are not capped — a rejection must always file. */
+    it('leaves the other albums alone', async () => {
+      editQueueCap = 0;
+      verdicts.set('r', { status: 'rejected', starred: false, saveOnly: false });
+
+      await filing.sweep();
+
+      expect(sent).toEqual([{ albumId: 'al-del', assetIds: ['r'] }]);
+    });
+
+    /**
+     * The size of the album is a standing fact about it, not a by-product of sending something. Asked
+     * only while filing, the Edit tab said the queue was clear until the first decision of the day
+     * happened to go through the sweep.
+     */
+    it('can be asked how full the album is without filing anything', async () => {
+      heldByAlbum.set('al-edit', ['x', 'y', 'z']);
+      verdicts.clear(); // nothing decided, so nothing for a sweep to send
+
+      await filing.refreshEditQueueSize();
+
+      expect(filing.editQueueHeld()).toBe(3);
+      expect(sent).toEqual([]);
+    });
+
+    /** A count that failed must leave the last one standing rather than claim the album is empty. */
+    it('keeps the size it knew when the album cannot be read', async () => {
+      heldByAlbum.set('al-edit', ['x', 'y']);
+      await filing.refreshEditQueueSize();
+
+      failListing = true;
+      await filing.refreshEditQueueSize();
+
+      expect(filing.editQueueHeld()).toBe(2);
+    });
+
+    it('says how many are waiting on the phone for room', async () => {
+      editQueueCap = 1;
+
+      await filing.sweep();
+
+      expect(filing.editQueueHeld()).toBe(0);
+      expect(filing.editQueueWaiting()).toBe(2);
     });
   });
 });
