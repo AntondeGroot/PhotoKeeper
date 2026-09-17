@@ -1,3 +1,5 @@
+import { isUnitId } from '../photo';
+
 /**
  * How much of the edit queue may be sent to Lightroom, and which of it goes first.
  *
@@ -61,4 +63,90 @@ export function photosToFile(waiting: readonly WaitingPhoto[], room: number): st
 /** When a unit was decided: the earliest of its frames, since they were decided together. */
 function decidedAt(unit: readonly WaitingPhoto[]): number {
   return Math.min(...unit.map((photo) => photo.decidedAt));
+}
+
+/**
+ * How long a photograph may sit in KeeperEdit unedited before editing it becomes the price of
+ * getting any new ones.
+ *
+ * A month, because that is long enough to be a considered choice not to edit something and short
+ * enough that the album cannot quietly fill with photographs nobody will ever get to. The cap alone
+ * does not manage that: work through the easy half of an album and the queue tops itself up for
+ * ever, while the same few difficult photographs sit at the bottom being overtaken.
+ */
+export const MANDATORY_AFTER_DAYS = 30;
+
+/** A photograph sitting in the edit album, and when it was sent there. */
+export interface QueuedPhoto {
+  assetId: string;
+  name: string;
+  /** When it was sent to be edited. Zero for one sent before the app kept a record — long ago. */
+  decidedAt: number;
+}
+
+/**
+ * The photographs that have waited too long, oldest first.
+ *
+ * These are the ones that must be dealt with before the album takes anything new. Any photograph can
+ * be edited in any order — the point is not to dictate what to work on, but that the album drains
+ * towards the things that have been avoided rather than around them.
+ */
+export function overdueEdits(
+  inAlbum: readonly QueuedPhoto[],
+  now: number,
+  days: number = MANDATORY_AFTER_DAYS,
+): QueuedPhoto[] {
+  const cutoff = now - days * 24 * 60 * 60 * 1000;
+  return inAlbum
+    .filter((photo) => photo.decidedAt <= cutoff)
+    .sort((a, b) => a.decidedAt - b.decidedAt);
+}
+
+/** What the app can say about the edit album without asking Lightroom anything. */
+export interface EditQueueState {
+  /** How many photographs the album is believed to hold. */
+  held: number;
+  /** Those that have been in it, unedited, for over a month — longest wait first. */
+  mandatory: QueuedPhoto[];
+}
+
+/**
+ * The state of the edit album as the app's own records describe it.
+ *
+ * Worked out from what has been filed rather than from what Lightroom says, because the answer is
+ * wanted the instant the screen opens and a listing of four hundred photographs is a request that
+ * takes a while — long enough that the tab said the queue was clear, and then corrected itself once
+ * the answer arrived. The records are on the device and the answer is immediate.
+ *
+ * It is an estimate in exactly one direction: a photograph the user has removed from the album by
+ * hand is still on record as filed, so this can only ever over-count. That is the safe way round —
+ * it never invites more photographs into an album that is already full — and the listing that
+ * follows corrects it.
+ *
+ * The clock is the filing, not the decision: the question is how long a photograph has been sitting
+ * in the album, and it starts sitting there when it is put there.
+ */
+export function editQueueFromRecords(
+  filed: ReadonlyMap<string, { albums: readonly string[]; at: number }>,
+  album: string,
+  isUnfinished: (assetId: string) => boolean,
+  nameOf: (assetId: string) => string,
+  now: number,
+): EditQueueState {
+  const inAlbum: QueuedPhoto[] = [];
+  let held = 0;
+  for (const [assetId, record] of filed) {
+    if (!record.albums.includes(album)) continue;
+    // A burst or panorama card's own id is not a photograph, and Lightroom has never held one. Some
+    // are on record from before filing learned to skip them; counted here they would fill the album
+    // with things that are not in it, and be offered for editing as ids nobody can open.
+    if (isUnitId(assetId)) continue;
+    held++;
+    // Finished photographs stay in the album for good — Lightroom will not take one out — so they
+    // fill it, but they are nobody's unfinished business and can never become mandatory.
+    if (isUnfinished(assetId)) {
+      inAlbum.push({ assetId, name: nameOf(assetId), decidedAt: record.at });
+    }
+  }
+  return { held, mandatory: overdueEdits(inAlbum, now) };
 }

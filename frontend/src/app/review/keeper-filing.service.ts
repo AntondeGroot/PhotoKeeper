@@ -18,7 +18,8 @@ import { CensusService } from '../stats/census.service';
 import { PreferencesService } from '../preferences.service';
 import { EditBaselineStore } from '../storage/review/edit-baseline-store';
 import { GroupStore } from '../storage/detection/group-store';
-import { photosToFile } from './edit-queue';
+import { MergeFinderService } from './merge-finder.service';
+import { QueuedPhoto, editQueueFromRecords, overdueEdits, photosToFile } from './edit-queue';
 import { isUnitId, splitFileName } from '../photo';
 
 /**
@@ -89,6 +90,7 @@ export class KeeperFilingService {
   private readonly prefs = inject(PreferencesService);
   private readonly baselines = inject(EditBaselineStore);
   private readonly groups = inject(GroupStore);
+  private readonly merges = inject(MergeFinderService);
 
   /** Photos filed in the last sweep, for the settings line that says what happened. */
   readonly lastFiled = signal(0);
@@ -99,6 +101,14 @@ export class KeeperFilingService {
   readonly editQueueHeld = signal(0);
   /** How many decided photographs are waiting on the phone for room in KeeperEdit. */
   readonly editQueueWaiting = signal(0);
+  /**
+   * Photographs that have sat in KeeperEdit unedited for over a month, longest wait first.
+   *
+   * While there is one of these, the album takes nothing new however much room it has. Any
+   * photograph may still be edited in any order — what stops is the topping up, so the album drains
+   * towards the things that have been avoided rather than around them.
+   */
+  readonly mandatoryEdits = signal<QueuedPhoto[]>([]);
   private running = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -349,6 +359,39 @@ export class KeeperFilingService {
    * the next app start and the sweep that runs on loading a day files everything it was holding.
    */
   /**
+   * What the app's own records say about the edit album — no network, and so no wait.
+   *
+   * The screen needs an answer the moment it opens. Asking Lightroom means a listing of every
+   * photograph in the album, which on a full one takes long enough that the tab said the queue was
+   * clear and corrected itself a second later. This answers from what has been filed, which is on
+   * the device; {@link refreshEditQueueSize} then corrects it against the catalogue.
+   */
+  async readEditQueueLocally(): Promise<void> {
+    try {
+      const [filed, verdicts, meta] = await Promise.all([
+        this.filed.getAll(),
+        this.reviews.getVerdicts(),
+        this.meta.getAll(),
+      ]);
+      // A frame whose panorama Lightroom has already written is finished work waiting to be
+      // confirmed, not work outstanding — holding the album shut for it would be asking for editing
+      // that has been done.
+      const merged = this.merges.frameIds();
+      const state = editQueueFromRecords(
+        filed,
+        KEEPER_EDIT_ALBUM,
+        (assetId) => verdicts.get(assetId)?.status === 'toEdit' && !merged.has(assetId),
+        (assetId) => meta.get(assetId)?.name ?? assetId,
+        Date.now(),
+      );
+      this.editQueueHeld.set(state.held);
+      this.mandatoryEdits.set(state.mandatory);
+    } catch {
+      // Storage unavailable: the screen says nothing rather than something wrong.
+    }
+  }
+
+  /**
    * Asks how full KeeperEdit is, without filing anything.
    *
    * Needed because the size of the album is a standing fact about it, not a by-product of sending
@@ -370,15 +413,40 @@ export class KeeperFilingService {
     }
   }
 
-  /** How many photographs the album holds, told to the census on the way past. */
+  /**
+   * How many photographs the album holds, and which of them have waited too long.
+   *
+   * Both answers come from the one listing, and both are wanted whether or not anything is being
+   * filed: the Edit tab reports them, and nothing else would ask.
+   */
   private async countEditAlbum(albumId: string): Promise<number> {
-    const held = await firstValueFrom(this.svc.getAllAlbumAssets(albumId));
+    const [held, verdicts, baselines, meta] = await Promise.all([
+      firstValueFrom(this.svc.getAllAlbumAssets(albumId)),
+      this.reviews.getVerdicts(),
+      this.baselines.getAll(),
+      this.meta.getAll(),
+    ]);
     this.noteContents(KEEPER_EDIT_ALBUM, held);
+
     // Tombstones are not photographs and take up no room: that one has been deleted, which is the
     // end of it.
-    const live = held.filter((asset) => asset.subtype !== 'deleted_image').length;
-    this.editQueueHeld.set(live);
-    return live;
+    const live = held.filter((asset) => asset.subtype !== 'deleted_image');
+    this.editQueueHeld.set(live.length);
+
+    // Only what is still waiting to be edited. A photograph finished months ago sits in the album
+    // for good — Lightroom will not take it out — and it is nobody's unfinished business.
+    const merged = this.merges.frameIds();
+    const unfinished = live
+      .filter((asset) => verdicts.get(asset.id)?.status === 'toEdit' && !merged.has(asset.id))
+      .map((asset) => ({
+        assetId: asset.id,
+        name: asset.payload?.importSource?.fileName ?? meta.get(asset.id)?.name ?? asset.id,
+        // When it was sent to edit. One with no baseline was sent before the app kept a record, so
+        // it has certainly been waiting longer than a month.
+        decidedAt: baselines.get(asset.id)?.at ?? 0,
+      }));
+    this.mandatoryEdits.set(overdueEdits(unfinished, Date.now()));
+    return live.length;
   }
 
   /**
@@ -417,7 +485,10 @@ export class KeeperFilingService {
       unitKey: unitOf.get(assetId) ?? assetId,
     }));
 
-    const sending = photosToFile(queue, this.prefs.editQueueCap() - live);
+    // Nothing new while something has been waiting over a month, whatever room the cap leaves. The
+    // cap alone lets the album top itself up for ever around the few photographs being avoided.
+    const room = this.mandatoryEdits().length > 0 ? 0 : this.prefs.editQueueCap() - live;
+    const sending = photosToFile(queue, room);
     this.editQueueWaiting.set(waiting.length - sending.length);
     return sending;
   }

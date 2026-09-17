@@ -11,6 +11,7 @@ import { CensusService } from '../stats/census.service';
 import { PreferencesService } from '../preferences.service';
 import { EditBaselineStore } from '../storage/review/edit-baseline-store';
 import { GroupStore } from '../storage/detection/group-store';
+import { MergeFinderService } from './merge-finder.service';
 import { EditBaseline } from './edit-detection';
 import { DetectedGroup } from '../detection/detectors/detection-types';
 import { FiledRecord, StoredVerdict } from '../storage/photokeeper-db';
@@ -44,6 +45,8 @@ describe('KeeperFilingService', () => {
   let baselines: Map<string, EditBaseline>;
   /** Detected groups, so a sweep's frames are sent together or not at all. */
   let groups: DetectedGroup[];
+  /** Frames Lightroom has already merged — finished work, whatever their verdict still says. */
+  let mergedFrames: Set<string>;
   /**
    * What each Lightroom album actually holds right now — album id → rows. A string is a photograph;
    * `{tombstone}` is what Lightroom leaves in place of one that has been deleted.
@@ -66,6 +69,7 @@ describe('KeeperFilingService', () => {
     editQueueCap = 30;
     baselines = new Map();
     groups = [];
+    mergedFrames = new Set();
     names = new Map([
       ['a', { name: 'DSC_0001' }],
       ['b', { name: 'DSC_0002' }],
@@ -125,6 +129,10 @@ describe('KeeperFilingService', () => {
         { provide: PreferencesService, useValue: { editQueueCap: () => editQueueCap } },
         { provide: EditBaselineStore, useValue: { getAll: () => Promise.resolve(baselines) } },
         { provide: GroupStore, useValue: { getAll: () => Promise.resolve(groups) } },
+        {
+          provide: MergeFinderService,
+          useValue: { frameIds: () => mergedFrames, refresh: () => Promise.resolve() },
+        },
         {
           provide: CensusService,
           useValue: {
@@ -727,6 +735,111 @@ describe('KeeperFilingService', () => {
       await filing.refreshEditQueueSize();
 
       expect(filing.editQueueHeld()).toBe(2);
+    });
+
+    /**
+     * The cap alone does not stop a backlog: work through the easy half and the queue tops itself up
+     * for ever, while the same few difficult photographs sit at the bottom being overtaken by
+     * whatever was decided this morning. Once one has waited a month, nothing new arrives until it
+     * is dealt with — however much room the cap leaves.
+     */
+    describe('photographs that have waited over a month', () => {
+      const day = 24 * 60 * 60 * 1000;
+
+      /** One photograph sent to edit long ago, sitting in the album unedited ever since. */
+      function oneLongOverdue(): void {
+        verdicts.set('stuck', { status: 'toEdit', starred: false, saveOnly: false });
+        baselines.set('stuck', { at: Date.now() - 60 * day });
+        heldByAlbum.set('al-edit', ['stuck']);
+      }
+
+      it('holds the album shut, however much room the cap leaves', async () => {
+        editQueueCap = 30; // room for twenty-nine more
+        oneLongOverdue();
+
+        await filing.sweep();
+
+        expect(sent).toEqual([]);
+      });
+
+      it('names them, longest wait first', async () => {
+        oneLongOverdue();
+        verdicts.set('older', { status: 'toEdit', starred: false, saveOnly: false });
+        baselines.set('older', { at: Date.now() - 200 * day });
+        heldByAlbum.set('al-edit', ['stuck', 'older']);
+
+        await filing.refreshEditQueueSize();
+
+        expect(filing.mandatoryEdits().map((p) => p.assetId)).toEqual(['older', 'stuck']);
+      });
+
+      it('lets the album fill again once they are dealt with', async () => {
+        oneLongOverdue();
+        await filing.sweep();
+        verdicts.set('stuck', { status: 'toPrint', starred: false, saveOnly: false }); // edited
+
+        await filing.sweep();
+
+        expect(sent).toEqual([{ albumId: 'al-edit', assetIds: ['a', 'b', 'c'] }]);
+      });
+
+      /** A photograph finished months ago and left in the album is nobody's unfinished business. */
+      it('ignores one that was finished and simply never removed', async () => {
+        verdicts.set('done', { status: 'toPrint', starred: false, saveOnly: false });
+        baselines.set('done', { at: Date.now() - 90 * day });
+        heldByAlbum.set('al-edit', ['done']);
+
+        await filing.refreshEditQueueSize();
+
+        expect(filing.mandatoryEdits()).toEqual([]);
+      });
+
+      /** No listing, no wait: the Edit tab has its answer before any request is made. */
+      it('answers from the records alone, without asking Lightroom', async () => {
+        filed.set('stuck', { albums: ['KeeperEdit'], at: Date.now() - 60 * day });
+        verdicts.set('stuck', { status: 'toEdit', starred: false, saveOnly: false });
+        failListing = true; // nothing may reach the catalogue
+
+        await filing.readEditQueueLocally();
+
+        expect(filing.editQueueHeld()).toBe(1);
+        expect(filing.mandatoryEdits().map((p) => p.assetId)).toEqual(['stuck']);
+      });
+
+      /**
+       * A sweep stitched weeks ago is finished work waiting to be confirmed. Left as mandatory it
+       * holds the album shut demanding editing that has already been done.
+       */
+      it('does not hold the album shut for a sweep already merged', async () => {
+        filed.set('stuck', { albums: ['KeeperEdit'], at: Date.now() - 60 * day });
+        verdicts.set('stuck', { status: 'toEdit', starred: false, saveOnly: false });
+        mergedFrames = new Set(['stuck']);
+
+        await filing.readEditQueueLocally();
+
+        expect(filing.mandatoryEdits()).toEqual([]);
+      });
+
+      /** A group card's own id is not a photograph and was never in the album. */
+      it('does not count a group card as filling the album', async () => {
+        filed.set('pano:alb:f1', { albums: ['KeeperEdit'], at: 1 });
+        verdicts.set('pano:alb:f1', { status: 'toEdit', starred: false, saveOnly: false });
+
+        await filing.readEditQueueLocally();
+
+        expect(filing.editQueueHeld()).toBe(0);
+        expect(filing.mandatoryEdits()).toEqual([]);
+      });
+
+      it('says nothing about photographs sent recently', async () => {
+        verdicts.set('recent', { status: 'toEdit', starred: false, saveOnly: false });
+        baselines.set('recent', { at: Date.now() - 2 * day });
+        heldByAlbum.set('al-edit', ['recent']);
+
+        await filing.refreshEditQueueSize();
+
+        expect(filing.mandatoryEdits()).toEqual([]);
+      });
     });
 
     it('says how many are waiting on the phone for room', async () => {
