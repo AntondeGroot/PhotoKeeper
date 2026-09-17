@@ -69,8 +69,14 @@ export interface UndoEntry {
 
 /** A tag decision as it stood before it was made. */
 export interface TagUndo {
-  /** The tags the photo carried beforehand — usually none. */
-  previous: string[];
+  /**
+   * What every file of the photograph carried beforehand — usually nothing.
+   *
+   * Per file rather than one list, because a tag is given to the photograph and a photograph can be
+   * several files: the shot, the denoise Lightroom wrote beside it, the panorama stitched from it.
+   * Taking the decision back has to put all of them back as they were.
+   */
+  previous: { assetId: string; tagIds: string[] }[];
   /** Where the tag pass's cursor stood, so undo lands on the photo the tag was about. */
   cursor: number;
   /** Whether it counted toward the day, and so whether taking it back un-counts. */
