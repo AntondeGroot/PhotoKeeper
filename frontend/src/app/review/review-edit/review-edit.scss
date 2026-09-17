@@ -186,3 +186,111 @@
   font-size: 11.5px;
   line-height: 1.6;
 }
+
+/* ── Photographs that have waited too long ──
+   Louder than the queue note above it: this one is not information, it is the reason nothing new is
+   arriving, and it names the photographs that will end it. */
+.must-edit {
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-reject);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c-reject) 8%, transparent);
+}
+
+.must-head {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-text);
+}
+
+.must-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+}
+
+.must-name {
+  font-size: 11.5px;
+  color: var(--c-dim);
+  word-break: break-all;
+}
+
+.must-open {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--c-reject);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+/* On a row of today's batch: the same photograph, seen from the list rather than the warning. */
+.must-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--c-reject);
+  border-radius: 999px;
+  color: var(--c-reject);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+/* ── Merges waiting to be confirmed ──
+   Amber like the rest of the editing language, and a card per merge: each one is a whole sweep
+   leaving the album for the price of a tap. */
+.merged-ready {
+  margin: 0 16px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.merged-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--c-amber) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c-amber) 8%, transparent);
+}
+
+.merged-name {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--c-text);
+  word-break: break-all;
+}
+
+.merged-note {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--c-dim);
+}
+
+.merged-done {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--c-amber);
+  background: transparent;
+  color: var(--c-amber);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}

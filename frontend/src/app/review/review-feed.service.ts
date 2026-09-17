@@ -13,6 +13,7 @@ import { DayService } from './day.service';
 import { KeeperFilingService } from './keeper-filing.service';
 import { EditVerdictRepairService } from './edit-verdict-repair.service';
 import { CensusService } from '../stats/census.service';
+import { EditCandidatesService } from './edit-candidates.service';
 import { ReviewUndoService } from './review-undo.service';
 import {
   DEVICE_PHOTOS,
@@ -47,6 +48,7 @@ export class ReviewFeedService {
   private readonly filing = inject(KeeperFilingService);
   private readonly repair = inject(EditVerdictRepairService);
   private readonly census = inject(CensusService);
+  private readonly editCandidates = inject(EditCandidatesService);
   private readonly undoStack = inject(ReviewUndoService);
   /** The day the deck in hand belongs to — see the rollover effect below. */
   private dayOfDeck = this.day.today();
@@ -265,6 +267,10 @@ export class ReviewFeedService {
     // that escapes becomes an unhandled rejection rather than a visible failure — and the deck, which
     // has already been loaded and painted by this point, must not depend on any of it.
     try {
+      // First, and from the device's own records: the Edit tab needs an answer the moment it opens,
+      // and everything below this line goes to the network.
+      await this.filing.readEditQueueLocally();
+      await this.editCandidates.refresh();
       await this.repair.repair().catch(() => 0);
       await this.filing.sweep().catch(() => undefined);
       await this.census.recordToday().catch(() => undefined);

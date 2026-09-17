@@ -3,6 +3,9 @@ import { signal } from '@angular/core';
 import { ReviewEditComponent } from './review-edit';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
 import { KeeperFilingService } from '../keeper-filing.service';
+import { EditCandidatesService } from '../edit-candidates.service';
+import { EditDetectionService } from '../edit-detection.service';
+import { MergedPhoto } from '../merged-photo';
 import { Photo } from '../../photo';
 
 const photo = (id: string): Photo => ({
@@ -21,23 +24,47 @@ describe('ReviewEditComponent', () => {
   let fixture: ComponentFixture<ReviewEditComponent>;
   let root: HTMLElement;
   let ensured: number;
+  /** Merges the tab confirmed — what "That's the panorama" does. */
+  let settled: string[];
   /** Mounts the Edit list against a catalog that either has the KeeperEdit album or hasn't. */
   async function render(
     editAlbumId: string | null,
     catalogId: string | null = 'cat-1',
     queue: { waiting: number; held: number } = { waiting: 0, held: 0 },
     editDone = false,
+    overdue: { assetId: string; name: string; decidedAt: number }[] = [],
+    merges: MergedPhoto[] = [],
   ) {
+    settled = [];
     ensured = 0;
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ReviewEditComponent],
       providers: [
         {
+          provide: EditCandidatesService,
+          useValue: { merges: signal(merges) },
+        },
+        {
+          provide: EditDetectionService,
+          useValue: {
+            checking: signal(false),
+            picking: signal(false),
+            panelOpen: signal(false),
+            check: () => Promise.resolve(),
+            listQueue: () => Promise.resolve(),
+            settleMerge: (merge: MergedPhoto) => {
+              settled.push(merge.mergedId);
+              return Promise.resolve();
+            },
+          },
+        },
+        {
           provide: KeeperFilingService,
           useValue: {
             editQueueWaiting: signal(queue.waiting),
             editQueueHeld: signal(queue.held),
+            mandatoryEdits: signal(overdue),
           },
         },
         {
@@ -208,6 +235,131 @@ describe('ReviewEditComponent', () => {
       await render('al-9');
 
       expect(root.querySelector('.queue-note')).toBeNull();
+    });
+  });
+
+  /**
+   * The photographs holding the album shut. Shown whether or not today's batch happens to contain
+   * them — the batch is three photographs off the deck, and the ones being avoided are exactly the
+   * ones that will not be in it.
+   */
+  describe('photographs that have waited over a month', () => {
+    const overdue = [
+      { assetId: 'stuck-1', name: 'DSC_0001.NEF', decidedAt: 1 },
+      { assetId: 'stuck-2', name: 'DSC_0002.NEF', decidedAt: 2 },
+    ];
+
+    it('names them, and says what editing them is for', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, false, overdue);
+
+      const said = root.querySelector('.must-edit')?.textContent ?? '';
+      expect(said).toContain('2 photos have been waiting over a month');
+      expect(said).toContain('let new photos into KeeperEdit');
+      expect(said).toContain('DSC_0001.NEF');
+    });
+
+    /** Straight to the photograph in Lightroom, which is where the editing actually happens. */
+    it('offers a way into each one', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, false, overdue);
+
+      const link = root.querySelector<HTMLAnchorElement>('.must-open');
+      expect(link?.getAttribute('href')).toContain('stuck-1');
+      expect(link?.getAttribute('href')).toContain('DSC_0001.NEF');
+    });
+
+    /** Even when this phone has nothing left in today's batch — which is when it matters most. */
+    it('says so when today’s batch is empty', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, true, overdue);
+
+      expect(root.querySelector('.must-edit')).not.toBeNull();
+    });
+
+    it('marks a batch row that is one of them', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, false, [
+        { assetId: 'IMG_1', name: 'IMG_1.NEF', decidedAt: 1 },
+      ]);
+
+      expect(root.querySelector('.must-badge')?.textContent?.trim()).toBe('waiting a month');
+    });
+
+    it('says nothing when nothing has waited that long', async () => {
+      await render('al-9');
+
+      expect(root.querySelector('.must-edit')).toBeNull();
+      expect(root.querySelector('.must-badge')).toBeNull();
+    });
+  });
+
+  /**
+   * "Edit queue clear" is only true of the album as well as this phone. Said while KeeperEdit is
+   * full — or holding photographs nobody has touched for a month — it reads as the app having lost
+   * track of what it is doing.
+   */
+  describe('what "clear" is allowed to mean', () => {
+    const heading = () => root.querySelector('.edit-done h2')?.textContent?.trim();
+
+    it('is clear only when the album is neither full nor overdue', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, true);
+
+      expect(heading()).toBe('Edit queue clear.');
+    });
+
+    it('says the album is full rather than clear', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 30 }, true);
+
+      expect(heading()).toBe('Nothing new while KeeperEdit is full.');
+    });
+
+    /** The overdue ones outrank the count: they are the reason, and the way out. */
+    it('points at the overdue photographs when there are some', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 30 }, true, [
+        { assetId: 'stuck', name: 'DSC_1.NEF', decidedAt: 1 },
+      ]);
+
+      expect(heading()).toBe('Nothing new until those are edited.');
+    });
+  });
+
+  /**
+   * A sweep Lightroom has already stitched. Its frames have quietly left the list of things to edit,
+   * and until now the only place to say so was behind the "Check for edits" button — which you would
+   * have to know to press.
+   */
+  describe('merges waiting to be confirmed', () => {
+    const merge: MergedPhoto = {
+      mergedId: 'm1',
+      mergedName: 'DSC_6470-Pano',
+      kind: 'panorama',
+      frameIds: ['f1', 'f2', 'f3'],
+    };
+
+    it('names the merge and what it was made from', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, false, [], [merge]);
+
+      const said = root.querySelector('.merged-ready')?.textContent ?? '';
+      expect(said).toContain('DSC_6470-Pano');
+      expect(said).toContain('A panorama from 3 frames');
+    });
+
+    it('settles it when confirmed', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, false, [], [merge]);
+
+      root.querySelector<HTMLButtonElement>('.merged-done')?.click();
+
+      expect(settled).toEqual(['m1']);
+    });
+
+    /** Especially then: the queue looks empty precisely because the work was done. */
+    it('shows them when the queue is otherwise clear', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, true, [], [merge]);
+
+      expect(root.querySelector('.merged-ready')).not.toBeNull();
+    });
+
+    it('shows nothing when nothing has been merged', async () => {
+      await render('al-9');
+
+      expect(root.querySelector('.merged-ready')).toBeNull();
     });
   });
 });

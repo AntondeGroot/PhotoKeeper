@@ -5,6 +5,7 @@ import {
   OnInit,
   Output,
   ChangeDetectionStrategy,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -13,6 +14,8 @@ import { Photo } from '../../photo';
 import { SceneComponent } from '../scene/scene';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
 import { EditDetectionService } from '../edit-detection.service';
+import { EditCandidatesService } from '../edit-candidates.service';
+import { MergedPhoto } from '../merged-photo';
 import { KeeperFilingService } from '../keeper-filing.service';
 import { PreferencesService } from '../../preferences.service';
 import { EditCheckComponent } from '../edit-check/edit-check';
@@ -42,6 +45,35 @@ export class ReviewEditComponent implements OnInit {
   protected readonly filing = inject(KeeperFilingService);
   /** How large the album is allowed to get, so the note can say what it is up against. */
   protected readonly queueCap = inject(PreferencesService).editQueueCap;
+  /** Photographs that have waited over a month — listed here whether or not today's batch holds them. */
+  protected readonly mandatory = this.filing.mandatoryEdits;
+  /**
+   * Sets Lightroom has already merged, waiting to be confirmed.
+   *
+   * Here rather than only behind "Check for edits", because their frames have quietly left the list
+   * of things to edit — and a photograph that vanishes from the queue with no word about where it
+   * went is the app losing your work as far as anyone can tell from the outside.
+   */
+  protected readonly merges = inject(EditCandidatesService).merges;
+
+  /** "Yes, that is it" — the merge becomes the photograph and its frames stand down. */
+  protected settleMerge(merge: MergedPhoto): void {
+    void this.detection.settleMerge(merge);
+  }
+  private readonly overdueIds = computed(
+    () => new Set(this.mandatory().map((photo) => photo.assetId)),
+  );
+
+  /** Whether a row of today's batch is one of the photographs holding the album shut. */
+  protected isMandatory(assetId: string): boolean {
+    return this.overdueIds().has(assetId);
+  }
+
+  /** Into Lightroom, at the one photograph — the search route, as the per-item links use. */
+  protected assetUrl(photo: { assetId: string; name: string }): string | null {
+    const catalogId = this.catalogId;
+    return catalogId ? lightroomAssetUrl(catalogId, photo.assetId, photo.name) : null;
+  }
 
   /** Ask which of the queued photos have actually been worked on since they were sent. */
   checkForEdits(): void {

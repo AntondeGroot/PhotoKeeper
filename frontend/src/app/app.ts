@@ -16,6 +16,7 @@ import { ReviewFeedService } from './review/review-feed.service';
 import { DayService } from './review/day.service';
 import { ReviewDecisionsService } from './review/review-decisions.service';
 import { ReviewStatsService } from './review/review-stats.service';
+import { EditCandidatesService } from './review/edit-candidates.service';
 import { FullscreenViewerService } from './review/fullscreen-viewer.service';
 import { CatalogScanService } from './detection/scan/catalog-scan.service';
 import { DetectionSettingsService } from './detection/scan/detection-settings.service';
@@ -103,6 +104,8 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly decisions = inject(ReviewDecisionsService);
   // public: the template reads its computeds directly (tallies, goal progress, edit queue)
   readonly stats = inject(ReviewStatsService);
+  /** What the Edit tab offers: the album's waiting photographs (see editBatch). */
+  readonly editCandidates = inject(EditCandidatesService);
   // protected: the fullscreen viewer's own controls are wired straight to it from the template,
   // rather than through wrappers here that only forwarded the call.
   protected readonly viewer = inject(FullscreenViewerService);
@@ -187,7 +190,13 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly currentUnitImageUrls = this.feed.currentUnitUrls;
   // The deck's derived stats (tallies, goal progress, Edit/Print queues) live in ReviewStatsService;
   // these reference its computeds so the template bindings keep working unchanged.
-  readonly editBatch = this.stats.editBatch;
+  /**
+   * The Edit tab's list: the album's own waiting photographs, not today's deck.
+   *
+   * Editing is standing work rather than a daily selection — the deck's few marked-for-editing
+   * photographs are a fraction of what is actually in KeeperEdit, and on most days none at all.
+   */
+  readonly editBatch = this.editCandidates.batch;
   // Frame-id → preview URL for today's edit batch, so the Edit list can show each photo (read
   // reactively so a thumbnail appears as its preview finishes loading). The Prints tab's own component
   // reads previews directly; the host only warms its photos (see prefetchWindow).
