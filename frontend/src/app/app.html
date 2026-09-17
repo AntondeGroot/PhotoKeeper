@@ -267,7 +267,7 @@
               [queue]="editBatch()"
               [imageUrls]="editImageUrls()"
               [catalogId]="catalogId()"
-              [editDone]="stats.editDone()"
+              [editDone]="editCandidates.empty()"
               (promoted)="promoteToPrint($event)"
             />
           } @else if (reviewMode() === 'tidy') {

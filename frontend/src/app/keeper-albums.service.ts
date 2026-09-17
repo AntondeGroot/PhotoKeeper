@@ -47,6 +47,23 @@ export class KeeperAlbumsService {
     return this.idsByName()?.get(name) ?? null;
   }
 
+  /** Every album the catalogue has, by id — the same read, turned round. */
+  private readonly namesById = computed(() => {
+    const byName = this.idsByName();
+    return byName ? new Map([...byName].map(([name, id]) => [id, name])) : null;
+  });
+
+  /**
+   * What an album is called, for a screen that has only its id.
+   *
+   * The read behind this fetches the whole catalogue, not only the Keeper albums, so the names are
+   * already in hand — which is what lets a photograph be named by its album without a request of
+   * its own.
+   */
+  nameFor(albumId: string): string | null {
+    return this.namesById()?.get(albumId) ?? null;
+  }
+
   /** Reads the catalog once per session. Repeated calls join the first read instead of re-asking. */
   ensure(): Promise<void> {
     this.pending ??= this.load();

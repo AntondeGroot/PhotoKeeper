@@ -9,7 +9,6 @@ import { EditBaselineStore } from '../storage/review/edit-baseline-store';
 import { HashStore } from '../storage/detection/hash-store';
 import { AlbumManifestStore } from '../storage/detection/album-manifest-store';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
-import { GroupStore } from '../storage/detection/group-store';
 import { PhotoMergeStore } from '../storage/review/photo-merge-store';
 import { ReviewStore } from '../storage/review/review-store';
 import { ReviewFeedService } from './review-feed.service';
@@ -23,6 +22,8 @@ import {
   verdictFor,
 } from './edit-detection';
 import { PhotoAsset } from '../lightroom-types';
+import { EditCandidatesService } from './edit-candidates.service';
+import { MergeFinderService } from './merge-finder.service';
 
 /** Why a check could not run. 'none' while it can. */
 export type CheckFailure = 'none' | 'unreadable' | 'no-album';
@@ -35,7 +36,7 @@ export type CheckFailure = 'none' | 'unreadable' | 'no-album';
  * nothing a plain error does not already have.
  */
 const MISSING_ALBUM = new Error(`no ${KEEPER_EDIT_ALBUM} album`);
-import { MergedPhoto, findMerges } from './merged-photo';
+import { MergedPhoto } from './merged-photo';
 
 /** One row of the check's result: the verdict, plus enough to show it. */
 export interface EditFinding extends EditVerdict {
@@ -72,13 +73,14 @@ export class EditDetectionService {
   private readonly hashes = inject(HashStore);
   private readonly manifests = inject(AlbumManifestStore);
   private readonly meta = inject(AssetMetaStore);
-  private readonly groups = inject(GroupStore);
   private readonly mergeRecords = inject(PhotoMergeStore);
   private readonly reviews = inject(ReviewStore);
   private readonly hasher = inject(ImageHasher);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly feed = inject(ReviewFeedService);
   private readonly progress = inject(DailyProgressService);
+  private readonly candidates = inject(EditCandidatesService);
+  private readonly finder = inject(MergeFinderService);
 
   /** What the last check found, newest run replacing the last. Null until one has been run. */
   readonly findings = signal<EditFinding[] | null>(null);
@@ -90,7 +92,7 @@ export class EditDetectionService {
    * finding says a photograph changed; this says several photographs became one, and what settles it
    * is not "this one is done" but "these are finished, and here is what came of them".
    */
-  readonly merges = signal<MergedPhoto[]>([]);
+  readonly merges = this.finder.merges;
   readonly checking = signal(false);
   /** True when the album could not be read at all — the panel says so rather than "nothing found". */
   /**
@@ -233,12 +235,9 @@ export class EditDetectionService {
     // already stored, so they answer a different question from a different place. A check that found
     // six finished edits should not report itself as broken because that lookup stumbled.
     try {
-      this.merges.set(await this.findMerges());
-    } catch (error) {
-      // Kept too, quietly: the check itself stands, but a lookup that keeps failing should not do so
-      // invisibly.
-      this.failureDetail.set(`merge lookup: ${describeFailure(error)}`);
-      this.merges.set([]);
+      await this.finder.refresh();
+    } catch {
+      // The finder keeps what it found last time; nothing here is the check's to report.
     }
     this.checking.set(false);
     this.panelOpen.set(true);
@@ -423,42 +422,9 @@ export class EditDetectionService {
       this.progress.recordEdit();
     }
     this.dropFindings(assetIds);
-  }
-
-  /**
-   * Merges Lightroom has already written, waiting to be settled.
-   *
-   * Read from what the scan has stored rather than from Lightroom: the merge lands in the album its
-   * frames came from, not in KeeperEdit, so the listing this check is built on would never show it.
-   * That does mean a panorama merged since the last scan is not seen until the next one — the same
-   * wait as anything else new in the catalogue.
-   *
-   * Merges already settled are left out: that sweep has left the queue, and the record of what it
-   * became is the thing this would otherwise offer to make again.
-   */
-  private async findMerges(): Promise<MergedPhoto[]> {
-    const [meta, verdicts, groups, settled] = await Promise.all([
-      this.meta.getAll(),
-      this.reviews.getVerdicts(),
-      this.groups.getAll(),
-      this.mergeRecords.getAll(),
-    ]);
-
-    // The set a frame belongs to, so a merge settles every photograph behind it rather than the one
-    // Lightroom happened to name it after. Any kind of group: a sweep arrives as a pano, while the
-    // brackets an HDR is merged from are near-identical frames seconds apart — which is a burst.
-    const setOf = new Map<string, string[]>();
-    for (const group of groups) {
-      for (const frameId of group.memberIds) setOf.set(frameId, group.memberIds);
-    }
-
-    const files = [...meta].map(([id, asset]) => ({ id, name: asset.name }));
-    const found = findMerges(
-      files,
-      (assetId) => verdicts.get(assetId)?.status === 'toEdit',
-      (assetId) => setOf.get(assetId),
-    );
-    return found.filter((merge) => !settled.has(merge.mergedId));
+    // The tab's list is what the user works from: one still offering a photograph they have just
+    // finished is worse than one a few seconds stale.
+    void this.candidates.refresh();
   }
 
   /**
@@ -493,7 +459,7 @@ export class EditDetectionService {
     }
 
     await this.sendToPrint([merge.mergedId]);
-    this.merges.update((list) => list.filter((one) => one.mergedId !== merge.mergedId));
+    this.finder.merges.update((list) => list.filter((one) => one.mergedId !== merge.mergedId));
   }
 
   /** Keeps the deck in step with a decision made from a list, for the units that are on it. */
