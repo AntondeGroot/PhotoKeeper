@@ -1,9 +1,52 @@
-<!-- Above everything, and outside the two branches below: the album can be over its limit while
-     this phone has nothing left to edit — which is exactly when "Edit queue clear" reads as a lie. -->
+<!-- Above everything, and outside the two branches below: the album can be over its limit, or hold
+     photographs that have waited months, while this phone has nothing left in today's batch — which
+     is exactly when "Edit queue clear" reads as a lie. -->
 @if (filing.editQueueHeld() >= queueCap()) {
   <p class="queue-note">
     {{ editAlbumName }} holds too many photos. Edit some, then remove them from the album.
   </p>
+}
+
+<!-- Finished work, waiting only to be told so. Above the queue because confirming one takes a tap
+     and takes a whole sweep out of the album, which is the cheapest progress available here. -->
+@if (merges().length > 0) {
+  <div class="merged-ready">
+    @for (merge of merges(); track merge.mergedId) {
+      <div class="merged-row">
+        <div>
+          <p class="merged-name">{{ merge.mergedName }}</p>
+          <p class="merged-note">
+            A {{ merge.kind }} from {{ merge.frameIds.length }}
+            {{ merge.frameIds.length === 1 ? 'frame' : 'frames' }} — already merged in Lightroom.
+          </p>
+        </div>
+        <button class="merged-done" (click)="settleMerge(merge)">
+          That’s the {{ merge.kind }}
+        </button>
+      </div>
+    }
+  </div>
+}
+
+@if (mandatory().length > 0) {
+  <div class="must-edit">
+    <p class="must-head">
+      {{ mandatory().length }}
+      {{ mandatory().length === 1 ? 'photo has' : 'photos have' }} been waiting over a month. Edit
+      {{ mandatory().length === 1 ? 'it' : 'them' }} to let new photos into {{ editAlbumName }} —
+      nothing new is sent while they wait.
+    </p>
+    <ul class="must-list">
+      @for (photo of mandatory(); track photo.assetId) {
+        <li>
+          <span class="must-name">{{ photo.name }}</span>
+          @if (assetUrl(photo); as url) {
+            <a class="must-open" [href]="url" target="_blank" rel="noopener">Open</a>
+          }
+        </li>
+      }
+    </ul>
+  </div>
 }
 
 @if (!editDone) {
@@ -36,7 +79,12 @@
           }
         </div>
         <div class="edit-text">
-          <span class="item-name">{{ photo.name }}{{ photo.ext ? '.' + photo.ext : '' }}</span>
+          <span class="item-name">
+            {{ photo.name }}{{ photo.ext ? '.' + photo.ext : '' }}
+            @if (isMandatory(photo.id)) {
+              <span class="must-badge">waiting a month</span>
+            }
+          </span>
           <span class="item-album">{{ photo.album || 'No album' }}</span>
         </div>
         <div class="edit-actions">
@@ -62,8 +110,16 @@
     }
   </div>
 } @else {
+  <!-- "Clear" is only true of the album as well as this phone. Said while KeeperEdit is full, or
+       holding photographs nobody has touched for a month, it reads as the app losing track. -->
   <div class="edit-done">
-    <h2>Edit queue clear.</h2>
+    @if (mandatory().length > 0) {
+      <h2>Nothing new until those are edited.</h2>
+    } @else if (filing.editQueueHeld() >= queueCap()) {
+      <h2>Nothing new while {{ editAlbumName }} is full.</h2>
+    } @else {
+      <h2>Edit queue clear.</h2>
+    }
   </div>
 }
 
