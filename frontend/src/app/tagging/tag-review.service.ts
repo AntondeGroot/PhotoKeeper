@@ -4,6 +4,9 @@ import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewStore } from '../storage/review/review-store';
 import { PreviewCacheService } from '../review/preview-cache.service';
 import { PreferencesService } from '../preferences.service';
+import { GroupStore } from '../storage/detection/group-store';
+import { PhotoMergeStore } from '../storage/review/photo-merge-store';
+import { shotSets } from './shot-sets';
 import { DailyProgressService } from '../review/daily-progress.service';
 import { ReviewUndoService, UndoEntry } from '../review/review-undo.service';
 import { TagState } from './tag-state.service';
@@ -49,6 +52,8 @@ export class TagReviewService {
   private readonly prefs = inject(PreferencesService);
   private readonly progress = inject(DailyProgressService);
   private readonly undoStack = inject(ReviewUndoService);
+  private readonly groups = inject(GroupStore);
+  private readonly merges = inject(PhotoMergeStore);
 
   /** Cursor over the keepers pool while in the Tag step. */
   readonly cursor = signal(0);
@@ -64,6 +69,8 @@ export class TagReviewService {
    * cost of the entire library, every time the button was pressed.
    */
   private candidates: Photo[] = [];
+  /** assetId → every file that is the same photograph; rebuilt with each pool. */
+  private shots = new Map<string, string[]>();
 
   /**
    * The Tag-step pool: keepers that still have no tags, drawn from the whole library rather than
@@ -152,15 +159,42 @@ export class TagReviewService {
 
   /** Every keeper with no tags, newest first. */
   private async untaggedKeepers(): Promise<Photo[]> {
-    const [verdicts, meta] = await Promise.all([
+    const [verdicts, meta, groups, merges] = await Promise.all([
       this.reviewStore.getVerdicts(),
       this.assetMeta.getAll(),
+      this.groups.getAll(),
+      this.merges.getAll(),
     ]);
 
-    return [...meta.entries()]
-      .filter(([id]) => isKeeper(verdicts.get(id)?.status) && !this.tagState.tagsFor(id).length)
-      .sort(([, a], [, b]) => b.taken.localeCompare(a.taken)) // newest first
-      .map(([id, m]) => toPhoto(id, m, verdicts.get(id)!.status));
+    this.shots = shotSets({
+      names: new Map([...meta].map(([id, asset]) => [id, asset.name])),
+      // Every kind of group except a burst. A sweep's frames and a stereo pair's eyes are one
+      // photograph taken in pieces, but a burst is several attempts at one moment — they are judged
+      // one at a time on purpose, and the ones that survive are separate photographs to label.
+      groups: groups.filter((group) => group.type !== 'burst').map((group) => group.memberIds),
+      merges: [...merges].map(([mergedId, record]) => [mergedId, ...record.frameIds]),
+    });
+
+    // One card per photograph, not per file. A shot whose sweep, panorama and denoise are all
+    // keepers is one thing to label, and labelling it settles every file of it at once.
+    const offered = new Set<string>();
+    const queue: Photo[] = [];
+    for (const [id, asset] of [...meta.entries()].sort(([, a], [, b]) =>
+      b.taken.localeCompare(a.taken),
+    )) {
+      if (!isKeeper(verdicts.get(id)?.status)) continue;
+      const shot = this.shotOf(id);
+      if (shot.some((assetId) => this.tagState.tagsFor(assetId).length > 0)) continue;
+      if (shot.some((assetId) => offered.has(assetId))) continue;
+      offered.add(id);
+      queue.push(toPhoto(id, asset, verdicts.get(id)!.status));
+    }
+    return queue;
+  }
+
+  /** Every file that is the same photograph as this one — itself alone when nothing else is. */
+  private shotOf(assetId: string): string[] {
+    return this.shots.get(assetId) ?? [assetId];
   }
 
   private async warmAround(cursor: number): Promise<void> {
@@ -181,10 +215,10 @@ export class TagReviewService {
     if (!photo) return;
     const tagId = dir === NO_TAG_DIR ? NO_TAG_ID : this.prefs.tagDirections()[dir];
     if (!tagId) return;
-    const before = this.tagState.tagsFor(photo.id);
-    const counted = !before.length;
-    this.tagState.apply(photo.id, tagId);
-    if (this.tagState.tagsFor(photo.id).join() !== before.join()) {
+    const before = this.tagsOfShot(photo.id);
+    const counted = !this.tagState.tagsFor(photo.id).length;
+    for (const assetId of this.shotOf(photo.id)) this.tagState.apply(assetId, tagId);
+    if (this.tagState.tagsFor(photo.id).join() !== (before[0]?.tagIds.join() ?? '')) {
       if (counted) this.progress.recordTag();
       this.remember(photo, tagId, before, counted);
     }
@@ -213,11 +247,15 @@ export class TagReviewService {
   toggle(tagId: string): void {
     const photo = this.currentPhoto();
     if (!photo) return;
-    const before = this.tagState.tagsFor(photo.id);
+    const before = this.tagsOfShot(photo.id);
+    const had = this.tagState.tagsFor(photo.id);
     this.tagState.toggle(photo.id, tagId);
     const after = this.tagState.tagsFor(photo.id);
-    if (after.join() === before.join()) return;
-    const counted = !before.length && after.length > 0;
+    if (after.join() === had.join()) return;
+    // The rest of the shot is set to match, rather than toggled: they are the same photograph, and
+    // toggling each would flip any that happened to disagree in the opposite direction.
+    for (const assetId of this.shotOf(photo.id)) this.tagState.restore(assetId, after);
+    const counted = !had.length && after.length > 0;
     if (counted) this.progress.recordTag();
     this.remember(photo, after[0] ?? NO_TAG_ID, before, counted);
   }
@@ -233,19 +271,32 @@ export class TagReviewService {
   async undoTag(entry: UndoEntry): Promise<void> {
     if (!entry.tag) return;
     if (!(await this.undoStack.take(entry))) return;
-    this.tagState.restore(entry.unit.id, entry.tag.previous);
+    for (const { assetId, tagIds } of entry.tag.previous) this.tagState.restore(assetId, tagIds);
     if (entry.tag.counted) this.progress.forgetTag();
     this.cursor.set(entry.tag.cursor);
   }
 
   /** Names the row by the tag rather than by "Tagged", which would leave out the answer. */
-  private remember(photo: Photo, tagId: string, previous: string[], counted: boolean): void {
+  private remember(
+    photo: Photo,
+    tagId: string,
+    previous: { assetId: string; tagIds: string[] }[],
+    counted: boolean,
+  ): void {
     const name = this.tagState.tags().find((tag) => tag.id === tagId)?.name;
     this.undoStack.captureTag(photo, name ?? (tagId === NO_TAG_ID ? NO_TAG.name : tagId), {
-      previous: [...previous],
+      previous,
       cursor: this.cursor(),
       counted,
     });
+  }
+
+  /** What every file of this shot was labelled with, so taking the decision back restores all of it. */
+  private tagsOfShot(assetId: string): { assetId: string; tagIds: string[] }[] {
+    return this.shotOf(assetId).map((id) => ({
+      assetId: id,
+      tagIds: [...this.tagState.tagsFor(id)],
+    }));
   }
 
   /**

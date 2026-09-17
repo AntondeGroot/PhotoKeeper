@@ -113,6 +113,7 @@ export default tseslint.config(
             'src/app/keeper-albums.ts',
             'src/app/camera-metadata.ts',
             'src/app/tagging/tags.ts',
+            'src/app/tagging/shot-sets.ts',
             'src/app/detection/detectors/**/*.ts', // pure detectors + their contract types
             'src/app/review/selection/unit-selection.ts',
             'src/app/review/selection/stereo-pairing.ts',

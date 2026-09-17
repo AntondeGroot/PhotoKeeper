@@ -5,6 +5,10 @@ import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { ReviewStore } from '../storage/review/review-store';
 import { PreviewCacheService } from '../review/preview-cache.service';
 import { PreferencesService } from '../preferences.service';
+import { GroupStore } from '../storage/detection/group-store';
+import { PhotoMergeStore } from '../storage/review/photo-merge-store';
+import { DetectedGroup } from '../detection/detectors/detection-types';
+import { MergedPhotoRecord } from '../storage/review/photo-merge-store';
 import { TagState } from './tag-state.service';
 import { ReviewUndoService } from '../review/review-undo.service';
 import { DEFAULT_TAG_DIRECTIONS, TagDirections } from './tags';
@@ -12,9 +16,9 @@ import { Photo } from '../photo';
 import { AssetMeta, StoredVerdict } from '../storage/photokeeper-db';
 
 /** An asset in the library, with the verdict that decides whether it is taggable. */
-type Asset = { id: string; status: Photo['status']; taken?: string };
+type Asset = { id: string; status: Photo['status']; taken?: string; name?: string };
 
-const meta = (taken: string): AssetMeta => ({ albumId: 'al', name: 'n', taken });
+const meta = (taken: string, name = 'n'): AssetMeta => ({ albumId: 'al', name, taken });
 const verdict = (status: Photo['status']): StoredVerdict => ({
   status,
   starred: false,
@@ -24,6 +28,9 @@ const verdict = (status: Photo['status']): StoredVerdict => ({
 describe('TagReviewService', () => {
   let service: TagReviewService;
   let library: Asset[];
+  /** Detected groups and recorded merges: what makes several files one photograph. */
+  let groups: DetectedGroup[];
+  let mergeRecords: Map<string, MergedPhotoRecord>;
   let tagDirections: ReturnType<typeof signal<TagDirections>>;
   // A signal so the service's computeds (taggedCount, progress) recompute when assignments change,
   // matching the real signal-backed TagState.
@@ -38,6 +45,8 @@ describe('TagReviewService', () => {
   }
 
   beforeEach(async () => {
+    groups = [];
+    mergeRecords = new Map();
     library = [
       { id: 'a', status: 'kept', taken: '2026-01-03' },
       { id: 'b', status: 'kept', taken: '2026-01-02' },
@@ -64,7 +73,9 @@ describe('TagReviewService', () => {
           provide: AssetMetaStore,
           useValue: {
             getAll: () =>
-              Promise.resolve(new Map(library.map((a) => [a.id, meta(a.taken ?? '2026-01-01')]))),
+              Promise.resolve(
+                new Map(library.map((a) => [a.id, meta(a.taken ?? '2026-01-01', a.name ?? a.id)])),
+              ),
           },
         },
         {
@@ -99,6 +110,9 @@ describe('TagReviewService', () => {
           },
         },
         { provide: PreferencesService, useValue: { tagGoal: () => 2, tagDirections } },
+        // What makes several files one photograph: a detected group, or a recorded merge.
+        { provide: GroupStore, useValue: { getAll: () => Promise.resolve(groups) } },
+        { provide: PhotoMergeStore, useValue: { getAll: () => Promise.resolve(mergeRecords) } },
       ],
     });
     service = TestBed.inject(TagReviewService);
@@ -365,5 +379,77 @@ describe('TagReviewService', () => {
     await service.load(); // what switching to another tab and back does
 
     expect(service.taggedCount()).toBe(1);
+  });
+
+  /**
+   * The complaint this fixes: having tagged a photograph, being asked about the denoise Lightroom
+   * wrote beside it — and then about every frame of a sweep, and the panorama stitched from them. A
+   * tag is about what is in the picture, and they are all pictures of the same thing.
+   */
+  describe('files that are one photograph', () => {
+    /** A shot and its denoise, plus an unrelated photograph to prove the line is drawn somewhere. */
+    const pair: Asset[] = [
+      { id: 'raw', status: 'kept', name: 'DSC_1878', taken: '2026-01-03' },
+      { id: 'dng', status: 'kept', name: 'DSC_1878-Enhanced-NR', taken: '2026-01-03' },
+      { id: 'other', status: 'kept', name: 'DSC_9999', taken: '2026-01-01' },
+    ];
+
+    it('asks about the photograph once, not once per file', async () => {
+      await loadLibrary(pair);
+
+      expect(service.taggablePhotos().map((p) => p.id)).toEqual(['raw', 'other']);
+    });
+
+    it('labels every file of it', async () => {
+      tagDirections.set({ up: 't1' });
+      await loadLibrary(pair);
+
+      service.swipe('up');
+
+      const labelled = applied
+        .filter((a) => a.tagId === 't1')
+        .map((a) => a.assetId)
+        .sort((a, b) => a.localeCompare(b));
+      expect(labelled).toEqual(['dng', 'raw']);
+    });
+
+    it('does not ask again about a shot one of whose files is already tagged', async () => {
+      assignments.set(new Map([['dng', ['t1']]]));
+
+      await loadLibrary(pair);
+
+      expect(service.taggablePhotos().map((p) => p.id)).toEqual(['other']);
+    });
+
+    /**
+     * A burst is the exception: several attempts at one moment, judged one at a time on purpose, so
+     * the frames that survive the duel are separate photographs and are labelled separately.
+     */
+    it('asks about each surviving frame of a burst', async () => {
+      groups = [{ type: 'burst', sourceAlbumId: 'al', memberIds: ['b1', 'b2'] }];
+
+      await loadLibrary([
+        { id: 'b1', status: 'kept', name: 'DSC_1', taken: '2026-01-03' },
+        { id: 'b2', status: 'kept', name: 'DSC_2', taken: '2026-01-02' },
+      ]);
+
+      expect(service.taggablePhotos().map((p) => p.id)).toEqual(['b1', 'b2']);
+    });
+
+    /** The frames of a sweep, and the panorama stitched from them, are one photograph too. */
+    it('joins a sweep and its panorama', async () => {
+      groups = [{ type: 'pano', sourceAlbumId: 'al', memberIds: ['f1', 'f2'] }];
+
+      await loadLibrary([
+        { id: 'f1', status: 'kept', name: 'DSC_1', taken: '2026-01-03' },
+        { id: 'f2', status: 'kept', name: 'DSC_2', taken: '2026-01-03' },
+        { id: 'pano', status: 'kept', name: 'DSC_2-Pano', taken: '2026-01-03' },
+      ]);
+      service.swipe('up');
+
+      expect(service.taggablePhotos()).toHaveLength(1);
+      const labelled = applied.map((a) => a.assetId).sort((a, b) => a.localeCompare(b));
+      expect(labelled).toEqual(['f1', 'f2', 'pano']);
+    });
   });
 });
