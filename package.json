@@ -19,7 +19,7 @@
     "@capacitor/core": "^8.5.0",
     "husky": "^9.1.0",
     "lint-staged": "^15.0.0",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.0"
   },
   "lint-staged": {
     "//": "Deliberately the frontend's own prettier binary, not a root one. This hook and frontend's `npm run format:check` must be the same version: they disagreed once (root 3.8.3 vs frontend 3.9.6 format an annotated arrow callback differently), and the hook then rewrote every commit into the style CI rejects. Dependabot only watches /frontend and /backend, so a root copy drifts behind unnoticed.",
