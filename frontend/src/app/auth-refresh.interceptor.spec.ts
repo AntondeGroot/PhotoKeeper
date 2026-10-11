@@ -80,8 +80,11 @@ describe('authRefreshInterceptor', () => {
     // An hour later the new token expires too; the shared refresh must not still be latched open.
     http.get('api/feed').subscribe();
     expire('api/feed');
-    httpMock.expectOne(REFRESH_URL).flush(FRESH_TOKENS);
-    httpMock.expectOne('api/feed').flush({});
+    httpMock.expectOne(REFRESH_URL).flush({ ...FRESH_TOKENS, accessToken: 'newer-acc' });
+    const retry = httpMock.expectOne('api/feed');
+
+    expect(retry.request.headers.get('X-Auth-Token')).toBe('newer-acc');
+    retry.flush({});
   });
 
   it('keeps the tokens when the refresh fails for a reason that is not the token', () => {
@@ -121,11 +124,14 @@ describe('authRefreshInterceptor', () => {
   });
 
   it('does not try to refresh the refresh call itself', () => {
-    svc.refresh().subscribe({ error: () => undefined });
+    let status: number | undefined;
+    svc.refresh().subscribe({ error: (e: { status: number }) => (status = e.status) });
 
     httpMock.expectOne(REFRESH_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
 
-    httpMock.verify(); // a second refresh here would be an infinite regress
+    // The 401 reaches the caller as-is; a second refresh here would be an infinite regress.
+    expect(status).toBe(401);
+    httpMock.verify();
   });
 
   it('leaves a 401 alone when there is no refresh token to spend', () => {
