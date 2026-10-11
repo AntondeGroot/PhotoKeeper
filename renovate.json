@@ -3,6 +3,48 @@
   "extends": ["config:recommended"],
   "packageRules": [
     {
+      "description": "Bundle the routine bumps per side, so a week of patches is one PR and one lockfile rebase instead of a queue of PRs that conflict with each other. Majors stay separate PRs to review (separateMajorMinor is on by default). The named groups further down are later rules, so they take their packages out of these bundles.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm dev minor/patch"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["dependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm prod minor/patch"
+    },
+    {
+      "matchManagers": ["maven"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "maven minor/patch"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "The Angular packages are versioned in lockstep and must be bumped together. @angular/compiler-cli peers on @angular/compiler at an exact version, and the two sit on opposite sides of the dev/prod line, so a split leaves a lockfile that `npm install` tolerates and `npm ci` (which CI runs) refuses.",
+      "matchPackageNames": ["@angular/**", "@angular-devkit/**", "angular-eslint", "ng-packagr", "zone.js"],
+      "groupName": "angular"
+    },
+    {
+      "description": "TypeScript follows Angular, not the other way round: @angular/compiler-cli accepts only a narrow TypeScript range, and a newer one fails `npm ci` on the peer constraint. Raise this ceiling as part of the Angular major that widens that range.",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6.1"
+    },
+    {
+      "description": "The Capacitor runtime, CLI and plugins are released together and check each other's versions at sync time.",
+      "matchPackageNames": ["@capacitor/**"],
+      "groupName": "capacitor"
+    },
+    {
+      "description": "Spring packages move together.",
+      "matchPackageNames": ["/^org\\.springframework/", "/^io\\.spring/"],
+      "groupName": "spring"
+    },
+    {
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true,
       "automergeType": "pr",
