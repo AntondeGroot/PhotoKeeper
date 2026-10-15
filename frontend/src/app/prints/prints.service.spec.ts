@@ -5,7 +5,7 @@ import { AlbumPrintStore } from '../storage/review/album-print-store';
 import { PrintBinStore } from '../storage/review/print-bin-store';
 import { FinishedAlbumsService } from './finished-albums.service';
 import { KeeperAlbumsService } from '../keeper-albums.service';
-import { KeeperFilingService } from '../review/keeper-filing.service';
+import { KeeperFilingService } from '../review/decisions/keeper-filing.service';
 import { LightroomService } from '../lightroom.service';
 import { AlbumGroup, Photo } from '../photo';
 import { AlbumPrintState, PrintBin, normalisePrintState } from './prints.types';

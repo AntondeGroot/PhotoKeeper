@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReviewAlbumTagsComponent } from './review-album-tags';
 import { PreferencesService } from '../../preferences.service';
 import { CatalogScanService } from '../../detection/scan/catalog-scan.service';
-import { ReviewDecisionsService } from '../review-decisions.service';
+import { ReviewDecisionsService } from '../decisions/review-decisions.service';
 
 const ALBUM = 'Houten';
 

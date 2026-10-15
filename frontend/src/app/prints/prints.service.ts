@@ -3,7 +3,7 @@ import { AlbumPrintStore } from '../storage/review/album-print-store';
 import { PrintBinStore } from '../storage/review/print-bin-store';
 import { FinishedAlbumsService } from './finished-albums.service';
 import { KeeperAlbumsService } from '../keeper-albums.service';
-import { KeeperFilingService } from '../review/keeper-filing.service';
+import { KeeperFilingService } from '../review/decisions/keeper-filing.service';
 import { AlbumGroup } from '../photo';
 import { AlbumPrintState, PrintBin, firstFreeBin, printsIn } from './prints.types';
 import { Photo } from '../photo';

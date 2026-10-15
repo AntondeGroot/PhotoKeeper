@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { SessionDoneComponent } from './session-done';
 import { CelebrationService } from '../../celebrations/celebration.service';
 import { CelebrationContext, PickedCelebration } from '../../celebrations/celebration.types';
-import { ReviewTotalsService } from '../review-totals.service';
+import { ReviewTotalsService } from '../progress/review-totals.service';
 
 const picked: PickedCelebration = {
   id: 'valentine',

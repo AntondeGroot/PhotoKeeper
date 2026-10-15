@@ -11,7 +11,7 @@ import { hammingDistance, lumaHammingDistance } from '../detectors/phash';
 import { PhotoAsset } from '../../lightroom-types';
 import { Stereo } from '../../photo';
 import { isCaptureFrame } from '../../camera-metadata';
-import { hydrateStereo } from '../../review/selection/unit-selection';
+import { hydrateStereo } from '../../review/deck/selection/unit-selection';
 
 // The signature MAD lives with the other perceptual-hash math; re-exported so the lab imports it here.
 export { signatureMad } from '../detectors/phash';

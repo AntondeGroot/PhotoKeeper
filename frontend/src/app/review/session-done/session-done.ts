@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { CelebrationService } from '../../celebrations/celebration.service';
 import { PickedCelebration } from '../../celebrations/celebration.types';
-import { ReviewTotalsService } from '../review-totals.service';
+import { ReviewTotalsService } from '../progress/review-totals.service';
 
 @Component({
   selector: 'app-session-done',

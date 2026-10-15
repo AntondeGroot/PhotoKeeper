@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { PrintPickerComponent } from './print-picker';
-import { PreviewCacheService } from '../../review/preview-cache.service';
+import { PreviewCacheService } from '../../review/deck/preview-cache.service';
 import { AlbumGroup, Photo } from '../../photo';
 
 const photo = (id: string): Photo => ({

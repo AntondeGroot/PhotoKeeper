@@ -2,8 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { CatalogScanService } from './catalog-scan.service';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { ReviewStore } from '../../storage/review/review-store';
-import { ReviewBufferService } from '../../review/review-buffer.service';
-import { REVIEW_BUFFER_TARGET } from '../../review/review-buffer-target';
+import { ReviewBufferService } from '../../review/deck/review-buffer.service';
+import { REVIEW_BUFFER_TARGET } from '../../review/deck/review-buffer-target';
 
 /**
  * Ceiling on how far ahead the scan will work, however badly the catalog groups.

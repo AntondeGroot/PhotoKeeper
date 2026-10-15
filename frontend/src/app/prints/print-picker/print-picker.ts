@@ -11,7 +11,7 @@ import {
 import { SafeUrl } from '@angular/platform-browser';
 import { AlbumGroup, Photo, isDevicePhoto } from '../../photo';
 import { SceneComponent } from '../../review/scene/scene';
-import { PreviewCacheService } from '../../review/preview-cache.service';
+import { PreviewCacheService } from '../../review/deck/preview-cache.service';
 import { printsIn } from '../prints.types';
 
 /** Photos revealed at a time. Each one costs a 2048px preview, so an album arrives in pages. */

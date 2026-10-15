@@ -12,7 +12,7 @@ import {
 import { SafeUrl } from '@angular/platform-browser';
 import { Photo, isDevicePhoto } from '../../photo';
 import { SceneComponent } from '../../review/scene/scene';
-import { PreviewCacheService } from '../../review/preview-cache.service';
+import { PreviewCacheService } from '../../review/deck/preview-cache.service';
 
 const FRAME = 62; // print frame width (px)
 const STEP = 36; // horizontal step per print — the frame minus its overlap

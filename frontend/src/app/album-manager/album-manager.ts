@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Album } from '../lightroom.service';
 import { PreferencesService } from '../preferences.service';
-import { STEREO_ROLE_LABEL, StereoAlbumsService } from '../review/stereo-albums.service';
+import { STEREO_ROLE_LABEL, StereoAlbumsService } from '../review/stereo/stereo-albums.service';
 import { StereoRole } from '../detection/detectors/detection-types';
 
 @Component({
