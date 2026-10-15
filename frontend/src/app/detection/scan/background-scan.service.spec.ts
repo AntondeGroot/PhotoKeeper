@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { BackgroundScanService } from './background-scan.service';
-import { ReviewBufferService } from '../../review/review-buffer.service';
-import { REVIEW_BUFFER_TARGET } from '../../review/review-buffer-target';
+import { ReviewBufferService } from '../../review/deck/review-buffer.service';
+import { REVIEW_BUFFER_TARGET } from '../../review/deck/review-buffer-target';
 import { CatalogScanService } from './catalog-scan.service';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { ReviewStore } from '../../storage/review/review-store';

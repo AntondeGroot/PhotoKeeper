@@ -8,10 +8,10 @@ import {
   signal,
 } from '@angular/core';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
-import { KeeperFilingService } from '../keeper-filing.service';
+import { KeeperFilingService } from '../decisions/keeper-filing.service';
 import { albumSearchLinks, lightroomAlbumUrl, lightroomAssetUrl } from '../../keeper-albums';
-import { PutBackComponent } from '../put-back/put-back';
-import { ReconsiderComponent } from '../reconsider/reconsider';
+import { PutBackComponent } from '../decisions/put-back/put-back';
+import { ReconsiderComponent } from '../decisions/reconsider/reconsider';
 
 /** One album's worth of tidying: the album, a way into it, and every photo to take out of it. */
 interface TidyRow {

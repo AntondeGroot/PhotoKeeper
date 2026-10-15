@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { EditBaseline } from '../../review/edit-detection';
+import { EditBaseline } from '../../review/edits/edit-detection';
 import { PhotoKeeperDb } from '../photokeeper-db';
 
 /**

@@ -32,8 +32,8 @@ import {
 } from '../lab-analysis';
 import { Stereo, unitAssetIds } from '../../../photo';
 import { PreferencesService } from '../../../preferences.service';
-import { PreviewCacheService } from '../../../review/preview-cache.service';
-import { StereoCardComponent } from '../../../review/stereo-card/stereo-card';
+import { PreviewCacheService } from '../../../review/deck/preview-cache.service';
+import { StereoCardComponent } from '../../../review/stereo/stereo-card/stereo-card';
 import { CameraProbeComponent } from './camera-probe.component'; // throwaway (stereo-pairing)
 import { AlbumSpikeComponent } from './album-spike.component'; // throwaway (lightroom-write-back)
 import { SplitShootComponent } from './split-shoot.component';

@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { CensusService } from './census.service';
 import { DayCensus } from './census';
-import { DayService } from '../review/day.service';
+import { DayService } from '../review/progress/day.service';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { DayCensusStore } from '../storage/stats/day-census-store';
 import { DeletionLogStore } from '../storage/stats/deletion-log-store';

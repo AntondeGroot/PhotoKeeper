@@ -2,9 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { ReviewSortComponent } from './review-sort';
 import { NavigationService } from '../../navigation.service';
-import { PanoFramesService } from '../pano-frames.service';
-import { PreviewCacheService } from '../preview-cache.service';
-import { PanoCandidate } from '../pano-frames';
+import { PanoFramesService } from '../pano/pano-frames.service';
+import { PreviewCacheService } from '../deck/preview-cache.service';
+import { PanoCandidate } from '../pano/pano-frames';
 import { Photo } from '../../photo';
 
 const photo = (id: string): Photo => ({

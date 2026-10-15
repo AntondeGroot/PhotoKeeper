@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { TidyComponent } from './tidy';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
-import { KeeperFilingService } from '../keeper-filing.service';
+import { KeeperFilingService } from '../decisions/keeper-filing.service';
 
 /** Lets the chain of awaited store reads in the constructor settle before the DOM is inspected. */
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

@@ -3,7 +3,7 @@ import { DBSchema, IDBPDatabase, openDB } from 'idb';
 import { Photo, ReviewItem } from '../photo';
 import { Tag } from '../tagging/tags';
 import { AlbumPrintState, PrintBin } from '../prints/prints.types';
-import { EditBaseline } from '../review/edit-detection';
+import { EditBaseline } from '../review/edits/edit-detection';
 import { CurrentPick, ShownRecord } from '../celebrations/celebration.types';
 import { DayCensus, DeletionRecord } from '../stats/census';
 import { MergedPhotoRecord } from './review/photo-merge-store';

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { PreferencesService } from '../../preferences.service';
-import { STEREO_ROLE_LABEL, StereoAlbumsService } from '../stereo-albums.service';
+import { STEREO_ROLE_LABEL, StereoAlbumsService } from '../stereo/stereo-albums.service';
 
 /**
  * In-review album tags shown above the sort card. Currently the stereo mark: a stereo role belongs to

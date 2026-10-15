@@ -3,7 +3,7 @@ import { AlbumManagerComponent } from './album-manager';
 import { Album } from '../lightroom.service';
 import { PreferencesService } from '../preferences.service';
 import { CatalogScanService } from '../detection/scan/catalog-scan.service';
-import { ReviewDecisionsService } from '../review/review-decisions.service';
+import { ReviewDecisionsService } from '../review/decisions/review-decisions.service';
 
 const ALBUMS: Album[] = [
   { id: 'a1', name: 'Lisbon, May' },

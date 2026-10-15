@@ -1,5 +1,5 @@
 import { EDIT_SUFFIX } from '../edit-pairs';
-import { mergeSourceNames } from '../review/merged-photo';
+import { mergeSourceNames } from '../review/edits/merged-photo';
 
 /**
  * Which files are the same photograph.

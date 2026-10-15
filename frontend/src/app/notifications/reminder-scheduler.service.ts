@@ -1,10 +1,10 @@
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { PreferencesService } from '../preferences.service';
-import { ReviewStatsService } from '../review/review-stats.service';
-import { ReviewDecisionsService } from '../review/review-decisions.service';
+import { ReviewStatsService } from '../review/progress/review-stats.service';
+import { ReviewDecisionsService } from '../review/decisions/review-decisions.service';
 import { AlbumPrintStore } from '../storage/review/album-print-store';
-import { BacklogStatusService } from '../review/backlog-status.service';
-import { ReviewBufferService } from '../review/review-buffer.service';
+import { BacklogStatusService } from '../review/progress/backlog-status.service';
+import { ReviewBufferService } from '../review/deck/review-buffer.service';
 import { NotificationService } from './notification.service';
 import { OS_REMINDERS } from './os-reminders';
 import { ReviewStats } from './notification-message';

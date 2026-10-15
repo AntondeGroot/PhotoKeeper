@@ -12,7 +12,7 @@ import { SafeUrl } from '@angular/platform-browser';
 import { PanoFrame, Photo, SwipeVerdict } from '../../photo';
 import { VERDICT_STYLE } from '../../verdicts';
 import { PhotoCardComponent } from '../photo-card/photo-card';
-import { PanoFramePickerComponent } from '../pano-card/frame-picker/frame-picker';
+import { PanoFramePickerComponent } from '../pano/pano-card/frame-picker/frame-picker';
 import { AssembledGroup, NavigationService } from '../../navigation.service';
 
 /**

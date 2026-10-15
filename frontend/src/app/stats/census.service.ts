@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { DayCensus, emptyCensus } from './census';
 import { isUnitId } from '../photo';
-import { DayService } from '../review/day.service';
+import { DayService } from '../review/progress/day.service';
 import { AssetMetaStore } from '../storage/review/asset-meta-store';
 import { DayCensusStore } from '../storage/stats/day-census-store';
 import { DeletionLogStore } from '../storage/stats/deletion-log-store';
