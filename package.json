@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.0",
-    "@capacitor/assets": "^3.0.5",
+    "@capacitor/assets": "^4.0.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "husky": "^9.1.0",
