@@ -76,7 +76,7 @@ jobs:
 
       - uses: actions/setup-java@v6.1.0
         with:
-          java-version: 21
+          java-version: 25
           distribution: temurin
           cache: gradle
 
