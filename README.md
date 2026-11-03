@@ -10,28 +10,29 @@ npm run android:install -- --skip-build  # reinstall the APK that is already bui
 ```
 
 Needs, once: JDK 21 (Temurin), the Android SDK platform-tools, and USB debugging
-enabled on the phone. The script checks all three and says which one is missing
-rather than failing inside Gradle or adb. `ANDROID_SERIAL` picks a phone when
-more than one is attached.
+enabled on the phone. The script checks all three, and that `node_modules` matches
+`package.json`, and says which one is the problem rather than failing inside Gradle
+or adb, or leaving a plugin out of the APK. `ANDROID_SERIAL` picks a phone when more
+than one is attached.
 
-**What the APK contains — and what it doesn't.** `capacitor.config.ts` sets
-`server.url` to `https://antondegroot.uk/photokeeper`, so the installed app is a
-native shell around the deployed site. That is deliberate: every `api/...` call
-in the frontend is relative, and Adobe's OAuth callback redirects to the
-deployed frontend URL with the tokens in the hash — loading the deployed origin
-directly keeps both working with no code change.
+**What the APK contains.** The frontend. `capacitor.config.ts` has no `server.url`,
+so the bundle built from your working copy is the app, served from the app's own
+origin, `https://photokeeper`. Backend calls can't share that origin, so they go to
+the deployed backend by absolute URL (`backendBaseUri` in `lightroom.service.ts`),
+which allows the app through `ANDROID_ORIGIN` in `CorsConfig`.
 
 The consequences are worth knowing:
 
-- **Frontend changes need `./deploy.sh`, not a reinstall.** Reinstall only when
-  the native shell changes: app id, name, icon, Capacitor version, or plugins.
-- **The app needs the Pi to be reachable.** There is no offline mode; if the
-  deploy is down the app shows a browser error page.
-
-Making it a self-contained offline bundle later means dropping `server.url` and
-then: an absolute backend base URL in `lightroom.service.ts`, CORS on the Spring
-side for the webview origin, and a `photokeeper://` deep-link redirect for the
-OAuth callback (a backend change).
+- **Frontend changes need a reinstall, not `./deploy.sh`.** Whatever is in your
+  working copy is what lands on the phone, so a change can be tried before anyone
+  else sees it. `./deploy.sh` is for the website and for backend changes, which the
+  phone can't see until they are deployed.
+- **The app opens with no network** and works from what is on the device. Reaching
+  Lightroom still needs the deployed backend to be up.
+- **The app's data is its own.** Its IndexedDB belongs to `https://photokeeper`, so it
+  shares nothing with the website, and changing `hostname` would strand it.
+- **Sign-in runs in the system browser** and returns through `photokeeper://auth`,
+  because Google refuses to authenticate inside an embedded webview.
 
 ## Photo sources
 
