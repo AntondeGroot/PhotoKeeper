@@ -392,7 +392,7 @@ function toStereoAsset(asset: PhotoAsset): StereoAsset {
   return { id: asset.id, lat: loc?.latitude, lng: loc?.longitude };
 }
 
-function toAssetMeta(asset: PhotoAsset, albumId: string): AssetMeta {
+export function toAssetMeta(asset: PhotoAsset, albumId: string): AssetMeta {
   const { name, ext } = splitFileName(asset.payload?.importSource?.fileName ?? asset.id);
   const loc = asset.payload?.location;
   // Only attach GPS when both coordinates are present, so un-geotagged frames keep a clean meta shape.

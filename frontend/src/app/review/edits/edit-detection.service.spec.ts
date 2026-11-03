@@ -9,6 +9,8 @@ import { HashStore } from '../../storage/detection/hash-store';
 import { AlbumManifestStore } from '../../storage/detection/album-manifest-store';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { GroupStore } from '../../storage/detection/group-store';
+import { SetFinishService } from './set-finish.service';
+import { GroupOverrideStore } from '../../storage/detection/group-override-store';
 import { MergedPhotoRecord, PhotoMergeStore } from '../../storage/review/photo-merge-store';
 import { DetectedGroup } from '../../detection/detectors/detection-types';
 import { ReviewStore } from '../../storage/review/review-store';
@@ -87,7 +89,12 @@ describe('EditDetectionService', () => {
         },
         {
           provide: KeeperAlbumsService,
-          useValue: { ensure: () => Promise.resolve(), idFor: () => editAlbumId },
+          useValue: {
+            ensure: () => Promise.resolve(),
+            idFor: () => editAlbumId,
+            nameFor: () => null,
+            checked: () => false,
+          },
         },
         {
           provide: EditBaselineStore,
@@ -119,6 +126,14 @@ describe('EditDetectionService', () => {
           provide: ImageHasher,
           useValue: {
             hash: (blob: Blob) => Promise.resolve((blob as Blob & { hash: string }).hash),
+          },
+        },
+        {
+          provide: GroupOverrideStore,
+          useValue: {
+            getAll: () => Promise.resolve([]),
+            reclassifications: () => Promise.resolve([]),
+            memberships: () => Promise.resolve([]),
           },
         },
         {
@@ -228,6 +243,179 @@ describe('EditDetectionService', () => {
    * there at all. So an ordinary photo was sent to edit with a hashless baseline, and the check could
    * only ever answer 'unknown' about it: every real edit was invisible by construction.
    */
+  /**
+   * Working on a panorama seldom touches every frame, so an edit to any one of them means the sweep
+   * has been worked on. The row speaks for the sweep through that frame, wherever it falls, and
+   * still carries every frame's own verdict for what happens to the row next.
+   */
+  it('folds a sweep into one row, which one edited frame is enough to flag', async () => {
+    albumAssets = [asset('f1', 'stamp-1'), asset('f2', 'stamp-2'), asset('f3', 'stamp-2')];
+    groups = [{ type: 'pano', sourceAlbumId: 'alb', memberIds: ['f1', 'f2', 'f3'] }];
+    for (const id of ['f1', 'f2', 'f3']) {
+      verdicts.set(id, { status: 'toEdit', starred: false, saveOnly: false });
+      baselines.set(id, { hash: 'before', updated: 'stamp-1', at: 0 });
+    }
+    renditions.set('f2', rendition('before')); // revision moved, same picture
+    renditions.set('f3', rendition('after')); // revision moved, picture changed
+
+    await service.check();
+
+    expect(service.findings()).toHaveLength(1);
+    expect(service.editedFindings()).toMatchObject([
+      { assetId: 'f3', state: 'edited', name: 'Panorama · 3 frames' },
+    ]);
+    expect(service.findings()?.[0].setFrames?.map((f) => [f.assetId, f.state])).toEqual([
+      ['f1', 'untouched'],
+      ['f2', 'touched'],
+      ['f3', 'edited'],
+    ]);
+  });
+
+  /**
+   * "Not done yet" means what the panorama looks like now is the new starting point. Each frame the
+   * check measured moves to its own measurement. An untouched frame was not measured and has not
+   * changed, so its baseline is already right: replacing it could only lose what it holds.
+   */
+  it('re-baselines each changed frame of a sweep from its own measurement', async () => {
+    albumAssets = [asset('f1', 'stamp-1'), asset('f2', 'stamp-2'), asset('f3', 'stamp-2')];
+    groups = [{ type: 'pano', sourceAlbumId: 'alb', memberIds: ['f1', 'f2', 'f3'] }];
+    for (const id of ['f1', 'f2', 'f3']) {
+      verdicts.set(id, { status: 'toEdit', starred: false, saveOnly: false });
+      baselines.set(id, { hash: 'before', updated: 'stamp-1', at: 0 });
+    }
+    renditions.set('f2', rendition('before'));
+    renditions.set('f3', rendition('after'));
+    await service.check();
+    blobRequests = [];
+
+    await service.keepEditing(service.editedFindings()[0]);
+
+    expect(baselines.get('f1')).toMatchObject({ hash: 'before', updated: 'stamp-1' });
+    expect(baselines.get('f2')).toMatchObject({ hash: 'before', updated: 'stamp-2' });
+    expect(baselines.get('f3')).toMatchObject({ hash: 'after', updated: 'stamp-2' });
+    expect(blobRequests).toEqual([]);
+    expect(service.findings()).toEqual([]);
+  });
+
+  /**
+   * The one way a burst's frames reach the print album, so it has to do all of it: every frame goes,
+   * keeping what was already decided about it, and each leaves the queue with its baseline gone. It
+   * was one decision about one set, so it counts as one edit however many frames it had. Run through
+   * the real service, because this is the write that cannot be undone.
+   */
+  it('sends every frame of a burst to print when told to, counting one edit', async () => {
+    for (const id of ['f1', 'f2', 'f3']) {
+      verdicts.set(id, { status: 'toEdit', starred: id === 'f2', saveOnly: false });
+      baselines.set(id, { hash: 'before', updated: 'stamp-1', at: 0 });
+    }
+
+    await TestBed.inject(SetFinishService).sendFramesToPrint('f1', ['f1', 'f2', 'f3']);
+
+    expect(verdicts.get('f1')?.status).toBe('toPrint');
+    expect(verdicts.get('f2')).toEqual({ status: 'toPrint', starred: true, saveOnly: false });
+    expect(verdicts.get('f3')?.status).toBe('toPrint');
+    expect([...baselines.keys()]).toEqual([]);
+    expect(edits).toBe(1);
+  });
+
+  /**
+   * Brackets are edited by merging them, so the check sees the same thing as with a sweep: one frame
+   * moved and the rest did not. The row has to carry the kind, because that decides which choices it
+   * goes on to offer, and a burst keeps the option of printing where a panorama never has it.
+   */
+  it('folds a burst into one row, labelled and marked as a burst', async () => {
+    albumAssets = [asset('f1', 'stamp-1'), asset('f2', 'stamp-2')];
+    groups = [{ type: 'burst', sourceAlbumId: 'alb', memberIds: ['f1', 'f2'] }];
+    for (const id of ['f1', 'f2']) {
+      verdicts.set(id, { status: 'toEdit', starred: false, saveOnly: false });
+      baselines.set(id, { hash: 'before', updated: 'stamp-1', at: 0 });
+    }
+    renditions.set('f2', rendition('after'));
+
+    await service.check();
+
+    expect(service.findings()).toHaveLength(1);
+    expect(service.editedFindings()).toMatchObject([
+      { assetId: 'f2', name: 'Burst · 2 frames', setKind: 'burst' },
+    ]);
+  });
+
+  /**
+   * A burst sent to edit stands on today's deck as one card under an id of its own, so going by id
+   * alone would miss it. It would go on counting as waiting to be edited after its frames had gone,
+   * while the photos around it must stay as they are.
+   */
+  it('updates a burst\u2019s card on today\u2019s deck when its frames finish', async () => {
+    const card = {
+      id: 'burst:alb:f1',
+      kind: 'burst',
+      status: 'toEdit',
+      photos: [{ id: 'f1' }, { id: 'f2' }],
+    };
+    deck.set([card, { id: 'other', kind: 'photo', status: 'toEdit' } as typeof card]);
+    for (const id of ['f1', 'f2']) {
+      verdicts.set(id, { status: 'toEdit', starred: false, saveOnly: false });
+    }
+
+    await TestBed.inject(SetFinishService).sendFramesToPrint('f1', ['f1', 'f2']);
+
+    expect(deck()?.map((item) => [item.id, item.status])).toEqual([
+      ['burst:alb:f1', 'toPrint'],
+      ['other', 'toEdit'],
+    ]);
+  });
+
+  /**
+   * A reload rebuilds each card's status from the verdict stored under the card's own id, written
+   * when it was sent to edit. Left as it was, a finished set's card would go back to "to edit" for
+   * the rest of the day, and the deck's count with it. Either way of finishing has to reach it.
+   */
+  it('stores a finished set\u2019s outcome under its card\u2019s own id, for a reload to find', async () => {
+    const card = (id: string, ...frames: string[]) => ({
+      id,
+      kind: id.startsWith('burst') ? 'burst' : 'pano',
+      status: 'toEdit',
+      photos: frames.map((frame) => ({ id: frame })),
+      frames: frames.map((frame) => ({ id: frame })),
+    });
+    deck.set([card('burst:alb:b1', 'b1', 'b2'), card('pano:alb:p1', 'p1', 'p2')]);
+    for (const id of ['burst:alb:b1', 'pano:alb:p1', 'b1', 'b2', 'p1', 'p2']) {
+      verdicts.set(id, { status: 'toEdit', starred: false, saveOnly: false });
+    }
+    const finishing = TestBed.inject(SetFinishService);
+
+    await finishing.sendFramesToPrint('b1', ['b1', 'b2']);
+    await finishing.finishWithoutMerge('p1', ['p1', 'p2']);
+
+    expect(verdicts.get('burst:alb:b1')?.status).toBe('toPrint');
+    expect(verdicts.get('pano:alb:p1')?.status).toBe('kept');
+  });
+
+  /**
+   * A stereo card holds its eyes differently from the other cards, so it needs checking in its own
+   * right. Missed, it would go on counting as waiting to be edited, and go back to that after a reload.
+   */
+  it('updates a stereo card on today\u2019s deck when both eyes finish', async () => {
+    const card = {
+      id: 'stereo:alb:left',
+      kind: 'stereo',
+      status: 'toEdit',
+      left: [{ id: 'left' }],
+      baselines: [{ frames: [{ id: 'right' }] }],
+    };
+    deck.set([card]);
+    for (const id of ['stereo:alb:left', 'left', 'right']) {
+      verdicts.set(id, { status: 'toEdit', starred: false, saveOnly: false });
+    }
+
+    await TestBed.inject(SetFinishService).sendFramesToPrint('left', ['left', 'right']);
+
+    expect(deck()?.[0].status).toBe('toPrint');
+    expect(verdicts.get('stereo:alb:left')?.status).toBe('toPrint');
+    expect(verdicts.get('right')?.status).toBe('toPrint');
+    expect(edits).toBe(1);
+  });
+
   describe('the baseline a photo leaves with', () => {
     it('hashes the photo itself when the scan never did', async () => {
       storedHash = undefined;

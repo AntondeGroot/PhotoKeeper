@@ -7,6 +7,8 @@ import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { KeeperFilingStore } from '../../storage/review/keeper-filing-store';
 import { ReviewStore } from '../../storage/review/review-store';
 import { MergeFinderService } from './merge-finder.service';
+import { CorrectedGroupsService } from '../deck/selection/corrected-groups.service';
+import { DetectedGroup } from '../../detection/detectors/detection-types';
 import { AssetMeta, FiledRecord, StoredVerdict } from '../../storage/photokeeper-db';
 
 const meta = (name: string, albumId = 'alb-1'): AssetMeta => ({
@@ -30,6 +32,10 @@ describe('EditCandidatesService', () => {
   let editGoal: number;
   /** Frames Lightroom has already merged into a panorama — finished, whatever the verdict says. */
   let mergedFrames: Set<string>;
+  /** The groups as corrected by the user. */
+  let groups: DetectedGroup[];
+  /** Whether the catalogue has answered, which is when album names become known. */
+  let albumsChecked: ReturnType<typeof signal<boolean>>;
 
   beforeEach(() => {
     verdicts = new Map();
@@ -37,6 +43,8 @@ describe('EditCandidatesService', () => {
     records = new Map();
     editGoal = 3;
     mergedFrames = new Set();
+    groups = [];
+    albumsChecked = signal(false);
 
     TestBed.configureTestingModule({
       providers: [
@@ -45,9 +53,13 @@ describe('EditCandidatesService', () => {
         { provide: KeeperFilingStore, useValue: { getAll: () => Promise.resolve(records) } },
         {
           provide: KeeperAlbumsService,
-          useValue: { nameFor: (id: string) => (id === 'alb-1' ? 'Iceland' : null) },
+          useValue: {
+            nameFor: (id: string) => (id === 'alb-1' ? 'Iceland' : null),
+            checked: albumsChecked,
+          },
         },
         { provide: PreferencesService, useValue: { editGoal: () => editGoal } },
+        { provide: CorrectedGroupsService, useValue: { all: () => Promise.resolve(groups) } },
         {
           provide: MergeFinderService,
           useValue: {
@@ -155,6 +167,102 @@ describe('EditCandidatesService', () => {
     await service.refresh();
 
     expect(service.empty()).toBe(false);
+  });
+
+  /**
+   * A sweep is one photograph to the person editing it, so it is one row, placed by its longest-waiting
+   * frame. A frame still waiting for room in the album belongs to that row, and the last frame of a
+   * sweep is still a panorama: as a plain photo its "Done editing" would send it straight to print.
+   */
+  it('folds each sweep into one row, however many of its frames are left', async () => {
+    const waiting = (id: string, at?: number): void => {
+      verdicts.set(id, verdict('toEdit'));
+      assets.set(id, meta(id));
+      if (at !== undefined) records.set(id, filed(['KeeperEdit'], at));
+    };
+    waiting('a1', 100);
+    waiting('a2', 50);
+    waiting('a3'); // decided, but no room for it in the album yet
+    waiting('solo', 75);
+    waiting('b1', 200);
+    verdicts.set('b2', verdict('toPrint')); // this frame of the other sweep has already left the queue
+    groups = [
+      { type: 'pano', sourceAlbumId: 'alb-1', memberIds: ['a1', 'a2', 'a3'] },
+      { type: 'pano', sourceAlbumId: 'alb-1', memberIds: ['b1', 'b2'] },
+    ];
+
+    await service.refresh();
+
+    expect(service.all().map((row) => [row.id, row.setFrameIds])).toEqual([
+      ['a2', ['a1', 'a2', 'a3']],
+      ['solo', undefined],
+      ['b1', ['b1']],
+    ]);
+  });
+
+  /**
+   * A burst still grouped was sent to edit whole, which is how HDR brackets go, so it is one row and
+   * "Done editing" looks for the merged file before anything can print. A burst settled in a duel
+   * has had its group dissolved, so its survivors are alternatives and arrive here as single photos.
+   */
+  it('folds a burst sent to edit whole into one row, naming what kind of set it is', async () => {
+    for (const [id, at] of [
+      ['shot-1', 100],
+      ['shot-2', 200],
+    ] as const) {
+      verdicts.set(id, verdict('toEdit'));
+      assets.set(id, meta(id));
+      records.set(id, filed(['KeeperEdit'], at));
+    }
+    groups = [{ type: 'burst', sourceAlbumId: 'alb-1', memberIds: ['shot-1', 'shot-2'] }];
+
+    await service.refresh();
+
+    expect(service.all().map((row) => [row.id, row.setKind, row.setFrameIds])).toEqual([
+      ['shot-1', 'burst', ['shot-1', 'shot-2']],
+    ]);
+  });
+
+  /**
+   * The two eyes of a stereo pair are one shot to the person editing it, so they share a row, and
+   * finishing one finishes both. The row has to say it is stereo, because no merged file is coming:
+   * that kind is what stops "Done editing" going to look for one.
+   */
+  it('folds the two eyes of a stereo pair into one row', async () => {
+    for (const [id, at] of [
+      ['left', 100],
+      ['right', 200],
+    ] as const) {
+      verdicts.set(id, verdict('toEdit'));
+      assets.set(id, meta(id));
+      records.set(id, filed(['KeeperEdit'], at));
+    }
+    groups = [{ type: 'stereo', sourceAlbumId: 'alb-1', memberIds: ['left', 'right'] }];
+
+    await service.refresh();
+
+    expect(service.all().map((row) => [row.id, row.setKind, row.setFrameIds])).toEqual([
+      ['left', 'stereo', ['left', 'right']],
+    ]);
+  });
+
+  /**
+   * Which rows are stereo pairs depends on album names, and the catalogue is often read after the
+   * first refresh. Nothing else would ask again until a photo left the queue, so a pair would sit on
+   * two rows for no visible reason. Before the catalogue answers there is nothing new to read.
+   */
+  it('refreshes by itself once the catalogue has answered', async () => {
+    threeWaiting();
+
+    TestBed.tick();
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(service.all()).toEqual([]);
+
+    albumsChecked.set(true);
+    TestBed.tick();
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(service.all().map((p) => p.id)).toEqual(['oldest', 'middle', 'newest']);
   });
 
   /**

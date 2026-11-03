@@ -33,6 +33,7 @@ describe('TidyComponent', () => {
             ensure: () => Promise.resolve(),
             idFor: () => albumId,
             editAlbumId: signal(albumId),
+            checked: () => false,
           },
         },
       ],

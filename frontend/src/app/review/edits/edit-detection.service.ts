@@ -24,6 +24,15 @@ import {
 import { PhotoAsset } from '../../lightroom-types';
 import { EditCandidatesService } from './edit-candidates.service';
 import { MergeFinderService } from './merge-finder.service';
+import { CorrectedGroupsService } from '../deck/selection/corrected-groups.service';
+import {
+  FrameSet,
+  FrameSetKind,
+  framesByPhoto,
+  gatherBySet,
+  setLabel,
+  unitHolds,
+} from './frame-sets';
 
 /** Why a check could not run. 'none' while it can. */
 export type CheckFailure = 'none' | 'unreadable' | 'no-album';
@@ -41,6 +50,37 @@ import { MergedPhoto } from './merged-photo';
 /** One row of the check's result: the verdict, plus enough to show it. */
 export interface EditFinding extends EditVerdict {
   name: string;
+  /** Every frame's own verdict, when this row is a set. Absent for a single photograph. */
+  setFrames?: readonly EditVerdict[];
+  /** What kind of set this row is. Present exactly when {@link setFrames} is. */
+  setKind?: FrameSetKind;
+}
+
+/**
+ * The findings with each set folded into one row.
+ *
+ * The row speaks for the set through its most telling frame: an edit to any one of them means the
+ * set has been worked on, even though the other frames were never touched.
+ */
+function foldSets(
+  findings: readonly EditFinding[],
+  setOf: ReadonlyMap<string, FrameSet>,
+): EditFinding[] {
+  return gatherBySet(findings, (finding) => finding.assetId, setOf).map((unit) => {
+    // By the set, not the count: the last frame of a set must not go to print on its own.
+    const set = setOf.get(unit[0].assetId);
+    if (!set) return unit[0];
+    const lead =
+      unit.find((finding) => finding.state === 'edited') ??
+      unit.find((finding) => finding.state === 'touched') ??
+      unit[0];
+    return {
+      ...lead,
+      name: setLabel(set.kind, unit.length),
+      setFrames: unit,
+      setKind: set.kind,
+    };
+  });
 }
 
 /** The edit queue as both buttons need it: what is waiting, and what is known about each photo. */
@@ -48,6 +88,7 @@ interface EditQueue {
   queued: PhotoAsset[];
   baselines: ReadonlyMap<string, EditBaseline>;
   name: (asset: PhotoAsset) => string;
+  setOf: ReadonlyMap<string, FrameSet>;
 }
 
 /** The hash is computed from the smallest rendition; the downscale throws the rest away anyway. */
@@ -81,6 +122,7 @@ export class EditDetectionService {
   private readonly progress = inject(DailyProgressService);
   private readonly candidates = inject(EditCandidatesService);
   private readonly finder = inject(MergeFinderService);
+  private readonly groups = inject(CorrectedGroupsService);
 
   /** What the last check found, newest run replacing the last. Null until one has been run. */
   readonly findings = signal<EditFinding[] | null>(null);
@@ -222,7 +264,8 @@ export class EditDetectionService {
     this.failureDetail.set(null);
     this.picking.set(picking);
     try {
-      this.findings.set(await build(await this.readQueue()));
+      const queue = await this.readQueue();
+      this.findings.set(foldSets(await build(queue), queue.setOf));
       // Only what the panel will actually show. Fetching a picture for the rest would undo the cheap
       // pass — whose whole point is that a photo whose revision never moved is never downloaded.
       void this.loadThumbnails(this.shownFindings().map((finding) => finding.assetId));
@@ -261,11 +304,14 @@ export class EditDetectionService {
     const albumId = this.albums.idFor(KEEPER_EDIT_ALBUM);
     if (!albumId) throw MISSING_ALBUM;
 
-    const [assets, baselines, meta, verdicts] = await Promise.all([
+    const [assets, baselines, meta, verdicts, groups] = await Promise.all([
       firstValueFrom(this.svc.getAllAlbumAssets(albumId)),
       this.baselines.getAll(),
       this.meta.getAll(),
       this.reviews.getVerdicts(),
+      // A sweep folded into one row is a convenience: without the groups the check still answers,
+      // one row per frame, rather than reporting the album unreadable.
+      this.groups.all().catch(() => []),
     ]);
 
     // The album is not the queue, and cannot be: a photo cannot be taken out of a Lightroom album,
@@ -287,7 +333,7 @@ export class EditDetectionService {
     // listing carries `importSource.fileName` for every asset, and it was already in hand.
     const named = (asset: PhotoAsset): string =>
       asset.payload?.importSource?.fileName ?? meta.get(asset.id)?.name ?? asset.id;
-    return { queued, baselines, name: named };
+    return { queued, baselines, name: named, setOf: framesByPhoto(groups) };
   }
 
   private async runCheck(queue: EditQueue): Promise<EditFinding[]> {
@@ -405,26 +451,43 @@ export class EditDetectionService {
    *
    * <p>Their baselines go with them: they have left the queue, and a baseline for a photo nobody is
    * editing is a row that can only ever be stale.
+   *
+   * <p>Single photographs only. A panorama's frames must not reach the print album: see
+   * {@link SetFinishService}.
    */
   async sendToPrint(assetIds: readonly string[]): Promise<void> {
     for (const id of assetIds) {
-      const verdict = (await this.reviews.getVerdicts()).get(id);
-      await this.reviews.setVerdict(id, {
-        status: 'toPrint',
-        starred: verdict?.starred ?? false,
-        saveOnly: verdict?.saveOnly ?? false,
-      });
-      await this.forget(id);
-      // A photo the check found need not be on today's deck at all — the check reads the whole
-      // KeeperEdit album — so this is a no-op for the ones that are not, and the tally counts the
-      // finished edit either way.
-      this.setDeckStatus(id, 'toPrint');
+      await this.printFrames([id]);
       this.progress.recordEdit();
     }
     this.dropFindings(assetIds);
     // The tab's list is what the user works from: one still offering a photograph they have just
     // finished is worse than one a few seconds stale.
     void this.candidates.refresh();
+  }
+
+  /** Frames going to print, without counting the edit: a set of them is one edit however many. */
+  async printFrames(frameIds: readonly string[]): Promise<void> {
+    for (const id of frameIds) {
+      await this.markPrintable([id]);
+      await this.forget(id);
+      // A photo the check found need not be on today's deck at all — the check reads the whole
+      // KeeperEdit album — so this is a no-op for the ones that are not.
+      await this.setDeckStatus(id, 'toPrint');
+    }
+  }
+
+  /** Records photographs as finished, keeping whatever else was already decided about each. */
+  async markPrintable(assetIds: readonly string[]): Promise<void> {
+    const verdicts = await this.reviews.getVerdicts();
+    for (const assetId of assetIds) {
+      const verdict = verdicts.get(assetId);
+      await this.reviews.setVerdict(assetId, {
+        status: 'toPrint',
+        starred: verdict?.starred ?? false,
+        saveOnly: verdict?.saveOnly ?? false,
+      });
+    }
   }
 
   /**
@@ -446,8 +509,15 @@ export class EditDetectionService {
   async settleMerge(merge: MergedPhoto): Promise<void> {
     await this.mergeRecords.record(merge.mergedId, merge.frameIds);
 
+    await this.standDown(merge.frameIds);
+    await this.sendToPrint([merge.mergedId]);
+    this.finder.merges.update((list) => list.filter((one) => one.mergedId !== merge.mergedId));
+  }
+
+  /** Frames that are finished with: kept as originals, and out of print orders. */
+  async standDown(frameIds: readonly string[]): Promise<void> {
     const verdicts = await this.reviews.getVerdicts();
-    for (const frameId of merge.frameIds) {
+    for (const frameId of frameIds) {
       const verdict = verdicts.get(frameId);
       await this.reviews.setVerdict(frameId, {
         status: 'kept',
@@ -455,18 +525,24 @@ export class EditDetectionService {
         saveOnly: true,
       });
       await this.forget(frameId);
-      this.setDeckStatus(frameId, 'kept');
+      await this.setDeckStatus(frameId, 'kept');
     }
-
-    await this.sendToPrint([merge.mergedId]);
-    this.finder.merges.update((list) => list.filter((one) => one.mergedId !== merge.mergedId));
   }
 
-  /** Keeps the deck in step with a decision made from a list, for the units that are on it. */
-  private setDeckStatus(assetId: string, status: 'kept' | 'toPrint'): void {
+  /**
+   * Keeps the deck in step with a decision made from a list, for the units that are on it.
+   *
+   * A group card also carries a verdict under its own id, which is what a reload rebuilds its status
+   * from. Left alone, a finished card would go back to its old status for the rest of the day.
+   */
+  private async setDeckStatus(assetId: string, status: 'kept' | 'toPrint'): Promise<void> {
+    const holders = this.feed.photos().filter((item) => unitHolds(item, assetId));
     this.feed.photos.update((list) =>
-      list.map((item) => (item.id === assetId ? { ...item, status } : item)),
+      list.map((item) => (holders.includes(item) ? { ...item, status } : item)),
     );
+    for (const card of holders.filter((item) => item.id !== assetId)) {
+      await this.reviews.setVerdict(card.id, { status, starred: false, saveOnly: false });
+    }
   }
 
   /**
@@ -474,11 +550,16 @@ export class EditDetectionService {
    * version the next check compares against.
    */
   async keepEditing(finding: EditFinding): Promise<void> {
-    await this.captureBaseline(finding.assetId, { hash: finding.hash, updated: finding.updated });
+    for (const frame of finding.setFrames ?? [finding]) {
+      // Not measured and not changed, so its baseline is already right. Capturing would replace it
+      // with whatever hash is on hand, or none at all if the download failed.
+      if (frame.state === 'untouched') continue;
+      await this.captureBaseline(frame.assetId, { hash: frame.hash, updated: frame.updated });
+    }
     this.dropFindings([finding.assetId]);
   }
 
-  private dropFindings(assetIds: readonly string[]): void {
+  dropFindings(assetIds: readonly string[]): void {
     const gone = new Set(assetIds);
     this.findings.update((list) => (list ?? []).filter((f) => !gone.has(f.assetId)));
   }

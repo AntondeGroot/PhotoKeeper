@@ -10,11 +10,13 @@ import {
   signal,
 } from '@angular/core';
 import { SafeUrl } from '@angular/platform-browser';
-import { Photo } from '../../../photo';
 import { SceneComponent } from '../../scene/scene';
 import { KeeperAlbumsService } from '../../../keeper-albums.service';
 import { EditDetectionService } from '../edit-detection.service';
-import { EditCandidatesService } from '../edit-candidates.service';
+import { EditCandidate, EditCandidatesService } from '../edit-candidates.service';
+import { looksForMerge, mergedName, setLabel } from '../frame-sets';
+import { SetFinishService } from '../set-finish.service';
+import { SetFinishNoteComponent } from '../set-finish-note/set-finish-note';
 import { MergedPhoto } from '../merged-photo';
 import { KeeperFilingService } from '../../decisions/keeper-filing.service';
 import { PreferencesService } from '../../../preferences.service';
@@ -24,12 +26,12 @@ import { KEEPER_EDIT_ALBUM, lightroomAlbumUrl, lightroomAssetUrl } from '../../.
 @Component({
   selector: 'app-review-edit',
   templateUrl: './review-edit.html',
-  imports: [EditCheckComponent, SceneComponent],
+  imports: [EditCheckComponent, SetFinishNoteComponent, SceneComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './review-edit.scss',
 })
 export class ReviewEditComponent implements OnInit {
-  @Input() queue: Photo[] = [];
+  @Input() queue: EditCandidate[] = [];
   /** Frame-id → preview URL for the queued photos (a generated scene is shown when absent). */
   @Input() imageUrls = new Map<string, SafeUrl>();
   /** Lightroom catalog id, for the per-photo "Open in Lightroom" deep-link. */
@@ -56,9 +58,9 @@ export class ReviewEditComponent implements OnInit {
    */
   protected readonly merges = inject(EditCandidatesService).merges;
 
-  /** "Yes, that is it" — the merge becomes the photograph and its frames stand down. */
+  /** "Yes, that is it" — once Lightroom confirms the file exists; tapped again, stops waiting. */
   protected settleMerge(merge: MergedPhoto): void {
-    void this.detection.settleMerge(merge);
+    void this.setFinish.cardTapped(merge);
   }
   private readonly overdueIds = computed(
     () => new Set(this.mandatory().map((photo) => photo.assetId)),
@@ -102,12 +104,15 @@ export class ReviewEditComponent implements OnInit {
     this.confirming.set(null);
   }
 
-  confirmDone(photoId: string): void {
+  confirmDone(photo: EditCandidate): void {
     this.confirming.set(null);
-    this.promoted.emit(photoId);
+    if (!photo.setFrameIds || !photo.setKind) this.promoted.emit(photo.id);
+    else if (looksForMerge(photo.setKind)) void this.setFinish.finish(photo.id, photo.setFrameIds);
+    else void this.setFinish.sendFramesToPrint(photo.id, photo.setFrameIds);
   }
 
   private readonly albums = inject(KeeperAlbumsService);
+  protected readonly setFinish = inject(SetFinishService);
 
   /** The album name the button offers, so the label and the destination cannot drift apart. */
   protected readonly editAlbumName = KEEPER_EDIT_ALBUM;
@@ -130,8 +135,22 @@ export class ReviewEditComponent implements OnInit {
     return albumId && this.catalogId ? lightroomAlbumUrl(this.catalogId, albumId) : null;
   }
 
+  /** The confirm on a row: what is about to happen, which for a set is not a print. */
+  protected confirmLabel(photo: EditCandidate): string {
+    return photo.setKind && looksForMerge(photo.setKind)
+      ? `Yes — find the merged ${mergedName(photo.setKind)}`
+      : 'Yes — send to print';
+  }
+
+  /** What a row is called: a set by what it is, since no one frame's filename describes it. */
+  protected rowName(photo: EditCandidate): string {
+    if (photo.setFrameIds && photo.setKind)
+      return setLabel(photo.setKind, photo.setFrameIds.length);
+    return photo.ext ? `${photo.name}.${photo.ext}` : photo.name;
+  }
+
   /** Deep-link to the asset in the Lightroom web app (opened in a new tab). */
-  lightroomUrl(photo: Photo): string {
+  lightroomUrl(photo: EditCandidate): string {
     const filename = photo.ext ? `${photo.name}.${photo.ext}` : photo.name;
     return lightroomAssetUrl(this.catalogId ?? '', photo.id, filename);
   }

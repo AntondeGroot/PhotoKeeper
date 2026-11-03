@@ -1,3 +1,4 @@
+import { SetFinishService, SetFinishState } from '../set-finish.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { ReviewEditComponent } from './review-edit';
@@ -26,6 +27,12 @@ describe('ReviewEditComponent', () => {
   let ensured: number;
   /** Merges the tab confirmed — what "That's the panorama" does. */
   let settled: string[];
+  /** Panoramas sent looking for their merged file: the row, and the frames behind it. */
+  let searches: [string, readonly string[]][];
+  /** Sets sent straight to print: the row, and the frames behind it. */
+  let printed: [string, readonly string[]][];
+  /** How far each card's check has got. */
+  let finishStates: ReturnType<typeof signal<ReadonlyMap<string, SetFinishState>>>;
   /** Mounts the Edit list against a catalog that either has the KeeperEdit album or hasn't. */
   async function render(
     editAlbumId: string | null,
@@ -36,11 +43,32 @@ describe('ReviewEditComponent', () => {
     merges: MergedPhoto[] = [],
   ) {
     settled = [];
+    searches = [];
+    printed = [];
+    finishStates = signal(new Map());
     ensured = 0;
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ReviewEditComponent],
       providers: [
+        {
+          provide: SetFinishService,
+          useValue: {
+            state: finishStates,
+            finish: (rowId: string, frameIds: readonly string[]) => {
+              searches.push([rowId, frameIds]);
+              return Promise.resolve();
+            },
+            sendFramesToPrint: (rowId: string, frameIds: readonly string[]) => {
+              printed.push([rowId, frameIds]);
+              return Promise.resolve();
+            },
+            cardTapped: (merge: MergedPhoto) => {
+              settled.push(merge.mergedId);
+              return Promise.resolve();
+            },
+          },
+        },
         {
           provide: EditCandidatesService,
           useValue: { merges: signal(merges) },
@@ -53,10 +81,6 @@ describe('ReviewEditComponent', () => {
             panelOpen: signal(false),
             check: () => Promise.resolve(),
             listQueue: () => Promise.resolve(),
-            settleMerge: (merge: MergedPhoto) => {
-              settled.push(merge.mergedId);
-              return Promise.resolve();
-            },
           },
         },
         {
@@ -141,6 +165,23 @@ describe('ReviewEditComponent', () => {
    * that counts a to-edit photo as unfinished.
    */
   /**
+   * No one frame's filename describes a sweep, and listing one would read as if only that frame were
+   * waiting. A sweep down to its last frame is still named as a panorama, because it still is one.
+   */
+  it('names a sweep\u2019s row as a panorama, and a single photo by its filename', async () => {
+    await render('al-9');
+    fixture.componentRef.setInput('queue', [
+      { ...photo('f1'), setKind: 'pano', setFrameIds: ['f1', 'f2', 'f3'] },
+      { ...photo('f9'), setKind: 'pano', setFrameIds: ['f9'] },
+      photo('IMG_1'),
+    ]);
+    fixture.detectChanges();
+
+    const names = [...root.querySelectorAll('.item-name')].map((el) => el.textContent?.trim());
+    expect(names).toEqual(['Panorama · 3 frames', 'Panorama · 1 frame', 'IMG_1.CR2']);
+  });
+
+  /**
    * Two steps, because the button sits in a list beside a link: a mis-tap would send the wrong photo
    * out of the queue, and the queue's exit is one-way as far as the Edit tab is concerned.
    */
@@ -156,6 +197,88 @@ describe('ReviewEditComponent', () => {
 
     expect(promoted).toBeNull(); // asked, not done
     expect(root.querySelector('.confirm-done')).not.toBeNull();
+  });
+
+  /**
+   * What the whole panorama flow is for: a sweep's frames reaching KeeperPrint cannot be undone, and
+   * the photograph to print is the merged file. So "Done editing" on a sweep's row goes looking for
+   * that file. Emitting would send the row to print, so it must not emit at all, and the confirm says
+   * what is about to happen rather than promising a print.
+   */
+  it('sends a sweep looking for its merged file, never to print', async () => {
+    await render('al-9');
+    fixture.componentRef.setInput('queue', [
+      { ...photo('f1'), setKind: 'pano', setFrameIds: ['f1', 'f2', 'f3'] },
+    ]);
+    fixture.detectChanges();
+    let promoted: string | null = null;
+    fixture.componentInstance.promoted.subscribe((id: string) => (promoted = id));
+
+    root.querySelector<HTMLButtonElement>('.edit-done-btn')?.click();
+    fixture.detectChanges();
+    const confirm = root.querySelector<HTMLButtonElement>('.edit-done-btn.commit');
+    expect(confirm?.textContent?.trim()).toBe('Yes — find the merged panorama');
+    expect(searches).toEqual([]); // asked, not done
+    confirm?.click();
+
+    expect(searches).toEqual([['f1', ['f1', 'f2', 'f3']]]);
+    expect(promoted).toBeNull();
+  });
+
+  /**
+   * A burst's row has to say what it is at every step, because the steps differ from a panorama's:
+   * what it looks for is an HDR, and with none found its frames can go to print. If the row passed the
+   * wrong kind to the note, a burst would lose that choice and a panorama could gain it.
+   */
+  it('treats a burst\u2019s row as a burst at every step', async () => {
+    await render('al-9');
+    fixture.componentRef.setInput('queue', [
+      { ...photo('s1'), setKind: 'burst', setFrameIds: ['s1', 's2'] },
+    ]);
+    fixture.detectChanges();
+
+    expect(root.querySelector('.item-name')?.textContent?.trim()).toBe('Burst · 2 frames');
+
+    root.querySelector<HTMLButtonElement>('.edit-done-btn')?.click();
+    fixture.detectChanges();
+    const confirm = root.querySelector<HTMLButtonElement>('.edit-done-btn.commit');
+    expect(confirm?.textContent?.trim()).toBe('Yes — find the merged HDR');
+    confirm?.click();
+    expect(searches).toEqual([['s1', ['s1', 's2']]]);
+
+    finishStates.set(new Map([['s1', 'not-found']]));
+    fixture.detectChanges();
+    const note = root.querySelector('app-set-finish-note')?.textContent ?? '';
+    expect(note).toContain('No merged HDR in this album yet');
+    expect(note).toContain('Send to print');
+  });
+
+  /**
+   * One row, one "Done editing", both eyes. Nothing merges a stereo pair, so a search could only ever
+   * end in "nothing found". The confirm says print because that is what happens, and it still asks
+   * first because that cannot be undone.
+   */
+  it('sends both eyes of a stereo row to print once confirmed, without searching', async () => {
+    await render('al-9');
+    fixture.componentRef.setInput('queue', [
+      { ...photo('left'), setKind: 'stereo', setFrameIds: ['left', 'right'] },
+    ]);
+    fixture.detectChanges();
+    let promoted: string | null = null;
+    fixture.componentInstance.promoted.subscribe((id: string) => (promoted = id));
+
+    expect(root.querySelector('.item-name')?.textContent?.trim()).toBe('Stereo · 2 frames');
+
+    root.querySelector<HTMLButtonElement>('.edit-done-btn')?.click();
+    fixture.detectChanges();
+    const confirm = root.querySelector<HTMLButtonElement>('.edit-done-btn.commit');
+    expect(confirm?.textContent?.trim()).toBe('Yes — send to print');
+    expect(printed).toEqual([]); // asked, not done
+    confirm?.click();
+
+    expect(printed).toEqual([['left', ['left', 'right']]]);
+    expect(searches).toEqual([]);
+    expect(promoted).toBeNull();
   });
 
   it('emits the photo once the confirm is pressed', async () => {
@@ -347,6 +470,34 @@ describe('ReviewEditComponent', () => {
       root.querySelector<HTMLButtonElement>('.merged-done')?.click();
 
       expect(settled).toEqual(['m1']);
+    });
+
+    /**
+     * While it checks, a double-tap must not start a second confirmation. While it waits to retry, the
+     * retry can write what cannot be undone, so the card says it is waiting and its button becomes the
+     * way to stop, which has to work, and be labelled as what it now does.
+     */
+    it('shows how its check is going, and offers to stop while waiting to retry', async () => {
+      await render('al-9', 'cat-1', { waiting: 0, held: 5 }, false, [], [merge]);
+      const button = () => root.querySelector<HTMLButtonElement>('.merged-done');
+      const card = () => root.querySelector('.merged-row')?.textContent ?? '';
+      const waitingMessage = 'Couldn’t reach Lightroom. Will try again when you’re back online.';
+
+      expect(button()?.textContent?.trim()).toBe('That’s the panorama');
+      expect(button()?.disabled).toBe(false);
+      expect(card()).not.toContain(waitingMessage);
+
+      finishStates.set(new Map([['m1', 'searching']]));
+      fixture.detectChanges();
+      expect(button()?.textContent?.trim()).toBe('That’s the panorama');
+      expect(button()?.disabled).toBe(true);
+      expect(card()).not.toContain(waitingMessage);
+
+      finishStates.set(new Map([['m1', 'unreachable']]));
+      fixture.detectChanges();
+      expect(button()?.textContent?.trim()).toBe('Stop trying');
+      expect(button()?.disabled).toBe(false);
+      expect(card()).toContain(waitingMessage);
     });
 
     /** Especially then: the queue looks empty precisely because the work was done. */

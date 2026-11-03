@@ -10,6 +10,8 @@ import {
 import { SafeUrl } from '@angular/platform-browser';
 import { EditDetectionService, EditFinding } from '../edit-detection.service';
 import { MergedPhoto } from '../merged-photo';
+import { SetFinishService } from '../set-finish.service';
+import { SetFinishNoteComponent } from '../set-finish-note/set-finish-note';
 
 /**
  * What the check found, and what to do about it.
@@ -23,12 +25,13 @@ import { MergedPhoto } from '../merged-photo';
 @Component({
   selector: 'app-edit-check',
   templateUrl: './edit-check.html',
-  imports: [],
+  imports: [SetFinishNoteComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './edit-check.scss',
 })
 export class EditCheckComponent {
   private readonly detection = inject(EditDetectionService);
+  protected readonly setFinish = inject(SetFinishService);
 
   readonly checking = this.detection.checking;
   readonly failed = this.detection.failed;
@@ -77,9 +80,9 @@ export class EditCheckComponent {
    */
   readonly merges = this.detection.merges;
 
-  /** "Yes, that is it" — the merge becomes the photograph and its frames stand down. */
+  /** "Yes, that is it" — once Lightroom confirms the file exists; tapped again, stops waiting. */
   settleMerge(merge: MergedPhoto): void {
-    void this.detection.settleMerge(merge);
+    void this.setFinish.cardTapped(merge);
   }
 
   /** The photo for a row, once its preview has arrived. */
@@ -104,9 +107,20 @@ export class EditCheckComponent {
     this.detection.closePanel();
   }
 
-  /** "These are done" — the ticked photos become printable. */
+  /** "These are done" — ticked photos become printable, and ticked sets finish as their kind does. */
   sendSelected(): void {
-    void this.detection.sendToPrint([...this.selected()]);
+    const sets = this.rows().filter((row) => row.setFrames && this.isSelected(row.assetId));
+    for (const row of sets) {
+      const frameIds = this.frameIdsOf(row.setFrames ?? []);
+      if (row.setKind === 'stereo') void this.setFinish.sendFramesToPrint(row.assetId, frameIds);
+      else void this.setFinish.finish(row.assetId, frameIds);
+    }
+    const handled = new Set(sets.map((row) => row.assetId));
+    void this.detection.sendToPrint([...this.selected()].filter((id) => !handled.has(id)));
+  }
+
+  protected frameIdsOf(frames: readonly { assetId: string }[]): string[] {
+    return frames.map((frame) => frame.assetId);
   }
 
   /** "Not happy with that one" — it stays in the queue, measured from how it looks now. */
