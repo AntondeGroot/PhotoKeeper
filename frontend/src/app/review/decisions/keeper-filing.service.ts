@@ -21,6 +21,7 @@ import { GroupStore } from '../../storage/detection/group-store';
 import { MergeFinderService } from '../edits/merge-finder.service';
 import { QueuedPhoto, editQueueFromRecords, overdueEdits, photosToFile } from '../edits/edit-queue';
 import { isUnitId, splitFileName } from '../../photo';
+import { isAssetGone, isConnectionFailure } from './filing-failure';
 
 /**
  * A filename as the album search matches it: the name Lightroom shows the photo under, `DSC_4390`.
@@ -50,6 +51,29 @@ export interface AlbumFilingGap {
   missing: string[];
   /** Filed here and since deleted in Lightroom. The tombstone is in the album; nothing to do. */
   deleted: number;
+}
+
+/** What became of a set of photos sent to an album. */
+export interface FilingOutcome {
+  filed: number;
+  /** Lightroom no longer has these: they were deleted, and are now on the deletion ledger. */
+  gone: number;
+  /** Lightroom refused these for some other reason, a stacked photo for one. Still not filed. */
+  refused: number;
+  /** Not attempted, because the connection went first. Sending them again picks up from here. */
+  untried: string[];
+}
+
+/** One album's filing as it goes: the running counts, and who wants to hear about them. */
+interface FilingRun {
+  albumId: string;
+  album: string;
+  filed: number;
+  gone: number;
+  refused: number;
+  /** How many have been dealt with. They are dealt with in order, so the rest are the untried. */
+  settled: number;
+  onSettled: (settled: number) => void;
 }
 
 /** How many assets go into one write. Adobe takes a batch; a whole backlog in one call is rude. */
@@ -150,7 +174,7 @@ export class KeeperFilingService {
         }
         const sending =
           album === KEEPER_EDIT_ALBUM ? await this.editQueueRoom(albumId, assetIds) : assetIds;
-        filed += await this.fileInto(albumId, album, sending);
+        filed += (await this.fileInto(albumId, album, sending)).filed;
       }
       this.lastFiled.set(filed);
       this.blockedByMissingAlbum.set(blocked);
@@ -174,10 +198,25 @@ export class KeeperFilingService {
    */
   async fileSet(album: string, assetIds: readonly string[]): Promise<number> {
     if (assetIds.length === 0) return 0;
+    return (await this.putBack(album, assetIds)).filed;
+  }
+
+  /**
+   * Files a set and says what became of each photo, reporting progress as it goes.
+   *
+   * For a set large enough to take minutes, where "how many landed" is not enough to go on. Every
+   * batch is recorded as it lands and a gone photo goes on the ledger, so a run cut short has kept
+   * what it did, and the next one only has what is left.
+   */
+  async putBack(
+    album: string,
+    assetIds: readonly string[],
+    onSettled: (settled: number) => void = () => undefined,
+  ): Promise<FilingOutcome> {
     await this.albums.ensure();
     const albumId = this.albums.idFor(album);
-    if (!albumId) return 0;
-    return this.fileInto(albumId, album, [...assetIds]);
+    if (!albumId) return { filed: 0, gone: 0, refused: 0, untried: [...assetIds] };
+    return this.fileInto(albumId, album, [...assetIds], onSettled);
   }
 
   /**
@@ -269,11 +308,20 @@ export class KeeperFilingService {
    * <p>Ids rather than filenames, unlike {@link staleFilings}: these go back through the API rather
    * than into a search box, and a photo with no scanned metadata can still be re-filed.
    *
+   * <p>A tombstone only lasts thirty days, after which a deleted photo is simply absent, the same as
+   * one taken out by hand. So the listing is not enough, and the ledger of photos seen deleted has the
+   * last word: without it, everything deleted over a month ago comes back as "missing", and each one
+   * costs a write that can only be refused.
+   *
    * <p>Costs one listing per album with anything on record, so it runs when asked and not on a timer.
    */
   async filingGaps(): Promise<AlbumFilingGap[]> {
     await this.albums.ensure();
-    const [filed, verdicts] = await Promise.all([this.filed.getAll(), this.reviews.getVerdicts()]);
+    const [filed, verdicts, seenDeleted] = await Promise.all([
+      this.filed.getAll(),
+      this.reviews.getVerdicts(),
+      this.census.seenDeleted(),
+    ]);
     const expected = new Map<string, string[]>();
     for (const [assetId, record] of filed) {
       // Unit ids already on record from before they were kept out of filing. Lightroom never held
@@ -295,7 +343,10 @@ export class KeeperFilingService {
       // No album in the catalogue means nothing to compare against — not that everything is missing.
       if (!albumId) continue;
       const { present, deleted } = await this.contentsOf(albumId, album);
-      const missing = assetIds.filter((assetId) => !present.has(assetId));
+      const purged = (assetId: string) => !present.has(assetId) && seenDeleted.has(assetId);
+      const missing = assetIds.filter((assetId) => !present.has(assetId) && !purged(assetId));
+      // Tombstones only. The ledger only grows, so counting it here would report a number that climbs
+      // for ever, about photographs nobody can do anything with.
       const goneForGood = assetIds.filter((assetId) => deleted.has(assetId)).length;
       if (missing.length > 0 || goneForGood > 0) {
         gaps.push({ album, missing, deleted: goneForGood });
@@ -512,12 +563,18 @@ export class KeeperFilingService {
   }
 
   /** Files one album's batches, recording only what actually landed. */
-  private async fileInto(albumId: string, album: string, assetIds: string[]): Promise<number> {
-    let filed = 0;
+  private async fileInto(
+    albumId: string,
+    album: string,
+    assetIds: string[],
+    onSettled: (settled: number) => void = () => undefined,
+  ): Promise<FilingOutcome> {
+    const run: FilingRun = { albumId, album, filed: 0, gone: 0, refused: 0, settled: 0, onSettled };
     for (let i = 0; i < assetIds.length; i += BATCH) {
-      filed += await this.fileBatch(albumId, album, assetIds.slice(i, i + BATCH));
+      if (!(await this.fileBatch(run, assetIds.slice(i, i + BATCH)))) break;
     }
-    return filed;
+    const { filed, gone, refused, settled } = run;
+    return { filed, gone, refused, untried: assetIds.slice(settled) };
   }
 
   /**
@@ -531,20 +588,45 @@ export class KeeperFilingService {
    *
    * So a refused batch is retried one at a time: the photos that can be filed are, the ones that
    * cannot stay outstanding, and the cost of splitting is paid only when something has gone wrong.
+   *
+   * A write that got no answer is not a refusal, and splitting it would only fail fifty times more.
+   *
+   * @returns false when the connection has gone and there is no point sending anything further
    */
-  private async fileBatch(albumId: string, album: string, batch: string[]): Promise<number> {
+  private async fileBatch(run: FilingRun, batch: string[]): Promise<boolean> {
     try {
-      await firstValueFrom(this.svc.addToAlbum(albumId, batch));
-      await this.filed.record(batch, album);
-      return batch.length;
-    } catch {
-      if (batch.length === 1) return 0; // already alone: this one genuinely cannot be filed
+      await firstValueFrom(this.svc.addToAlbum(run.albumId, batch));
+      await this.filed.record(batch, run.album);
+      run.filed += batch.length;
+      this.settle(run, batch.length);
+      return true;
+    } catch (error) {
+      if (isConnectionFailure(error)) return false;
+      if (batch.length === 1) {
+        await this.noteRefusal(run, batch[0], error);
+        return true;
+      }
     }
 
-    let filed = 0;
     for (const assetId of batch) {
-      filed += await this.fileBatch(albumId, album, [assetId]);
+      if (!(await this.fileBatch(run, [assetId]))) return false;
     }
-    return filed;
+    return true;
+  }
+
+  /** Writes down a photo Lightroom no longer has, so it is never offered or tried again. */
+  private async noteRefusal(run: FilingRun, assetId: string, error: unknown): Promise<void> {
+    if (isAssetGone(error)) {
+      run.gone++;
+      await this.census.noteGone(assetId, run.album).catch(() => undefined);
+    } else {
+      run.refused++;
+    }
+    this.settle(run, 1);
+  }
+
+  private settle(run: FilingRun, count: number): void {
+    run.settled += count;
+    run.onSettled(run.settled);
   }
 }

@@ -19,18 +19,29 @@
     @if (deleted() > 0) {
       <p class="tidy-note">{{ deleted() }} already deleted in Lightroom — nothing to do there.</p>
     }
-    @if (lost().length === 0) {
+    @if (restored(); as done) {
       <p class="tidy-note">
-        @if (restored(); as done) {
+        @if (done.filed > 0) {
           Put {{ done.filed }} back.
-          @if (done.lost > 0) {
-            {{ done.lost }} could not be — Lightroom no longer has them, so those really were
-            deleted.
-          }
-        } @else {
-          Every photo the app filed is still where it put it, or deleted as you meant.
+        }
+        @if (done.gone > 0) {
+          {{ done.gone }} no longer in Lightroom: those were deleted, so there is nothing to bring
+          back.
+        }
+        @if (done.refused > 0) {
+          Lightroom refused {{ done.refused }}, so those are still missing.
+        }
+        @if (done.stopped) {
+          The connection dropped before the rest. Press the button to carry on from there.
         }
       </p>
+    }
+    @if (lost().length === 0) {
+      @if (!restored()) {
+        <p class="tidy-note">
+          Every photo the app filed is still where it put it, or deleted as you meant.
+        </p>
+      }
     } @else {
       @for (row of lost(); track row.album) {
         <div class="tidy-row">
@@ -39,7 +50,11 @@
         </div>
       }
       <button class="tidy-btn primary" [disabled]="checking()" (click)="putBack()">
-        {{ checking() ? 'Putting back…' : 'Put ' + total() + ' back' }}
+        {{
+          checking()
+            ? 'Putting back… ' + progress() + ' of ' + runTotal()
+            : 'Put ' + total() + ' back'
+        }}
       </button>
     }
   }

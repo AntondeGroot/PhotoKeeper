@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { KeeperFilingService } from './keeper-filing.service';
@@ -47,6 +48,15 @@ describe('KeeperFilingService', () => {
   let groups: DetectedGroup[];
   /** Frames Lightroom has already merged — finished work, whatever their verdict still says. */
   let mergedFrames: Set<string>;
+  /** The ledger of photos seen deleted, which outlives the tombstones Lightroom purges. */
+  let seenDeleted: Set<string>;
+  /** Assets Lightroom no longer has at all: a write naming one is refused with an inner 410. */
+  let goneFromLightroom: Set<string>;
+  /** The connection goes when a write names this asset, and nothing gets an answer after that. */
+  let connectionDropsAt: string | null;
+  let connectionDown: boolean;
+  /** Every write attempted, whether or not it got anywhere. */
+  let attempts: number;
   /**
    * What each Lightroom album actually holds right now — album id → rows. A string is a photograph;
    * `{tombstone}` is what Lightroom leaves in place of one that has been deleted.
@@ -70,6 +80,11 @@ describe('KeeperFilingService', () => {
     baselines = new Map();
     groups = [];
     mergedFrames = new Set();
+    seenDeleted = new Set();
+    goneFromLightroom = new Set();
+    connectionDropsAt = null;
+    connectionDown = false;
+    attempts = 0;
     names = new Map([
       ['a', { name: 'DSC_0001' }],
       ['b', { name: 'DSC_0002' }],
@@ -107,9 +122,17 @@ describe('KeeperFilingService', () => {
                     }),
                   ),
             addToAlbum: (albumId: string, assetIds: string[]) => {
+              attempts++;
+              if (connectionDropsAt && assetIds.includes(connectionDropsAt)) connectionDown = true;
+              if (connectionDown) return throwError(() => new HttpErrorResponse({ status: 0 }));
               if (failNext) return throwError(() => new Error('network'));
               if (assetIds.some((id) => unfilable.has(id))) {
-                return throwError(() => new Error('403 AddStackToAlbumRedirectError'));
+                const detail = '{"errors":[{"code":"AddStackToAlbumRedirectError"}]}';
+                return throwError(() => new HttpErrorResponse({ status: 424, error: { detail } }));
+              }
+              if (assetIds.some((id) => goneFromLightroom.has(id))) {
+                const detail = '{"resources":[],"errors":[{"http_status":410}]}';
+                return throwError(() => new HttpErrorResponse({ status: 424, error: { detail } }));
               }
               sent.push({ albumId, assetIds: [...assetIds] });
               return of(undefined);
@@ -143,6 +166,11 @@ describe('KeeperFilingService', () => {
               recorded.push({ album, ...counts });
               return Promise.resolve();
             },
+            noteGone: (assetId: string) => {
+              seenDeleted.add(assetId);
+              return Promise.resolve();
+            },
+            seenDeleted: () => Promise.resolve(seenDeleted),
           },
         },
         {
@@ -477,6 +505,72 @@ describe('KeeperFilingService', () => {
 
       expect(await filing.filingGaps()).toEqual([
         { album: 'KeeperDelete', missing: ['b', 'c'], deleted: 1 },
+      ]);
+    });
+
+    /**
+     * Lightroom purges a tombstone after thirty days, leaving a deleted photo looking exactly like one
+     * taken out by hand. Only the ledger can tell them apart. Without it a real KeeperDelete offered
+     * 583 photos to put back, at least one of which Lightroom answered with a 410.
+     */
+    it('neither offers nor counts a photo whose tombstone has been purged', async () => {
+      rejected('a', 'b');
+      heldByAlbum.set('al-del', []);
+      seenDeleted.add('a');
+
+      expect(await filing.filingGaps()).toEqual([
+        { album: 'KeeperDelete', missing: ['b'], deleted: 0 },
+      ]);
+    });
+
+    /**
+     * A photo that was deleted before the ledger could see its tombstone can only be found out by
+     * trying. That has to cost one attempt: forgetting the answer is what made every run repeat the
+     * same few hundred refused writes.
+     */
+    it('remembers a photo Lightroom says is gone, and never offers it again', async () => {
+      rejected('gone', 'b');
+      goneFromLightroom.add('gone');
+
+      const outcome = await filing.putBack('KeeperDelete', ['gone', 'b']);
+
+      expect(outcome).toEqual({ filed: 1, gone: 1, refused: 0, untried: [] });
+      heldByAlbum.set('al-del', ['b']); // b landed, and the album holds nothing for the other
+      expect(await filing.filingGaps()).toEqual([]);
+    });
+
+    /**
+     * A phone that sleeps or loses signal partway through a long put-back. The old run sent every
+     * remaining photo into the dead connection, then reported them all as deleted. The first batch
+     * has to stay done, and the rest have to come back as still to do.
+     */
+    it('stops at a dropped connection, keeping what landed and reporting the rest', async () => {
+      const photos = Array.from({ length: 120 }, (_, i) => `p${i}`);
+      connectionDropsAt = 'p60'; // in the second batch of fifty
+
+      const outcome = await filing.putBack('KeeperDelete', photos);
+
+      expect(outcome).toEqual({ filed: 50, gone: 0, refused: 0, untried: photos.slice(50) });
+      expect(attempts).toBe(2); // one that landed, one that failed, and no splitting or carrying on
+      expect(filed.has('p49')).toBe(true);
+      expect(filed.has('p50')).toBe(false);
+    });
+
+    /**
+     * A stacked photo is refused too, but it still exists. Writing it down as deleted would take it
+     * off the list of things to put back for good, which is losing it a second time.
+     */
+    it('keeps offering a photo Lightroom refused for any reason other than it being gone', async () => {
+      rejected('stack', 'b');
+      unfilable.add('stack');
+
+      const outcome = await filing.putBack('KeeperDelete', ['stack', 'b']);
+
+      expect(outcome).toEqual({ filed: 1, gone: 0, refused: 1, untried: [] });
+      expect(seenDeleted.has('stack')).toBe(false);
+      heldByAlbum.set('al-del', ['b']);
+      expect(await filing.filingGaps()).toEqual([
+        { album: 'KeeperDelete', missing: ['stack'], deleted: 0 },
       ]);
     });
 
