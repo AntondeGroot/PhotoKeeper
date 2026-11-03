@@ -60,6 +60,11 @@ export interface DeletionRecord {
   /** The Keeper album it was seen in. */
   album: string;
   at: number;
+  /**
+   * Found out from a refused write rather than seen as a tombstone. It may have been deleted long
+   * before, so its day says nothing about when, and it stays out of the deletion total.
+   */
+  foundGone?: true;
 }
 
 /** One Keeper album as Lightroom last reported it. */

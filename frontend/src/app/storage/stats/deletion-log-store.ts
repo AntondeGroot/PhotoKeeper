@@ -35,9 +35,30 @@ export class DeletionLogStore {
     return added;
   }
 
-  /** How many deletions have been seen in all — the cumulative figure the chart draws. */
+  /**
+   * Writes down a photograph Lightroom said it no longer has, so nothing tries it again.
+   *
+   * Marked, because the day this was found out is not the day it was deleted. Any sighting of it
+   * already on record is the better one, so that is left as it is.
+   */
+  async noteFoundGone(assetId: string, album: string, day: string): Promise<void> {
+    const db = await this.db.open();
+    const tx = db.transaction('deletionLog', 'readwrite');
+    if (!(await tx.store.get(assetId))) {
+      await tx.store.put({ day, album, at: Date.now(), foundGone: true }, assetId);
+    }
+    await tx.done;
+  }
+
+  /**
+   * How many deletions have been seen in all — the cumulative figure the chart draws.
+   *
+   * Leaves out the photographs found gone: a few hundred discovered in one put-back would otherwise
+   * draw as a day of deleting that never happened.
+   */
   async count(): Promise<number> {
-    return (await this.db.open()).count('deletionLog');
+    const records = await (await this.db.open()).getAll('deletionLog');
+    return records.filter((record) => !record.foundGone).length;
   }
 
   /** Every deletion on record, so a chart can place them on the days they were first seen. */

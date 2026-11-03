@@ -1,5 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { AlbumFilingGap, KeeperFilingService } from '../keeper-filing.service';
+import { AlbumFilingGap, FilingOutcome, KeeperFilingService } from '../keeper-filing.service';
+
+/** What the last put-back managed. A photo Lightroom refused is not one it no longer has. */
+interface PutBackResult {
+  filed: number;
+  gone: number;
+  refused: number;
+  /** Whether the connection went before everything had been tried. */
+  stopped: boolean;
+}
 
 /**
  * "These photos should be in a Keeper album and are not — put them back."
@@ -28,7 +37,11 @@ export class PutBackComponent {
   readonly rows = signal<AlbumFilingGap[] | null>(null);
   readonly failed = signal(false);
   /** What the last put-back managed, so the result is stated rather than implied by a list vanishing. */
-  readonly restored = signal<{ filed: number; lost: number } | null>(null);
+  readonly restored = signal<PutBackResult | null>(null);
+  /** How many of the current put-back have been dealt with, so a long one visibly moves. */
+  readonly progress = signal(0);
+  /** The size of the current put-back, fixed at the start: {@link total} shrinks as albums finish. */
+  readonly runTotal = signal(0);
 
   /** Albums that have actually lost something — the only ones there is anything to do about. */
   readonly lost = computed(() => (this.rows() ?? []).filter((row) => row.missing.length > 0));
@@ -60,28 +73,46 @@ export class PutBackComponent {
   }
 
   /**
-   * Files every lost photo back into its album.
+   * Files every lost photo back into its album, stopping if the connection goes.
    *
-   * A photo that cannot go back is one Lightroom no longer has — genuinely deleted rather than
-   * removed from a list — so the count of those is worth saying out loud: it is the difference
-   * between "put back" and "already gone", and only the user can tell whether that is a surprise.
+   * What a stopped run did not reach stays on the screen, and the button carries on from there. What
+   * it did reach is already written down, so nothing is repeated.
    */
   async putBack(): Promise<void> {
     if (this.checking()) return;
     this.checking.set(true);
-    let filed = 0;
-    let asked = 0;
+    this.progress.set(0);
+    this.runTotal.set(this.total());
     try {
-      for (const row of this.lost()) {
-        asked += row.missing.length;
-        filed += await this.filing.fileSet(row.album, row.missing);
-      }
-      this.restored.set({ filed, lost: asked - filed });
-      this.rows.set((this.rows() ?? []).map((row) => ({ ...row, missing: [] })));
+      this.restored.set(await this.putBackAlbums());
     } catch {
       this.failed.set(true);
+      this.rows.set(null);
     } finally {
       this.checking.set(false);
     }
+  }
+
+  private async putBackAlbums(): Promise<PutBackResult> {
+    const result: PutBackResult = { filed: 0, gone: 0, refused: 0, stopped: false };
+    for (const row of this.lost()) {
+      const before = this.progress();
+      const outcome = await this.filing.putBack(row.album, row.missing, (settled) =>
+        this.progress.set(before + settled),
+      );
+      result.filed += outcome.filed;
+      result.gone += outcome.gone;
+      result.refused += outcome.refused;
+      this.settleRow(row.album, outcome);
+      if (outcome.untried.length > 0) return { ...result, stopped: true };
+    }
+    return result;
+  }
+
+  /** Leaves on the row only what was not reached. What proved gone is said once, in the result. */
+  private settleRow(album: string, outcome: FilingOutcome): void {
+    this.rows.update((rows) =>
+      (rows ?? []).map((row) => (row.album === album ? { ...row, missing: outcome.untried } : row)),
+    );
   }
 }

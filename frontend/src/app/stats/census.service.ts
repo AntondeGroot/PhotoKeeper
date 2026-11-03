@@ -73,6 +73,16 @@ export class CensusService {
     });
   }
 
+  /** Writes down a photograph found to be gone from Lightroom when a write to it was refused. */
+  async noteGone(assetId: string, album: string): Promise<void> {
+    await this.deletions.noteFoundGone(assetId, album, this.day.today());
+  }
+
+  /** Every photograph ever seen deleted, including those whose tombstones have since been purged. */
+  async seenDeleted(): Promise<ReadonlySet<string>> {
+    return new Set((await this.deletions.all()).keys());
+  }
+
   /** Every day on record, oldest first. */
   history(): Promise<DayCensus[]> {
     return this.store.history();

@@ -126,6 +126,7 @@ export default tseslint.config(
             'src/app/review/edits/edit-queue.ts',
             'src/app/review/edits/frame-sets.ts',
             'src/app/review/decisions/unit-retyping.ts',
+            'src/app/review/decisions/filing-failure.ts',
             'src/app/review/fullscreen-viewer/viewer-image.ts',
             'src/app/prints/prints.types.ts',
             'src/app/notifications/heads-up/heads-up.types.ts',

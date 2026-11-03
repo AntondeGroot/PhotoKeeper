@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
+import { CensusService } from '../../stats/census.service';
 import { DeletionLogStore } from './deletion-log-store';
 
 describe('DeletionLogStore', () => {
@@ -37,6 +38,21 @@ describe('DeletionLogStore', () => {
     await store.noteAll(['x'], 'KeeperDelete', '2026-09-30');
 
     expect((await store.all()).get('x')?.day).toBe('2026-09-12');
+  });
+
+  /**
+   * A photo found gone may have been deleted months ago, so it says nothing about today, and a few
+   * hundred in one put-back would draw a day of deleting that never happened. The app still has to
+   * know about it, or it would offer that photo back at every check.
+   */
+  it('keeps a photo found gone out of the chart total, while still knowing about it', async () => {
+    const census = TestBed.inject(CensusService);
+    await store.noteAll(['seen'], 'KeeperDelete', '2026-09-12');
+
+    await census.noteGone('gone', 'KeeperDelete');
+
+    expect((await census.recordToday()).deletedEver).toBe(1);
+    expect(await census.seenDeleted()).toEqual(new Set(['seen', 'gone']));
   });
 
   it('starts at nothing', async () => {

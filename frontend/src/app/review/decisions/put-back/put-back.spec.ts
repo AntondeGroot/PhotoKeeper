@@ -10,12 +10,18 @@ describe('PutBackComponent', () => {
   let gone: Set<string>;
   let sent: { album: string; assetIds: readonly string[] }[];
   let readFails: boolean;
+  /** How many photos land before the connection goes; null for a connection that holds. */
+  let landsBeforeDrop: number | null;
+  /** Runs as each photo is dealt with, so a test can look at the screen partway through. */
+  let afterEachPhoto: (() => void) | null;
 
   beforeEach(() => {
     gaps = [];
     gone = new Set();
     sent = [];
     readFails = false;
+    landsBeforeDrop = null;
+    afterEachPhoto = null;
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [PutBackComponent],
@@ -25,9 +31,31 @@ describe('PutBackComponent', () => {
           useValue: {
             filingGaps: () =>
               readFails ? Promise.reject(new Error('offline')) : Promise.resolve(gaps),
-            fileSet: (album: string, assetIds: readonly string[]) => {
+            putBack: (
+              album: string,
+              assetIds: readonly string[],
+              onSettled?: (settled: number) => void,
+            ) => {
               sent.push({ album, assetIds });
-              return Promise.resolve(assetIds.filter((id) => !gone.has(id)).length);
+              if (landsBeforeDrop !== null) {
+                return Promise.resolve({
+                  filed: landsBeforeDrop,
+                  gone: 0,
+                  refused: 0,
+                  untried: assetIds.slice(landsBeforeDrop),
+                });
+              }
+              assetIds.forEach((_, i) => {
+                onSettled?.(i + 1);
+                afterEachPhoto?.();
+              });
+              const lostForGood = assetIds.filter((id) => gone.has(id)).length;
+              return Promise.resolve({
+                filed: assetIds.length - lostForGood,
+                gone: lostForGood,
+                refused: 0,
+                untried: [],
+              });
             },
           },
         },
@@ -106,7 +134,58 @@ describe('PutBackComponent', () => {
     await press('Put 2 back');
 
     expect(notes().join(' ')).toContain('Put 1 back');
-    expect(notes().join(' ')).toContain('1 could not be');
+    expect(notes().join(' ')).toContain('1 no longer in Lightroom');
+  });
+
+  /**
+   * A run cut short has to leave the screen able to finish the job. The next album is left alone,
+   * since the connection is gone, and the button then sends only what was not reached.
+   */
+  it('shows what is left after a dropped connection, and carries on from there', async () => {
+    gaps = [
+      { album: 'KeeperDelete', missing: ['a', 'b', 'c'], deleted: 0 },
+      { album: 'KeeperEdit', missing: ['d'], deleted: 0 },
+    ];
+    landsBeforeDrop = 1;
+    await press('Check');
+
+    await press('Put 4 back');
+
+    expect(notes().join(' ')).toContain('Put 1 back');
+    expect(notes().join(' ')).toContain('connection dropped');
+    expect(buttons()).toContain('Put 3 back');
+    expect(sent).toEqual([{ album: 'KeeperDelete', assetIds: ['a', 'b', 'c'] }]);
+
+    landsBeforeDrop = null;
+    sent = [];
+    await press('Put 3 back');
+
+    expect(sent).toEqual([
+      { album: 'KeeperDelete', assetIds: ['b', 'c'] },
+      { album: 'KeeperEdit', assetIds: ['d'] },
+    ]);
+    expect(notes().join(' ')).not.toContain('connection dropped');
+  });
+
+  /**
+   * Several minutes behind a button that only said "Putting back…" looked like it had hung. The count
+   * runs across albums, so it has to keep climbing into the second one rather than start again.
+   */
+  it('counts up on the button as photos are dealt with, across albums', async () => {
+    gaps = [
+      { album: 'KeeperDelete', missing: ['a', 'b'], deleted: 0 },
+      { album: 'KeeperEdit', missing: ['c'], deleted: 0 },
+    ];
+    await press('Check');
+    const seen: (string | undefined)[] = [];
+    afterEachPhoto = () => {
+      fixture.detectChanges();
+      seen.push(buttons()[0]);
+    };
+
+    await press('Put 3 back');
+
+    expect(seen).toEqual(['Putting back… 1 of 3', 'Putting back… 2 of 3', 'Putting back… 3 of 3']);
   });
 
   /**
