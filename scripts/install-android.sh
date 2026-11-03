@@ -22,6 +22,9 @@
 #      rather than a toolchain one.
 #   3. adb is not on the PATH from a normal shell, and a phone can be attached
 #      without being usable — unauthorized, or still asleep.
+#   4. `cap sync` only knows the plugins in node_modules. One that is listed in
+#      package.json but not installed is left out of the APK without a word, and
+#      the app then fails on the phone in whatever way losing that plugin looks.
 #
 # Usage:
 #   npm run android:install                  # build, then install
@@ -90,6 +93,11 @@ if [[ "${1:-}" == "--skip-build" ]]; then
   [[ -f "$APK" ]] || fail "no APK at $APK — run without --skip-build first"
   echo "→ using the existing APK"
 else
+  npm ls --depth=0 >/dev/null 2>&1 || fail \
+    "node_modules does not match package.json — run npm install, then try again"
+  npm --prefix frontend ls --depth=0 >/dev/null 2>&1 || fail \
+    "frontend/node_modules does not match its package.json — run npm --prefix frontend install, then try again"
+
   # Built with `--base-href /` (see build:mobile): the app serves its bundle from
   # the root of its own origin, while the deployed website lives under
   # /photokeeper/. Built with the website's prefix, every asset here resolves to
