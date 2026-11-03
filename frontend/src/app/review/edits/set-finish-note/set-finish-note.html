@@ -1,0 +1,31 @@
+@switch (state()) {
+  @case ('searching') {
+    <p class="note" role="status">Looking for the merged {{ merged() }}…</p>
+  }
+  @case ('not-found') {
+    <p class="note" role="status">
+      No merged {{ merged() }} in this album yet. Nothing has been changed.
+    </p>
+    <div class="choices">
+      <button (click)="lookAgain()">Look again</button>
+      @if (kind() === 'burst') {
+        <!-- A burst may simply be a burst, so printing its frames is theirs to ask for. A sweep's
+             frames are never the photograph, so a panorama does not offer this. -->
+        <button (click)="sendToPrint()">Send to print</button>
+        <button (click)="finishWithoutMerge()">Keep, don’t print</button>
+      } @else {
+        <!-- Keeps the frames out of print orders: only a merged file is ever the one to print. -->
+        <button (click)="finishWithoutMerge()">Finish without a merge</button>
+      }
+    </div>
+  }
+  @case ('unreachable') {
+    <p class="note" role="status">
+      Couldn’t reach Lightroom. Will try again when you’re back online.
+    </p>
+    <div class="choices">
+      <button (click)="lookAgain()">Look again</button>
+      <button (click)="stopTrying()">Stop trying</button>
+    </div>
+  }
+}

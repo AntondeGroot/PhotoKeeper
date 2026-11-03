@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Photo, isUnitId } from '../../photo';
 import { KeeperAlbumsService } from '../../keeper-albums.service';
 import { KEEPER_EDIT_ALBUM } from '../../keeper-albums';
@@ -8,6 +8,16 @@ import { KeeperFilingStore } from '../../storage/review/keeper-filing-store';
 import { ReviewStore } from '../../storage/review/review-store';
 import { MANDATORY_AFTER_DAYS } from './edit-queue';
 import { MergeFinderService } from './merge-finder.service';
+import { CorrectedGroupsService } from '../deck/selection/corrected-groups.service';
+import { FrameSetKind, framesByPhoto, gatherBySet } from './frame-sets';
+
+/** One row of the Edit tab: a photograph, or a whole set shown as its longest-waiting frame. */
+export interface EditCandidate extends Photo {
+  /** Every frame still waiting, when this row is a set. Absent for a single photograph. */
+  setFrameIds?: readonly string[];
+  /** What kind of set this row is. Present exactly when {@link setFrameIds} is. */
+  setKind?: FrameSetKind;
+}
 
 /**
  * What there is to edit — the whole album, not today's deck.
@@ -29,9 +39,18 @@ export class EditCandidatesService {
   private readonly albums = inject(KeeperAlbumsService);
   private readonly prefs = inject(PreferencesService);
   private readonly finder = inject(MergeFinderService);
+  private readonly groups = inject(CorrectedGroupsService);
+
+  constructor() {
+    // Which rows are stereo pairs depends on album names, and the catalogue is often read after the
+    // first refresh. Without this the eyes stay on separate rows until something else refreshes.
+    effect(() => {
+      if (this.albums.checked()) untracked(() => void this.refresh());
+    });
+  }
 
   /** Everything in the album still waiting to be edited, the longest-waiting first. */
-  readonly all = signal<Photo[]>([]);
+  readonly all = signal<EditCandidate[]>([]);
 
   /** The few to offer now — the editing goal's worth, taken off the front. */
   readonly batch = computed(() => this.all().slice(0, this.prefs.editGoal()));
@@ -51,10 +70,11 @@ export class EditCandidatesService {
    */
   async refresh(): Promise<void> {
     try {
-      const [verdicts, meta, filed] = await Promise.all([
+      const [verdicts, meta, filed, groups] = await Promise.all([
         this.reviews.getVerdicts(),
         this.meta.getAll(),
         this.filed.getAll(),
+        this.groups.all(),
         this.finder.refresh(),
       ]);
 
@@ -81,7 +101,19 @@ export class EditCandidatesService {
       // Longest wait first, which is also the order the album has to be drained in: the photographs
       // at the front are the ones that become mandatory and stop anything new arriving.
       waiting.sort((a, b) => a.since - b.since);
-      this.all.set(waiting.map((one) => one.photo));
+      const setOf = framesByPhoto(groups);
+      const stillWaiting = (id: string): boolean =>
+        verdicts.get(id)?.status === 'toEdit' && !merged.has(id);
+      this.all.set(
+        gatherBySet(waiting, (one) => one.photo.id, setOf).map(([{ photo }]) => {
+          const set = setOf.get(photo.id);
+          // From the set rather than from what has been filed, so a frame still waiting for room in
+          // the album is finished along with the rest instead of coming back as its own row. Still a
+          // set with one frame left: that frame must not go to print on its own.
+          const frames = set?.frameIds.filter(stillWaiting);
+          return frames?.length ? { ...photo, setFrameIds: frames, setKind: set?.kind } : photo;
+        }),
+      );
     } catch {
       // Storage unavailable: leave the list as it was rather than claiming there is nothing to edit.
     }

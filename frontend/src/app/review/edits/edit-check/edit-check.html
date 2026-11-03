@@ -45,10 +45,23 @@
                     {{ merge.frameIds.length === 1 ? 'frame' : 'frames' }}. It becomes the one to
                     print; the frames are kept, out of print orders.
                   </p>
+                  @if (setFinish.state().get(merge.mergedId) === 'unreachable') {
+                    <p class="merge-note" role="status">
+                      Couldn’t reach Lightroom. Will try again when you’re back online.
+                    </p>
+                  }
                 </div>
               </div>
-              <button class="merge-done" (click)="settleMerge(merge)">
-                That’s the {{ merge.kind }}
+              <button
+                class="merge-done"
+                [disabled]="setFinish.state().get(merge.mergedId) === 'searching'"
+                (click)="settleMerge(merge)"
+              >
+                {{
+                  setFinish.state().get(merge.mergedId) === 'unreachable'
+                    ? 'Stop trying'
+                    : 'That’s the ' + merge.kind
+                }}
               </button>
             </li>
           }
@@ -74,6 +87,13 @@
               <span class="tick-box"></span>
               <span class="check-name">{{ finding.name }}</span>
             </button>
+            @if (finding.setFrames; as frames) {
+              <app-set-finish-note
+                [rowId]="finding.assetId"
+                [frameIds]="frameIdsOf(frames)"
+                [kind]="finding.setKind ?? 'pano'"
+              />
+            }
             @if (!picking()) {
               <button class="again" (click)="keepEditing(finding)">Not done yet</button>
             }

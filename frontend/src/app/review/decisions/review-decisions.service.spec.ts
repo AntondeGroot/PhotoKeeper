@@ -5,6 +5,7 @@ import { ReviewFeedService } from '../deck/review-feed.service';
 import { todayKey } from '../progress/day';
 import { ReviewStore } from '../../storage/review/review-store';
 import { GroupOverrideStore } from '../../storage/detection/group-override-store';
+import { EditCandidatesService } from '../edits/edit-candidates.service';
 import { BackgroundScanService } from '../../detection/scan/background-scan.service';
 import { PreferencesService } from '../../preferences.service';
 import { DailyProgressService } from '../progress/daily-progress.service';
@@ -58,6 +59,7 @@ describe('ReviewDecisionsService', () => {
   let reclassifies: { memberIds: string[]; type: string; orientation?: string }[];
   let memberships: { memberIds: string[]; frameIds: string[]; at: number }[];
   let refillCalls: number;
+  let candidateRefreshes: number;
 
   beforeEach(() => {
     photos = signal<ReviewItem[]>([photo('a'), photo('b'), photo('c')]);
@@ -71,6 +73,7 @@ describe('ReviewDecisionsService', () => {
     reclassifies = [];
     memberships = [];
     refillCalls = 0;
+    candidateRefreshes = 0;
     localStorage.removeItem('celebratedGoal');
     // The edit and tag tallies are the day's now, and persisted, so they carry between tests the
     // same way they carry between sittings.
@@ -93,8 +96,18 @@ describe('ReviewDecisionsService', () => {
       providers: [
         { provide: ReviewFeedService, useValue: feed },
         {
+          provide: EditCandidatesService,
+          useValue: {
+            refresh: () => {
+              candidateRefreshes++;
+              return Promise.resolve();
+            },
+          },
+        },
+        {
           provide: ReviewStore,
           useValue: {
+            getVerdicts: () => Promise.resolve(stored),
             setVerdict: (id: string, verdict: StoredVerdict) => {
               verdicts.push({ id, verdict });
               stored.set(id, verdict);
@@ -133,7 +146,10 @@ describe('ReviewDecisionsService', () => {
           },
         },
         { provide: BackgroundScanService, useValue: { scheduleRefill: () => refillCalls++ } },
-        { provide: PreferencesService, useValue: { dailyGoal: () => 99 } },
+        {
+          provide: PreferencesService,
+          useValue: { dailyGoal: () => 99, editGoal: () => 99, tagGoal: () => 99 },
+        },
       ],
     });
     service = TestBed.inject(ReviewDecisionsService);
@@ -942,6 +958,21 @@ describe('ReviewDecisionsService', () => {
 
       expect(memberships).toEqual([]);
     });
+  });
+
+  /**
+   * The Edit tab lists the whole album, so most rows are not on today's deck. Their "Done editing"
+   * counted an edit and saved nothing, leaving the photo marked to edit and its row in the list.
+   */
+  it('saves a Done editing for a photo that is not on today\u2019s deck', async () => {
+    stored.set('elsewhere', { status: 'toEdit', starred: true, saveOnly: false });
+
+    service.promoteToPrint('elsewhere');
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(stored.get('elsewhere')).toEqual({ status: 'toPrint', starred: true, saveOnly: false });
+    expect(service.editedToday()).toBe(1);
+    expect(candidateRefreshes).toBe(1);
   });
 
   it('promoteToPrint() marks the photo toPrint and bumps the edit count', () => {

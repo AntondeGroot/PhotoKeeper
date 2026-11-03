@@ -10,6 +10,7 @@ import { StreakService } from '../progress/streak.service';
 import { DailyProgressService, DailyTask } from '../progress/daily-progress.service';
 import { KeeperFilingService } from './keeper-filing.service';
 import { EditDetectionService } from '../edits/edit-detection.service';
+import { EditCandidatesService } from '../edits/edit-candidates.service';
 import { DecisionOutcome, ReviewUndoService, UndoEntry, bringBack } from './review-undo.service';
 import { HeadsUp } from '../../notifications/heads-up/heads-up.types';
 import { TagReviewService } from '../../tagging/tag-review.service';
@@ -24,16 +25,7 @@ import {
   unitAssetIds,
 } from '../../photo';
 import { MIN_PANO_FRAMES } from '../pano/pano-frames';
-
-/**
- * The id a unit takes when re-typed. Replaces the type prefix rather than stacking another, so
- * burst→pano→burst lands back on the id it started from instead of growing `pano:burst:pano:…`
- * forever — the id keys the stored verdict and the day's feed, so every flip otherwise stranded the
- * previous key. Hydrated group ids read `burst:<albumId>:<firstMemberId>` (see unit-selection).
- */
-function retypedId(type: 'burst' | 'pano', id: string): string {
-  return `${type}:${id.replace(/^(?:burst:|pano:)+/, '')}`;
-}
+import { burstToPano, panoToBurst, retypedId } from './unit-retyping';
 
 /** The everyday "you're done for today" banner, whichever pass finished the day. */
 function goalDone(task: DailyTask, goal: number): HeadsUp {
@@ -91,33 +83,6 @@ function asGroup(type: 'pano' | 'burst', unit: Photo | Pano, frames: PanoFrame[]
   };
 }
 
-/** Re-types a burst as a (horizontal) pano in place, keeping its frames, album, time and status. */
-function burstToPano(burst: Burst): Pano {
-  return {
-    id: retypedId('pano', burst.id),
-    name: `Panorama · ${burst.photos.length} frames`,
-    album: burst.album,
-    taken: burst.taken,
-    status: burst.status,
-    kind: 'pano',
-    orientation: 'horizontal',
-    frames: burst.photos.map((p) => ({ id: p.id, name: p.name, blur: p.blur })),
-  };
-}
-
-/** Re-types a pano as a burst in place, keeping its frames, album, time and status. */
-function panoToBurst(pano: Pano): Burst {
-  return {
-    id: retypedId('burst', pano.id),
-    name: `Burst · ${pano.frames.length} frames`,
-    album: pano.album,
-    taken: pano.taken,
-    status: pano.status,
-    kind: 'burst',
-    photos: pano.frames.map((f) => ({ id: f.id, name: f.name, blur: f.blur })),
-  };
-}
-
 /**
  * Everything that happens when the user decides on a review unit: the swipe verdicts, the burst duel
  * resolution, and the burst↔pano corrections. Mutates the deck (via {@link ReviewFeedService}), persists
@@ -138,6 +103,7 @@ export class ReviewDecisionsService {
   private readonly undoStack = inject(ReviewUndoService);
   private readonly tags = inject(TagReviewService);
   private readonly editDetection = inject(EditDetectionService);
+  private readonly editCandidates = inject(EditCandidatesService);
   // The day is read from the service rather than the clock, so every per-day record — the stored
   // deck, the once-a-day celebration, the tally — agrees about which day it is even in the seconds
   // around midnight when the two would briefly disagree.
@@ -228,6 +194,8 @@ export class ReviewDecisionsService {
     }
     this.persistDay();
     this.recordReviewProgress();
+    // Taking back a "Done editing" puts its row back in the Edit tab's list.
+    if (taken.outcome === 'toPrint') void this.editCandidates.refresh();
   }
 
   /** Lets the host supply the session check the scan refill reads at fire time. */
@@ -547,12 +515,24 @@ export class ReviewDecisionsService {
    * Its edit baseline is deliberately *not* forgotten here. Undo would have nothing to restore it
    * from, and a baseline for a photo that has left the queue is inert anyway — the check only looks
    * at photos still marked toEdit, and prunes the rest as it goes.
+   *
+   * The verdict is written from here rather than from the deck: the queue is the whole album, so most
+   * rows have no unit on today's deck to read one from. Such a row has no undo either, since undo
+   * puts a unit back on a deck it was never part of. A panorama never comes through here: see
+   * {@link SetFinishService}.
    */
   promoteToPrint(id: string): void {
     const unit = this.feed.photos().find((item) => item.id === id);
-    if (unit) this.undoStack.capture('toPrint', unit, [id], 'place');
-    this.setStatus(id, 'toPrint');
-    void this.persistVerdict(id);
+    if (unit) {
+      this.undoStack.capture('toPrint', unit, [id], 'place');
+      this.setStatus(id, 'toPrint');
+    }
+    // The last step still runs the follow-ups for a row with no unit on the deck.
+    void this.editDetection
+      .markPrintable([id])
+      .catch(() => undefined)
+      .then(() => this.persistVerdict(id))
+      .then(() => this.editCandidates.refresh());
     this.progress.recordEdit();
   }
 

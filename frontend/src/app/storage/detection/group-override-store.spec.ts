@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
-import { GroupOverrideStore, coversSameGroup, groupSignature } from './group-override-store';
+import { coversSameGroup } from '../../detection/detectors/group-identity';
+import { GroupOverrideStore, groupSignature } from './group-override-store';
 
 describe('coversSameGroup', () => {
   it('matches the identical set, however ordered', () => {

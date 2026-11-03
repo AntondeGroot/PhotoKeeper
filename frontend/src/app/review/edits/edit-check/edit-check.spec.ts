@@ -1,3 +1,4 @@
+import { SetFinishService, SetFinishState } from '../set-finish.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { computed, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
@@ -18,11 +19,17 @@ describe('EditCheckComponent', () => {
   let findings: ReturnType<typeof signal<EditFinding[] | null>>;
   let picking: ReturnType<typeof signal<boolean>>;
   let sent: string[][];
+  /** Panoramas sent looking for their merged file: the row, and the frames behind it. */
+  let searches: [string, readonly string[]][];
+  /** Sets sent straight to print: the row, and the frames behind it. */
+  let printed: [string, readonly string[]][];
   let thumbnails: ReturnType<typeof signal<ReadonlyMap<string, SafeUrl>>>;
   /** Sweeps the check found already merged into a panorama. */
   let merges: ReturnType<typeof signal<MergedPhoto[]>>;
   /** Which merges the panel settled — what "That's the panorama" does. */
   let settled: string[];
+  /** How far each card's check has got. */
+  let finishStates: ReturnType<typeof signal<ReadonlyMap<string, SetFinishState>>>;
 
   function render(
     rows: EditFinding[],
@@ -34,13 +41,34 @@ describe('EditCheckComponent', () => {
     findings = signal<EditFinding[] | null>(rows);
     picking = signal(byHand);
     sent = [];
+    searches = [];
+    printed = [];
     thumbnails = signal<ReadonlyMap<string, SafeUrl>>(new Map());
     merges = signal<MergedPhoto[]>(found);
     settled = [];
+    finishStates = signal(new Map());
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [EditCheckComponent],
       providers: [
+        {
+          provide: SetFinishService,
+          useValue: {
+            state: finishStates,
+            finish: (rowId: string, frameIds: readonly string[]) => {
+              searches.push([rowId, frameIds]);
+              return Promise.resolve();
+            },
+            sendFramesToPrint: (rowId: string, frameIds: readonly string[]) => {
+              printed.push([rowId, frameIds]);
+              return Promise.resolve();
+            },
+            cardTapped: (merge: { mergedId: string }) => {
+              settled.push(merge.mergedId);
+              return Promise.resolve();
+            },
+          },
+        },
         {
           provide: EditDetectionService,
           useValue: {
@@ -64,10 +92,6 @@ describe('EditCheckComponent', () => {
             },
             keepEditing: () => Promise.resolve(),
             merges,
-            settleMerge: (merge: { mergedId: string }) => {
-              settled.push(merge.mergedId);
-              return Promise.resolve();
-            },
           },
         },
       ],
@@ -98,6 +122,81 @@ describe('EditCheckComponent', () => {
 
       expect(ticked()).toBe(2);
       expect(sendButton()?.textContent?.trim()).toBe('Send 2 to print →');
+    });
+
+    /**
+     * Nothing merges a stereo pair, so a search could only end in "nothing found". Sent from here as
+     * from the Edit tab, it goes to print as one set: both eyes, one edit, and not as a lone frame.
+     */
+    it('sends a ticked stereo row straight to print, with both eyes', () => {
+      render(
+        [
+          {
+            ...finding('right', 'edited'),
+            name: 'Stereo · 2 frames',
+            setKind: 'stereo',
+            setFrames: [finding('left', 'untouched'), finding('right', 'edited')],
+          },
+        ],
+        false,
+      );
+
+      sendButton()?.click();
+
+      expect(printed).toEqual([['right', ['left', 'right']]]);
+      expect(searches).toEqual([]);
+      expect(sent).toEqual([[]]);
+    });
+
+    /**
+     * The panel's own wiring to the note, as the Edit tab has its own. Told the wrong kind, a burst
+     * would talk about a panorama and lose the choice of printing, leaving only "Finish without a
+     * merge" for what may simply be a burst.
+     */
+    it('tells the note a burst row is a burst', () => {
+      render(
+        [
+          {
+            ...finding('s2', 'edited'),
+            name: 'Burst · 2 frames',
+            setKind: 'burst',
+            setFrames: [finding('s1', 'untouched'), finding('s2', 'edited')],
+          },
+        ],
+        false,
+      );
+
+      finishStates.set(new Map([['s2', 'not-found']]));
+      fixture.detectChanges();
+
+      const note = root.querySelector('app-set-finish-note')?.textContent ?? '';
+      expect(note).toContain('No merged HDR in this album yet');
+      expect(note).toContain('Send to print');
+    });
+
+    /**
+     * A panorama's frames must never reach the print album, which cannot be undone, so a ticked sweep
+     * goes looking for its merged file while an ordinary photo goes to print. An unticked sweep does
+     * neither: finding its file would confirm it, and nobody said it was finished.
+     */
+    it('sends a ticked panorama to look for its merged file, never to print', () => {
+      const sweep = (lead: string, ...frames: string[]): EditFinding => ({
+        ...finding(lead, 'edited'),
+        name: `Panorama · ${frames.length} frames`,
+        setKind: 'pano',
+        setFrames: frames.map((id) => finding(id, id === lead ? 'edited' : 'untouched')),
+      });
+      render(
+        [sweep('f3', 'f1', 'f2', 'f3'), finding('solo', 'edited'), sweep('g1', 'g1', 'g2')],
+        false,
+      );
+      root.querySelectorAll<HTMLButtonElement>('.tile')[2].click();
+      fixture.detectChanges();
+
+      sendButton()?.click();
+
+      expect(searches).toEqual([['f3', ['f1', 'f2', 'f3']]]);
+      expect(sent).toEqual([['solo']]);
     });
   });
 
@@ -180,6 +279,30 @@ describe('EditCheckComponent', () => {
       root.querySelector<HTMLButtonElement>('.merge-done')?.click();
 
       expect(settled).toEqual(['m1']);
+    });
+
+    /** Its own copy of the Edit tab card's markup, so it has to be held to the same three states. */
+    it('shows how its check is going, and offers to stop while waiting to retry', () => {
+      render([], false, [merge]);
+      const button = () => root.querySelector<HTMLButtonElement>('.merge-done');
+      const card = () => root.querySelector('.merge-list')?.textContent ?? '';
+      const waitingMessage = 'Couldn’t reach Lightroom. Will try again when you’re back online.';
+
+      expect(button()?.textContent?.trim()).toBe('That’s the panorama');
+      expect(button()?.disabled).toBe(false);
+      expect(card()).not.toContain(waitingMessage);
+
+      finishStates.set(new Map([['m1', 'searching']]));
+      fixture.detectChanges();
+      expect(button()?.textContent?.trim()).toBe('That’s the panorama');
+      expect(button()?.disabled).toBe(true);
+      expect(card()).not.toContain(waitingMessage);
+
+      finishStates.set(new Map([['m1', 'unreachable']]));
+      fixture.detectChanges();
+      expect(button()?.textContent?.trim()).toBe('Stop trying');
+      expect(button()?.disabled).toBe(false);
+      expect(card()).toContain(waitingMessage);
     });
 
     /** Nothing merged, nothing said: the panel is about edits, and this card is not always relevant. */
