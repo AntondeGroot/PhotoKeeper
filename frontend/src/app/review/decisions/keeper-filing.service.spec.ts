@@ -950,6 +950,21 @@ describe('KeeperFilingService', () => {
       });
 
       /**
+       * Deleted in Lightroom, so there is nothing left to edit — and its record and verdict say
+       * nothing of that. Counted from them alone it would hold the album shut for ever.
+       */
+      it('does not hold the album shut for a photograph deleted in Lightroom', async () => {
+        filed.set('stuck', { albums: ['KeeperEdit'], at: Date.now() - 60 * day });
+        verdicts.set('stuck', { status: 'toEdit', starred: false, saveOnly: false });
+        seenDeleted.add('stuck');
+
+        await filing.readEditQueueLocally();
+
+        expect(filing.editQueueHeld()).toBe(0);
+        expect(filing.mandatoryEdits()).toEqual([]);
+      });
+
+      /**
        * A sweep stitched weeks ago is finished work waiting to be confirmed. Left as mandatory it
        * holds the album shut demanding editing that has already been done.
        */
