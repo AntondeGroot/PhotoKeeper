@@ -224,35 +224,34 @@
     <div class="preset-buttons">
       <button
         class="preset-btn"
+        [class.active]="prefs.editQueueCap() === 5"
+        (click)="prefs.editQueueCap.set(5)"
+      >
+        <span>Tight</span>
+        <span class="preset-num">5</span>
+      </button>
+      <button
+        class="preset-btn"
+        [class.active]="prefs.editQueueCap() === 10"
+        (click)="prefs.editQueueCap.set(10)"
+      >
+        <span>Steady</span>
+        <span class="preset-num">10</span>
+      </button>
+      <button
+        class="preset-btn"
         [class.active]="prefs.editQueueCap() === 15"
         (click)="prefs.editQueueCap.set(15)"
       >
-        <span>Tight</span>
-        <span class="preset-num">15</span>
-      </button>
-      <button
-        class="preset-btn"
-        [class.active]="prefs.editQueueCap() === 30"
-        (click)="prefs.editQueueCap.set(30)"
-      >
-        <span>Steady</span>
-        <span class="preset-num">30</span>
-      </button>
-      <button
-        class="preset-btn"
-        [class.active]="prefs.editQueueCap() === 60"
-        (click)="prefs.editQueueCap.set(60)"
-      >
         <span>Roomy</span>
-        <span class="preset-num">60</span>
+        <span class="preset-num">15</span>
       </button>
     </div>
     <input
       class="goal-slider"
       type="range"
-      min="5"
-      max="100"
-      step="5"
+      min="1"
+      [max]="editQueueCapMax"
       [value]="prefs.editQueueCap()"
       (input)="onEditQueueCapChange($event)"
       aria-label="How many photos KeeperEdit may hold"

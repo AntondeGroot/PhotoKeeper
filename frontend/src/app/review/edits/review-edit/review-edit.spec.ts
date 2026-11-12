@@ -338,7 +338,7 @@ describe('ReviewEditComponent', () => {
 
     /** A queue draining as it should is not news: nothing is said until the album is over its limit. */
     it('says nothing while the album is under its limit', async () => {
-      await render('al-9', 'cat-1', { waiting: 12, held: 20 });
+      await render('al-9', 'cat-1', { waiting: 12, held: 5 });
 
       expect(root.querySelector('.queue-note')).toBeNull();
     });

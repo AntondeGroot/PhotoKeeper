@@ -5,6 +5,12 @@ import { StereoRole } from './detection/detectors/detection-types';
 
 const STEREO_ROLES: StereoRole[] = ['both', 'left', 'right'];
 
+/**
+ * The most the edit-queue slider goes to. A working set is a handful — 5 to 15 photographs is what
+ * the presets offer — and room for more than this is a backlog again, just in another place.
+ */
+export const EDIT_QUEUE_CAP_MAX = 30;
+
 /** The key the roles replaced, holding an array of album names that were all "both eyes". */
 const LEGACY_STEREO_KEY = 'stereoAlbums';
 
@@ -45,7 +51,7 @@ export class PreferencesService {
    * be told to take a photo *out* of an album — so the only place to hold the line is on the way in.
    * Decisions are still recorded the moment they are made; what waits is the filing.
    */
-  readonly editQueueCap = signal(30);
+  readonly editQueueCap = signal(10);
   readonly tagGoal = signal(15);
   readonly morningReminder = signal(true);
   readonly reminderTime = signal('09:00');
@@ -97,7 +103,9 @@ export class PreferencesService {
     const editGoal = localStorage.getItem('editGoal');
     if (editGoal) this.editGoal.set(Number(editGoal));
     const editQueueCap = localStorage.getItem('editQueueCap');
-    if (editQueueCap) this.editQueueCap.set(Number(editQueueCap));
+    // Clamped, because the range used to go to a hundred: a saved 60 would pin the slider at its end
+    // while the label said 60, and keep filling the album far past anything the screen offers.
+    if (editQueueCap) this.editQueueCap.set(Math.min(Number(editQueueCap), EDIT_QUEUE_CAP_MAX));
     const tagGoal = localStorage.getItem('tagGoal');
     if (tagGoal) this.tagGoal.set(Number(tagGoal));
     const reminderTime = localStorage.getItem('reminderTime');
