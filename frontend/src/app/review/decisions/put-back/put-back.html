@@ -8,7 +8,8 @@
        one gesture, and this half knows exactly which of them still belonged there. -->
   <p class="tidy-note">
     Quicker when a lot have piled up: empty the album in Lightroom — select all, remove from album —
-    then check here. Only the photos that still belong come back; the finished ones stay out.
+    then check here. Only the photos that still belong come back; the finished ones stay out. And
+    KeeperEdit only refills up to your limit — oldest first, the rest waiting on the phone.
   </p>
 
   <!-- Outside the rows block on purpose: a failed read leaves no rows, so a message nested in them
@@ -23,6 +24,9 @@
       <p class="tidy-note">
         @if (done.filed > 0) {
           Put {{ done.filed }} back.
+        }
+        @if (done.waiting > 0) {
+          {{ done.waiting }} more to edit wait on your phone until KeeperEdit has room.
         }
         @if (done.gone > 0) {
           {{ done.gone }} no longer in Lightroom: those were deleted, so there is nothing to bring

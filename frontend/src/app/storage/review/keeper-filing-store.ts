@@ -44,6 +44,25 @@ export class KeeperFilingStore {
     }
     await tx.done;
   }
+
+  /**
+   * Strikes an album off each photo's record — for photos the album is known no longer to hold.
+   *
+   * The one case where the record is allowed to shrink: the photo was taken out by hand, so the
+   * record is simply wrong, and correcting it makes the photo outstanding again. A record left with
+   * no albums is dropped rather than kept empty.
+   */
+  async forget(assetIds: readonly string[], album: string): Promise<void> {
+    const db = await this.db.open();
+    const tx = db.transaction('keeperFiling', 'readwrite');
+    for (const id of assetIds) {
+      const existing = normalise(await tx.store.get(id));
+      const albums = existing.albums.filter((name) => name !== album);
+      if (albums.length === 0) await tx.store.delete(id);
+      else await tx.store.put({ albums, at: existing.at }, id);
+    }
+    await tx.done;
+  }
 }
 
 /**

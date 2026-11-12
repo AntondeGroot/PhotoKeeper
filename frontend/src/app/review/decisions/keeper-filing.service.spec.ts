@@ -184,6 +184,14 @@ describe('KeeperFilingService', () => {
               });
               return Promise.resolve();
             },
+            forget: (ids: string[], album: string) => {
+              ids.forEach((id) => {
+                const albums = (filed.get(id)?.albums ?? []).filter((name) => name !== album);
+                if (albums.length === 0) filed.delete(id);
+                else filed.set(id, { albums, at: 1 });
+              });
+              return Promise.resolve();
+            },
           },
         },
       ],
@@ -748,6 +756,47 @@ describe('KeeperFilingService', () => {
       await filing.sweep();
 
       expect(sent).toEqual([{ albumId: 'al-edit', assetIds: ['a', 'b'] }]);
+    });
+
+    /**
+     * Emptying KeeperEdit by hand and putting back what still belongs is the quick way to clear out
+     * finished photographs. It used to bring every unfinished one back at once, past the limit —
+     * the pile the limit exists to prevent.
+     */
+    it('puts back only as many as the limit allows when the album has been emptied', async () => {
+      editQueueCap = 2;
+      for (const id of ['a', 'b', 'c']) filed.set(id, { albums: ['KeeperEdit'], at: 1 });
+
+      const outcome = await filing.putBack('KeeperEdit', ['a', 'b', 'c']);
+
+      expect(sent).toEqual([{ albumId: 'al-edit', assetIds: ['a', 'b'] }]);
+      expect(outcome).toEqual({ filed: 2, gone: 0, refused: 0, untried: [], waiting: 1 });
+    });
+
+    /**
+     * One held back is waiting on the phone, not lost. Offered again as missing, the next press of
+     * the button would just hold it back a second time, and the screen would never come up clear.
+     */
+    it('does not offer a photo it held back as missing from the album', async () => {
+      editQueueCap = 2;
+      for (const id of ['a', 'b', 'c']) filed.set(id, { albums: ['KeeperEdit'], at: 1 });
+      await filing.putBack('KeeperEdit', ['a', 'b', 'c']);
+
+      heldByAlbum.set('al-edit', ['a', 'b']); // what landed; c is waiting on the phone
+
+      expect(await filing.filingGaps()).toEqual([]);
+    });
+
+    /** Putting back takes the same road as a sweep, so a panorama still goes whole or not at all. */
+    it('puts back a whole panorama rather than half of one', async () => {
+      editQueueCap = 1;
+      groups = [{ type: 'pano', sourceAlbumId: 'alb', memberIds: ['a', 'b'] }];
+      for (const id of ['a', 'b', 'c']) filed.set(id, { albums: ['KeeperEdit'], at: 1 });
+
+      const outcome = await filing.putBack('KeeperEdit', ['a', 'b', 'c']);
+
+      expect(sent).toEqual([{ albumId: 'al-edit', assetIds: ['a', 'b'] }]);
+      expect(outcome.waiting).toBe(1);
     });
 
     it('sends nothing at all once the album is full', async () => {
