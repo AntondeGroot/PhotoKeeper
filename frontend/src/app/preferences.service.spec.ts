@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { PreferencesService } from './preferences.service';
+import { EDIT_QUEUE_CAP_MAX, PreferencesService } from './preferences.service';
 
 function make(): PreferencesService {
   // Each call gets a fresh injector so the service re-reads localStorage in its constructor.
@@ -23,6 +23,16 @@ describe('PreferencesService', () => {
     expect(prefs.wifiOnly()).toBe(true); // on unless turned off: a data plan is spent by default otherwise
     expect(prefs.onboarded()).toBe(false);
     expect(prefs.tagDirections().left).toBe('animals');
+  });
+
+  /**
+   * The edit-queue range used to go to a hundred. A limit saved under the old range comes back at
+   * the slider's end, rather than as a number the screen can no longer show or set.
+   */
+  it('brings an edit-queue limit saved under the old range down to the slider’s maximum', () => {
+    localStorage.setItem('editQueueCap', '60');
+
+    expect(make().editQueueCap()).toBe(EDIT_QUEUE_CAP_MAX);
   });
 
   it('restores scalar + JSON preferences from localStorage', () => {

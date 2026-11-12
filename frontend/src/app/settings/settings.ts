@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { DeviceSourceComponent } from '../device-source/device-source';
-import { PreferencesService } from '../preferences.service';
+import { EDIT_QUEUE_CAP_MAX, PreferencesService } from '../preferences.service';
 import { BatteryOptimizationService } from '../notifications/battery-optimization.service';
 import { StorageUsageService } from '../storage/storage-usage.service';
 import { NetworkService } from '../network.service';
@@ -89,6 +89,8 @@ export class SettingsComponent implements OnInit {
   onEditGoalChange(event: Event): void {
     this.prefs.editGoal.set(Number((event.target as HTMLInputElement).value));
   }
+
+  readonly editQueueCapMax = EDIT_QUEUE_CAP_MAX;
 
   /** How many photographs KeeperEdit may hold before the app holds the rest back. */
   onEditQueueCapChange(event: Event): void {
