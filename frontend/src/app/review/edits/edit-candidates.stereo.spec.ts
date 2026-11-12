@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { CensusService } from '../../stats/census.service';
 import { signal } from '@angular/core';
 import { FrameSignature } from '../../detection/detectors/detection-types';
 import { SIGNATURE_SIZE } from '../../detection/detectors/phash';
@@ -70,6 +71,11 @@ describe('EditCandidatesService, with a stereo shoot split across two albums', (
         { provide: KeeperFilingStore, useValue: { getAll: () => Promise.resolve(filed) } },
         { provide: SignatureStore, useValue: { getAll: () => Promise.resolve(signatures) } },
         { provide: GroupStore, useValue: { getAll: () => Promise.resolve([]) } },
+        // Nothing deleted. Stubbed because the real one opens IndexedDB, which this spec does not set up.
+        {
+          provide: CensusService,
+          useValue: { deletionsNoted: signal(0), seenDeleted: () => Promise.resolve(new Set()) },
+        },
         {
           provide: GroupOverrideStore,
           useValue: {

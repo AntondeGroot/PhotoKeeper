@@ -8,6 +8,9 @@ import { KeeperFilingStore } from '../../storage/review/keeper-filing-store';
 import { ReviewStore } from '../../storage/review/review-store';
 import { MergeFinderService } from './merge-finder.service';
 import { CorrectedGroupsService } from '../deck/selection/corrected-groups.service';
+import { CensusService } from '../../stats/census.service';
+import { EditAlbumNamesService } from './edit-album-names.service';
+import { PhotoAsset } from '../../lightroom-types';
 import { DetectedGroup } from '../../detection/detectors/detection-types';
 import { AssetMeta, FiledRecord, StoredVerdict } from '../../storage/photokeeper-db';
 
@@ -36,6 +39,8 @@ describe('EditCandidatesService', () => {
   let groups: DetectedGroup[];
   /** Whether the catalogue has answered, which is when album names become known. */
   let albumsChecked: ReturnType<typeof signal<boolean>>;
+  /** Photographs an album listing has seen deleted in Lightroom. */
+  let seenDeleted: Set<string>;
 
   beforeEach(() => {
     verdicts = new Map();
@@ -45,6 +50,7 @@ describe('EditCandidatesService', () => {
     mergedFrames = new Set();
     groups = [];
     albumsChecked = signal(false);
+    seenDeleted = new Set();
 
     TestBed.configureTestingModule({
       providers: [
@@ -60,6 +66,10 @@ describe('EditCandidatesService', () => {
         },
         { provide: PreferencesService, useValue: { editGoal: () => editGoal } },
         { provide: CorrectedGroupsService, useValue: { all: () => Promise.resolve(groups) } },
+        {
+          provide: CensusService,
+          useValue: { deletionsNoted: signal(0), seenDeleted: () => Promise.resolve(seenDeleted) },
+        },
         {
           provide: MergeFinderService,
           useValue: {
@@ -97,6 +107,34 @@ describe('EditCandidatesService', () => {
     await service.refresh();
 
     expect(service.all().map((p) => p.id)).toEqual(['oldest', 'middle', 'newest']);
+  });
+
+  /**
+   * Deleted in Lightroom, which leaves a tombstone in the album and tells this app nothing: the
+   * record and the verdict outlive the photograph, and it was offered as a blank row named by its id.
+   */
+  it('does not offer a photograph deleted in Lightroom', async () => {
+    threeWaiting();
+    seenDeleted.add('middle');
+
+    await service.refresh();
+
+    expect(service.all().map((p) => p.id)).toEqual(['oldest', 'newest']);
+  });
+
+  /**
+   * A photograph the scan has not reached has no name on this device, and its row showed a 32-digit
+   * asset id. The listing of the album knows what it is called.
+   */
+  it('names a photograph the scan has not reached from the album listing', async () => {
+    threeWaiting();
+    assets.delete('middle');
+    const listing = [{ id: 'middle', payload: { importSource: { fileName: 'DSC_4390.NEF' } } }];
+    TestBed.inject(EditAlbumNamesService).note(listing as PhotoAsset[]);
+
+    await service.refresh();
+
+    expect(service.all().find((p) => p.id === 'middle')?.name).toBe('DSC_4390');
   });
 
   it('offers the editing goal’s worth at a time', async () => {

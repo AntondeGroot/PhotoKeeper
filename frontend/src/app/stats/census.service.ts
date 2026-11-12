@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { DayCensus, emptyCensus } from './census';
 import { isUnitId } from '../photo';
 import { DayService } from '../review/progress/day.service';
@@ -27,6 +27,16 @@ export class CensusService {
   private readonly store = inject(DayCensusStore);
   private readonly deletions = inject(DeletionLogStore);
   private readonly day = inject(DayService);
+
+  /**
+   * Bumped whenever a photograph is newly written down as deleted.
+   *
+   * The ledger is filled as a side effect of something else listing an album, at a moment nobody
+   * downstream chose — so anything that hides deleted photographs needs telling when to look again.
+   * Without it, the Edit tab went on offering photographs deleted in Lightroom, as blank rows named
+   * by their id, until something unrelated happened to refresh it.
+   */
+  readonly deletionsNoted = signal(0);
 
   /** Counts the library and the verdicts, and writes them into today's row. */
   async recordToday(): Promise<DayCensus> {
@@ -61,6 +71,7 @@ export class CensusService {
   async recordAlbum(album: string, held: AlbumContents): Promise<void> {
     const day = this.day.today();
     await this.deletions.noteAll(held.deletedIds, album, day);
+    if (held.deletedIds.length > 0) this.deletionsNoted.update((n) => n + 1);
 
     const today = await this.today();
     await this.store.put({
@@ -76,6 +87,7 @@ export class CensusService {
   /** Writes down a photograph found to be gone from Lightroom when a write to it was refused. */
   async noteGone(assetId: string, album: string): Promise<void> {
     await this.deletions.noteFoundGone(assetId, album, this.day.today());
+    this.deletionsNoted.update((n) => n + 1);
   }
 
   /** Every photograph ever seen deleted, including those whose tombstones have since been purged. */

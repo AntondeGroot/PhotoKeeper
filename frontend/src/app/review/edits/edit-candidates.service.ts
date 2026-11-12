@@ -6,8 +6,10 @@ import { PreferencesService } from '../../preferences.service';
 import { AssetMetaStore } from '../../storage/review/asset-meta-store';
 import { KeeperFilingStore } from '../../storage/review/keeper-filing-store';
 import { ReviewStore } from '../../storage/review/review-store';
+import { CensusService } from '../../stats/census.service';
 import { MANDATORY_AFTER_DAYS } from './edit-queue';
 import { MergeFinderService } from './merge-finder.service';
+import { EditAlbumNamesService, ListedName } from './edit-album-names.service';
 import { CorrectedGroupsService } from '../deck/selection/corrected-groups.service';
 import { FrameSetKind, framesByPhoto, gatherBySet } from './frame-sets';
 
@@ -40,12 +42,23 @@ export class EditCandidatesService {
   private readonly prefs = inject(PreferencesService);
   private readonly finder = inject(MergeFinderService);
   private readonly groups = inject(CorrectedGroupsService);
+  private readonly census = inject(CensusService);
+  private readonly listedNames = inject(EditAlbumNamesService);
 
   constructor() {
     // Which rows are stereo pairs depends on album names, and the catalogue is often read after the
     // first refresh. Without this the eyes stay on separate rows until something else refreshes.
     effect(() => {
       if (this.albums.checked()) untracked(() => void this.refresh());
+    });
+    // A photograph deleted in Lightroom is only known to be gone once an album listing has seen its
+    // tombstone, which happens in the background. Look again then, so its row goes when it can.
+    effect(() => {
+      if (this.census.deletionsNoted() > 0) untracked(() => void this.refresh());
+    });
+    // Names for photographs the scan has not reached arrive with the album listing, after the rows.
+    effect(() => {
+      if (this.listedNames.names().size > 0) untracked(() => void this.refresh());
     });
   }
 
@@ -70,11 +83,12 @@ export class EditCandidatesService {
    */
   async refresh(): Promise<void> {
     try {
-      const [verdicts, meta, filed, groups] = await Promise.all([
+      const [verdicts, meta, filed, groups, deleted] = await Promise.all([
         this.reviews.getVerdicts(),
         this.meta.getAll(),
         this.filed.getAll(),
         this.groups.all(),
+        this.census.seenDeleted(),
         this.finder.refresh(),
       ]);
 
@@ -82,6 +96,7 @@ export class EditCandidatesService {
       // left is confirming it — so offering them again sends the user to edit photographs they have
       // already edited, which is exactly what was happening with sweeps they had stitched weeks ago.
       const merged = this.finder.frameIds();
+      const listed = this.listedNames.names();
 
       const waiting: { photo: Photo; since: number }[] = [];
       for (const [assetId, record] of filed) {
@@ -90,10 +105,13 @@ export class EditCandidatesService {
         // to skip them. Lightroom has never held one, and it cannot be opened or edited.
         if (isUnitId(assetId)) continue;
         if (merged.has(assetId)) continue;
+        // Deleted in Lightroom. Its record and its verdict outlive it — nothing here is told — so
+        // without this it stays on the list as a blank row named by its id, with nothing to edit.
+        if (deleted.has(assetId)) continue;
         const verdict = verdicts.get(assetId);
         if (verdict?.status !== 'toEdit') continue;
         waiting.push({
-          photo: this.toPhoto(assetId, meta.get(assetId), verdict.starred, verdict.saveOnly),
+          photo: this.toPhoto(assetId, meta.get(assetId), listed.get(assetId), verdict),
           since: record.at,
         });
       }
@@ -125,15 +143,16 @@ export class EditCandidatesService {
   private toPhoto(
     assetId: string,
     meta: { albumId: string; name: string; ext?: string; taken: string } | undefined,
-    starred: boolean,
-    saveOnly: boolean,
+    listed: ListedName | undefined,
+    { starred, saveOnly }: { starred: boolean; saveOnly: boolean },
   ): Photo {
     return {
       id: assetId,
-      // A photograph the scan has not reached has no name on this device. Its id is a poor label but
-      // an honest one, and the row still opens the right photograph in Lightroom.
-      name: meta?.name ?? assetId,
-      ext: meta?.ext,
+      // A photograph the scan has not reached has no name on this device, so the album listing names
+      // it. The id is the last resort, before the first listing of the session has answered: a poor
+      // label but an honest one, and the row still opens the right photograph in Lightroom.
+      name: meta?.name ?? listed?.name ?? assetId,
+      ext: meta?.ext ?? listed?.ext,
       album: meta ? this.albums.nameFor(meta.albumId) : null,
       taken: meta?.taken ?? '',
       status: 'toEdit',

@@ -19,6 +19,7 @@ import { PreferencesService } from '../../preferences.service';
 import { EditBaselineStore } from '../../storage/review/edit-baseline-store';
 import { GroupStore } from '../../storage/detection/group-store';
 import { MergeFinderService } from '../edits/merge-finder.service';
+import { EditAlbumNamesService } from '../edits/edit-album-names.service';
 import { QueuedPhoto, editQueueFromRecords, overdueEdits, photosToFile } from '../edits/edit-queue';
 import { isUnitId, splitFileName } from '../../photo';
 import { isAssetGone, isConnectionFailure } from './filing-failure';
@@ -120,6 +121,7 @@ export class KeeperFilingService {
   private readonly baselines = inject(EditBaselineStore);
   private readonly groups = inject(GroupStore);
   private readonly merges = inject(MergeFinderService);
+  private readonly editNames = inject(EditAlbumNamesService);
 
   /** Photos filed in the last sweep, for the settings line that says what happened. */
   readonly lastFiled = signal(0);
@@ -449,11 +451,15 @@ export class KeeperFilingService {
    */
   async readEditQueueLocally(): Promise<void> {
     try {
-      const [filed, verdicts, meta] = await Promise.all([
+      const [records, verdicts, meta, deleted] = await Promise.all([
         this.filed.getAll(),
         this.reviews.getVerdicts(),
         this.meta.getAll(),
+        this.census.seenDeleted(),
       ]);
+      // A photograph deleted in Lightroom is a tombstone in the album: it takes no room, and it can
+      // never be edited, so it must neither fill the album nor hold it shut as overdue.
+      const filed = new Map([...records].filter(([assetId]) => !deleted.has(assetId)));
       // A frame whose panorama Lightroom has already written is finished work waiting to be
       // confirmed, not work outstanding — holding the album shut for it would be asking for editing
       // that has been done.
@@ -508,6 +514,7 @@ export class KeeperFilingService {
       this.meta.getAll(),
     ]);
     this.noteContents(KEEPER_EDIT_ALBUM, held);
+    this.editNames.note(held);
 
     // Tombstones are not photographs and take up no room: that one has been deleted, which is the
     // end of it.
