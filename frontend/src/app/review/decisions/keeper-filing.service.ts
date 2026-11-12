@@ -62,6 +62,11 @@ export interface FilingOutcome {
   refused: number;
   /** Not attempted, because the connection went first. Sending them again picks up from here. */
   untried: string[];
+  /**
+   * Edit-queue photos held on the phone because KeeperEdit is at its limit. Not lost and not
+   * refused: the sweep sends them as room opens up. Absent for every other album.
+   */
+  waiting?: number;
 }
 
 /** One album's filing as it goes: the running counts, and who wants to hear about them. */
@@ -216,7 +221,32 @@ export class KeeperFilingService {
     await this.albums.ensure();
     const albumId = this.albums.idFor(album);
     if (!albumId) return { filed: 0, gone: 0, refused: 0, untried: [...assetIds] };
+    if (album === KEEPER_EDIT_ALBUM) return this.requeueForEdit(albumId, assetIds, onSettled);
     return this.fileInto(albumId, album, [...assetIds], onSettled);
+  }
+
+  /**
+   * Puts photos missing from KeeperEdit back in the edit queue, rather than straight into the album.
+   *
+   * <p>Emptying KeeperEdit in Lightroom and then putting back what still belongs is the quick way
+   * to clear out finished photographs — and it brought back every unfinished one at once, however
+   * many there were, because putting back went round the limit the sweep holds the album to. A
+   * pile of a hundred overdue photographs is exactly what the limit exists to prevent.
+   *
+   * <p>So they are struck off as filed, which is the truth — the album does not hold them — and go
+   * through the same room calculation as any other decision: oldest first, up to the limit, the
+   * rest waiting on the phone until the album is worked down.
+   */
+  private async requeueForEdit(
+    albumId: string,
+    assetIds: readonly string[],
+    onSettled: (settled: number) => void,
+  ): Promise<FilingOutcome> {
+    await this.filed.forget(assetIds, KEEPER_EDIT_ALBUM);
+    const waiting = (await this.outstanding()).get(KEEPER_EDIT_ALBUM) ?? [];
+    const sending = await this.editQueueRoom(albumId, waiting);
+    const outcome = await this.fileInto(albumId, KEEPER_EDIT_ALBUM, sending, onSettled);
+    return { ...outcome, waiting: this.editQueueWaiting() };
   }
 
   /**

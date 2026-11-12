@@ -6,6 +6,8 @@ interface PutBackResult {
   filed: number;
   gone: number;
   refused: number;
+  /** Held on the phone because KeeperEdit is at its limit; the sweep sends them as room opens. */
+  waiting: number;
   /** Whether the connection went before everything had been tried. */
   stopped: boolean;
 }
@@ -94,7 +96,7 @@ export class PutBackComponent {
   }
 
   private async putBackAlbums(): Promise<PutBackResult> {
-    const result: PutBackResult = { filed: 0, gone: 0, refused: 0, stopped: false };
+    const result: PutBackResult = { filed: 0, gone: 0, refused: 0, waiting: 0, stopped: false };
     for (const row of this.lost()) {
       const before = this.progress();
       const outcome = await this.filing.putBack(row.album, row.missing, (settled) =>
@@ -103,6 +105,7 @@ export class PutBackComponent {
       result.filed += outcome.filed;
       result.gone += outcome.gone;
       result.refused += outcome.refused;
+      result.waiting += outcome.waiting ?? 0;
       this.settleRow(row.album, outcome);
       if (outcome.untried.length > 0) return { ...result, stopped: true };
     }
