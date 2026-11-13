@@ -13,6 +13,11 @@ import { AlbumPrintStore } from '../storage/review/album-print-store';
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
+/** Which slots a plan holds, whatever days they fall on. */
+const slotsOf = (plan: PlannedReminder[] | undefined): string[] => [
+  ...new Set((plan ?? []).map((r) => r.slot)),
+];
+
 describe('ReminderSchedulerService', () => {
   let applied: PlannedReminder[][];
   let workWaiting: boolean;
@@ -79,7 +84,7 @@ describe('ReminderSchedulerService', () => {
     make(42);
     await settle();
 
-    expect(applied.at(-1)?.map((r) => r.id)).toEqual([1]);
+    expect(slotsOf(applied.at(-1))).toEqual(['morning']);
     expect(scans).toBe(0);
   });
 
@@ -88,7 +93,7 @@ describe('ReminderSchedulerService', () => {
     await settle();
     // Something to do, so the morning nudge stands — from the fallback text, since the catalog
     // here has nothing to offer.
-    expect(applied.at(-1)?.map((r) => r.id)).toEqual([1]);
+    expect(slotsOf(applied.at(-1))).toEqual(['morning']);
 
     // The last photo is decided: the deck empties and, this time, so does the library.
     workWaiting = false;

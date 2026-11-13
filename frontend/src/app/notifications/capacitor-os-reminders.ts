@@ -29,8 +29,8 @@ interface NotificationSpec {
   title: string;
   body: string;
   channelId: string;
-  /** `on` without a day is Capacitor's daily cron: it re-arms itself after each fire. */
-  schedule: { on: { hour: number; minute: number }; allowWhileIdle: boolean };
+  /** A one-off at this moment. Deliberately not `on` (a daily repeat), which cannot skip a day. */
+  schedule: { at: Date; allowWhileIdle: boolean };
   /** Ours to fill: Android hands it back untouched when the notification is tapped. */
   extra: { opensAt: LandingSpot };
 }
@@ -84,7 +84,7 @@ function toNotification(reminder: PlannedReminder): NotificationSpec {
     channelId: channelOf(reminder),
     // allowWhileIdle so Doze doesn't hold a 09:00 reminder until the phone next wakes. The plugin
     // downgrades to an inexact alarm by itself when exact alarms aren't permitted.
-    schedule: { on: { hour: reminder.at.hour, minute: reminder.at.minute }, allowWhileIdle: true },
+    schedule: { at: reminder.at, allowWhileIdle: true },
     extra: { opensAt: reminder.opensAt },
   };
 }

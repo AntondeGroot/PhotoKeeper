@@ -7,10 +7,11 @@ type TapListener = (event: { notification?: { extra?: { opensAt?: unknown } } })
 
 function reminder(overrides: Partial<PlannedReminder> = {}): PlannedReminder {
   return {
-    id: 1,
+    id: 100,
+    slot: 'morning',
     title: 'Your edit queue is filling up',
     text: '7 waiting — knock out a few today?',
-    at: { hour: 9, minute: 0 },
+    at: new Date(2026, 10, 14, 9, 0),
     silent: false,
     opensAt: 'edit',
     ...overrides,
