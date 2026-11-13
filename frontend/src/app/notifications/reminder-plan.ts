@@ -2,14 +2,39 @@ import { RenderedNotification } from './notification-message';
 import { LandingSpot } from './landing';
 
 /**
- * Stable OS notification ids. Fixed (not generated) on purpose: re-scheduling reuses the id, so the
- * OS *replaces* yesterday's pending alarm instead of stacking a second one behind it.
+ * How many days ahead the reminders are laid out.
+ *
+ * Each reminder is a dated one-off rather than a daily repeat, because a repeat cannot skip a day:
+ * the only way to say "not today, I'm done — but tomorrow as usual" to the OS is to have scheduled
+ * tomorrow separately. The cost is that the run ends: without the app being opened, reminders stop
+ * after this many days. Every open lays out a fresh run, so that only bites someone who has not
+ * opened the app for a fortnight.
  */
-export const MORNING_REMINDER_ID = 1;
-export const EVENING_REMINDER_ID = 2;
+export const DAYS_AHEAD = 14;
+
+/**
+ * OS notification ids: one per slot per day ahead, so re-planning reuses them and the OS *replaces*
+ * a pending alarm instead of stacking a second one behind it. Day 0 is today.
+ */
+const MORNING_ID_BASE = 100;
+const EVENING_ID_BASE = 200;
+
+/**
+ * The daily-repeating alarms earlier builds scheduled. Still cancelled on every pass: a repeating
+ * alarm re-arms itself, so one left behind would keep firing alongside the dated ones for good.
+ */
+const LEGACY_REPEATING_IDS = [1, 2];
+
+const dayOffsets = Array.from({ length: DAYS_AHEAD }, (_, day) => day);
 
 /** Every id this app ever schedules — what a full "clear before re-scheduling" pass has to cancel. */
-export const REMINDER_IDS: readonly number[] = [MORNING_REMINDER_ID, EVENING_REMINDER_ID];
+export const REMINDER_IDS: readonly number[] = [
+  ...LEGACY_REPEATING_IDS,
+  ...dayOffsets.map((day) => MORNING_ID_BASE + day),
+  ...dayOffsets.map((day) => EVENING_ID_BASE + day),
+];
+
+export type ReminderSlot = 'morning' | 'evening';
 
 /** A wall-clock time of day, as the OS wants it (a daily repeat, not a one-off date). */
 export interface TimeOfDay {
@@ -17,12 +42,14 @@ export interface TimeOfDay {
   minute: number;
 }
 
-/** One daily reminder, ready to hand to the OS. */
+/** One reminder on one day, ready to hand to the OS. */
 export interface PlannedReminder {
   id: number;
+  slot: ReminderSlot;
   title: string;
   text: string;
-  at: TimeOfDay;
+  /** The moment it fires — a specific day, not a daily repeat (see {@link DAYS_AHEAD}). */
+  at: Date;
   /** Evening nudges post quietly (low-importance channel, no sound); the morning one announces itself. */
   silent: boolean;
   /** Where tapping it opens the app — handed to the OS with the alarm, and read back at the tap. */
@@ -38,7 +65,10 @@ export interface ReminderSettings {
   morningTime: string; // "HH:mm", as the <input type="time"> writes it
   eveningEnabled: boolean;
   eveningTime: string;
-  /** Whether today's sorting goal has already been met — the evening nudge has nothing to say if so. */
+  /**
+   * Whether today's work is done — neither of today's reminders has anything to say if so, and both
+   * are dropped. Only today's: the days after it are planned as usual.
+   */
   dayComplete: boolean;
   /** Unreviewed photos still waiting in today's deck. Nothing waiting, nothing to nudge about. */
   pileCount: number;
@@ -67,7 +97,6 @@ export function parseTimeOfDay(value: string): TimeOfDay | null {
   return { hour, minute };
 }
 
-/** The morning nudge: unconditional while its toggle is on — it's the "start your review" prompt. */
 /**
  * Fallbacks for when the catalog has nothing eligible — every message on cooldown, say.
  *
@@ -95,50 +124,84 @@ const DEFAULT_EVENING: RenderedNotification = {
 function planMorning(
   settings: ReminderSettings,
   message: RenderedNotification | null,
-): PlannedReminder | null {
-  if (!settings.morningEnabled) return null;
+  now: Date,
+): PlannedReminder[] {
+  if (!settings.morningEnabled) return [];
   // Nothing in the library to sort: a nudge saying photos are waiting would simply be untrue.
   // Deliberately not `pileCount`, which is today's deck — that empties every time a day is
   // finished, and cancelling tomorrow's reminder for it would be the opposite of the point.
-  if (!settings.workWaiting) return null;
-  const at = parseTimeOfDay(settings.morningTime);
-  if (!at) return null;
+  if (!settings.workWaiting) return [];
+  const time = parseTimeOfDay(settings.morningTime);
+  if (!time) return [];
   const { title, text, opensAt } = message ?? DEFAULT_MORNING;
-  return { id: MORNING_REMINDER_ID, title, text, at, silent: false, opensAt };
+  return upcomingDays(time, now, settings.dayComplete).map(({ day, at }) => ({
+    id: MORNING_ID_BASE + day,
+    slot: 'morning',
+    title,
+    text,
+    at,
+    silent: false,
+    opensAt,
+  }));
 }
 
 /**
  * The evening nudge, which Settings promises fires only "if you haven't reviewed and photos still
- * remain" — so a finished day or an empty pile plans it out of existence rather than sending
+ * remain" — so a finished day or an empty pile plans tonight's out of existence rather than sending
  * something untrue. Since the plan is re-applied whenever those change, finishing the day's sorting
- * is what cancels tonight's alarm.
+ * is what cancels tonight's alarm. The evenings after it stand, as long as the library has work.
  */
 function planEvening(
   settings: ReminderSettings,
   message: RenderedNotification | null,
-): PlannedReminder | null {
-  if (!settings.eveningEnabled) return null;
-  if (settings.dayComplete || settings.pileCount <= 0) return null;
-  const at = parseTimeOfDay(settings.eveningTime);
-  if (!at) return null;
+  now: Date,
+): PlannedReminder[] {
+  if (!settings.eveningEnabled || !settings.workWaiting) return [];
+  const time = parseTimeOfDay(settings.eveningTime);
+  if (!time) return [];
   const { title, text, opensAt } = message ?? DEFAULT_EVENING;
-  return { id: EVENING_REMINDER_ID, title, text, at, silent: true, opensAt };
+  const skipToday = settings.dayComplete || settings.pileCount <= 0;
+  return upcomingDays(time, now, skipToday).map(({ day, at }) => ({
+    id: EVENING_ID_BASE + day,
+    slot: 'evening',
+    title,
+    text,
+    at,
+    silent: true,
+    opensAt,
+  }));
+}
+
+/**
+ * The moments `time` falls on over the next {@link DAYS_AHEAD} days, counting today as day 0 — minus
+ * any already past (an alarm dated in the past fires at once), and minus today when it is skipped.
+ * Built from calendar fields rather than by adding 24 hours, so a daylight-saving change does not
+ * move the reminder by an hour.
+ */
+function upcomingDays(time: TimeOfDay, now: Date, skipToday: boolean): { day: number; at: Date }[] {
+  return dayOffsets
+    .filter((day) => !(skipToday && day === 0))
+    .map((day) => ({
+      day,
+      at: new Date(now.getFullYear(), now.getMonth(), now.getDate() + day, time.hour, time.minute),
+    }))
+    .filter(({ at }) => at.getTime() > now.getTime());
 }
 
 /**
  * The complete set of reminders the OS should be holding right now. Pure: the caller cancels
- * everything in {@link REMINDER_IDS} and schedules exactly what comes back, so a slot that drops out
- * of the plan is a slot that gets cancelled.
+ * everything in {@link REMINDER_IDS} and schedules exactly what comes back, so a reminder that drops
+ * out of the plan is a reminder that gets cancelled.
  */
 export function planReminders(
   settings: ReminderSettings,
   messages: ReminderMessages,
+  now: Date,
 ): PlannedReminder[] {
-  const planned = [
-    planMorning(settings, messages.morning),
-    planEvening(settings, messages.evening),
+  return [
+    ...planMorning(settings, messages.morning, now),
+    ...planEvening(settings, messages.evening, now),
   ];
-  return planned.filter((reminder): reminder is PlannedReminder => reminder !== null);
 }
 
 /** Whether two settings snapshots are the same, so an unchanged one doesn't churn the OS alarms. */

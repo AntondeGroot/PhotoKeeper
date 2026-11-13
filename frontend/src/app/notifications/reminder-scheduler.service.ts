@@ -59,7 +59,7 @@ export class ReminderSchedulerService {
       morningTime: this.prefs.reminderTime(),
       eveningEnabled: this.prefs.silentEvening(),
       eveningTime: this.prefs.silentTime(),
-      dayComplete: this.stats.doneToday() >= this.prefs.dailyGoal(),
+      dayComplete: this.dayComplete(),
       pileCount: this.stats.backlogCount(),
       workWaiting: this.workWaiting(),
     }),
@@ -103,12 +103,22 @@ export class ReminderSchedulerService {
   private async reschedule(settings: ReminderSettings): Promise<void> {
     if (!(await this.permission())) return;
     const messages = untracked(() => this.pickMessages(settings));
-    await this.os.apply(planReminders(settings, messages));
+    await this.os.apply(planReminders(settings, messages, this.now()));
 
     // Re-read the library after acting on the plan. Deciding the last photo empties the deck, which
     // is what brought us here — and may have emptied the library with it. Setting the signal to an
     // unchanged value is inert, so this settles after one extra pass rather than looping.
     await this.refreshWorkWaiting();
+  }
+
+  /**
+   * Whether today's work is done: the sorting goal is met, or today's deck has been worked through
+   * to the end ("All caught up") even if it held fewer photos than the goal. Something must have
+   * been decided for the second — an empty deck before anything was drawn is not a finished day.
+   */
+  private dayComplete(): boolean {
+    const done = this.stats.doneToday();
+    return done >= this.prefs.dailyGoal() || (done > 0 && this.stats.backlogCount() === 0);
   }
 
   private permission(): Promise<boolean> {
