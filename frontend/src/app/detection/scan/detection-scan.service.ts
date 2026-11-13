@@ -12,12 +12,13 @@ import { HashStore } from '../../storage/detection/hash-store';
 import { PreviewStore } from '../../storage/review/preview-store';
 import { splitFileName } from '../../photo';
 import { editsWithOriginal } from '../../edit-pairs';
-import { cameraSerial, isCaptureFrame } from '../../camera-metadata';
+import { cameraSerial, eyeCandidate, isCaptureFrame } from '../../camera-metadata';
 import { AssetMeta } from '../../storage/photokeeper-db';
 import { DetectedGroup, FrameSignature, StereoRole } from '../detectors/detection-types';
 import { DetectAsset, clusterBursts } from '../detectors/burst';
 import { PanoAsset, clusterPanos } from '../detectors/pano';
 import { StereoAsset, clusterStereo, mergeOverlappingSets } from '../detectors/stereo';
+import { pairBothEyes } from '../detectors/stereo-eyes';
 import { DetectionSettingsService } from './detection-settings.service';
 import { ImageHasher } from '../detectors/image-hasher';
 
@@ -264,8 +265,12 @@ export class DetectionScanService {
   }
 
   /**
-   * Stage 3 for an album marked as holding both eyes: every group is a **stereo set**, whichever
-   * detector noticed it. No burst, no panorama — every frame in the album is an eye, so a group of
+   * Stage 3 for an album marked as holding both eyes: every group is a **stereo set**.
+   *
+   * A frame that can be given a side — named `_L` / `_R`, or shot on one of a twin rig's two bodies —
+   * is paired one-to-one with the other eye by picture, exactly as a split shoot is (`pairBothEyes`).
+   * Only the frames left without a side (one body, no suffix: a drone or a cha-cha shoot) go to the
+   * clusterers below, whichever of them notices a set. No burst, no panorama — every frame in the album is an eye, so a group of
    * them is a pair or a multi-baseline set, and nothing else.
    *
    * The three clusterers are all asking "are these frames the same scene?" and differ only in where
@@ -292,8 +297,16 @@ export class DetectionScanService {
     // EXIF, and is a finished picture rather than an eye. It is held out of all three clusterers, not
     // just the stereo one — unioning them would otherwise let the looser burst threshold pull it into
     // a set that the stereo threshold had deliberately kept it out of.
-    const captures = prefix.filter(isCaptureFrame);
+    const all = prefix.filter(isCaptureFrame);
+    const { pairs, unsided } = pairBothEyes(
+      all.map(eyeCandidate),
+      signatures,
+      this.settings.eyePairOptions(),
+    );
+    const toCluster = new Set(unsided);
+    const captures = all.filter((asset) => toCluster.has(asset.id));
     const found = [
+      ...pairs.map((memberIds) => ({ memberIds })),
       ...clusterStereo(captures.map(toStereoAsset), hashes, this.settings.stereoOptions()),
       ...clusterBursts(captures.map(toDetectAsset), hashes, this.settings.burstOptions()),
       ...clusterPanos(

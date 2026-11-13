@@ -10,7 +10,8 @@ import { FrameSignature, PanoOrientation } from '../detectors/detection-types';
 import { hammingDistance, lumaHammingDistance } from '../detectors/phash';
 import { PhotoAsset } from '../../lightroom-types';
 import { Stereo } from '../../photo';
-import { isCaptureFrame } from '../../camera-metadata';
+import { eyeCandidate, isCaptureFrame } from '../../camera-metadata';
+import { pairBothEyes } from '../detectors/stereo-eyes';
 import { hydrateStereo } from '../../review/deck/selection/unit-selection';
 
 // The signature MAD lives with the other perceptual-hash math; re-exported so the lab imports it here.
@@ -123,20 +124,30 @@ export function analyzePanoClusters(
 
 /**
  * Detects stereo sets in a loaded album and hydrates each into the exact `Stereo` review unit the user
- * would see — so the lab renders real workbench cards. Only capture frames are clustered (derived/combined
- * exports carry no camera EXIF, like the scan). `leftSerial` mirrors the album's persisted left-eye choice
- * so twin-rig L/R matches review. `albumName` only sets the unit's display label.
+ * would see — so the lab renders real workbench cards. Only capture frames are paired (derived/combined
+ * exports carry no camera EXIF, like the scan). Frames with a side (`_L`/`_R`, or a twin rig's body) are
+ * paired by picture, as the scan does; only the rest are clustered by hash, which is what the sliders
+ * tune. `leftSerial` mirrors the album's persisted left-eye choice so twin-rig L/R matches review.
+ * `albumName` only sets the unit's display label.
  */
 export function analyzeStereo(
   assets: readonly PhotoAsset[],
   hashes: ReadonlyMap<string, string>,
+  signatures: ReadonlyMap<string, FrameSignature>,
   opts: StereoOptions,
-  albumName: string | null,
-  leftSerial: string | undefined,
+  labels: { albumName: string | null; leftSerial: string | undefined },
 ): Stereo[] {
   const byId = new Map(assets.map((a) => [a.id, a]));
-  const captures = assets.filter(isCaptureFrame);
-  return clusterStereo(captures.map(toLabStereoAsset), hashes, opts).map((cluster) => {
+  const all = assets.filter(isCaptureFrame);
+  const { pairs, unsided } = pairBothEyes(all.map(eyeCandidate), signatures);
+  const toCluster = new Set(unsided);
+  const captures = all.filter((asset) => toCluster.has(asset.id));
+  const sets = [
+    ...pairs.map((memberIds) => ({ memberIds })),
+    ...clusterStereo(captures.map(toLabStereoAsset), hashes, opts),
+  ];
+  const { albumName, leftSerial } = labels;
+  return sets.map((cluster) => {
     const members = cluster.memberIds
       .map((id) => byId.get(id))
       .filter((a): a is PhotoAsset => a !== undefined);

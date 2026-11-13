@@ -228,6 +228,12 @@ const STALE_AT: readonly (readonly [number, readonly StaleStore[]])[] = [
   // Today's deck is deliberately spared: it is already decided, so it holds no duel anyone will
   // meet, and dropping it would reset the day's tally under a streak that has it counted.
   [32, ['groups', 'albumManifest', 'reviewBuffer']],
+  // v34: a both-eyes stereo album was grouped by hash distance with single linkage, so one frame
+  // near another near a third made a "pair" of two different photographs — and the eyes were told
+  // apart by which serial sorted first, ignoring `_L` / `_R` in the file name. Frames with a side
+  // are now paired one-to-one by picture. The stored groups are the old rule's, so they go and the
+  // albums are detected again; the queue goes with them. Today's deck is spared, as in v32.
+  [34, ['groups', 'albumManifest', 'reviewBuffer']],
 ];
 
 type StaleStore = 'albumManifest' | 'assetHash' | 'reviewBuffer' | 'dailyFeed' | 'groups';
@@ -286,8 +292,10 @@ export class PhotoKeeperDb {
     // album is detected again without Lightroom's edits clustered against their own originals.
     // v33 added 'photoMerge' (which merged photograph came from which frames), a record and not
     // a cache: once the sources have left the edit queue, nothing else says they are its originals.
+    // v34 drops every stored group + manifest again: a both-eyes stereo album is now paired by picture
+    // and by `_L`/`_R` file name rather than chained together by hash distance.
     // Create-if-missing so other stores keep their data.
-    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 33, {
+    this.dbPromise ??= openDB<PhotoKeeperSchema>('photokeeper', 34, {
       upgrade(db, oldVersion, _newVersion, tx) {
         // 'edgeHash' is gone from the schema; drop it via a loosely-typed handle if a dev DB still has it.
         const legacy = db as unknown as IDBPDatabase;
