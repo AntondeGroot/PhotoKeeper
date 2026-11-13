@@ -8,7 +8,8 @@
 
 import { PhotoAsset } from '../../../lightroom-types';
 import { DetectedGroup } from '../../../detection/detectors/detection-types';
-import { cameraSerial } from '../../../camera-metadata';
+import { cameraSerial, eyeCandidate } from '../../../camera-metadata';
+import { leftEyeIdsFromFileNames } from '../../../detection/detectors/stereo-eyes';
 import { editPairs, splitAsset } from '../../../edit-pairs';
 import { haversineMeters } from '../../../detection/detectors/stereo';
 import {
@@ -256,6 +257,8 @@ function toPano(group: DetectedGroup, members: PhotoAsset[], albumName: string |
 /**
  * Hydrates a stereo set into its review unit, dispatching on the signal the capture style leaves behind:
  *
+ * - **Named eyes** — a split shoot's album, or a file name ending `_L` / `_R`, says which frame is
+ *   which eye outright, and wins over everything below.
  * - **Twin-DSLR rig** — two bodies fire at once, so the set carries ≥ 2 distinct camera serials. The
  *   frames split by body: the album's chosen left serial (else, deterministically, the lexicographically
  *   smaller) is the left eye; the other body is the single right baseline. No GPS, no distance.
@@ -285,8 +288,10 @@ export function hydrateStereo(
     kind: 'stereo' as const,
   };
 
-  // A split shoot says outright which frames are left eyes — the album they came from is the answer,
-  // so nothing below (serials, displacement, capture order) gets a say.
+  // A split shoot says outright which frames are left eyes — the album they came from is the answer —
+  // and so does a frame named `_L` / `_R`. Either way nothing below (serials, displacement, capture
+  // order) gets a say.
+  leftEyeIds ??= leftEyeIdsFromFileNames(members.map(eyeCandidate));
   if (leftEyeIds) {
     const left = members.filter((m) => leftEyeIds.has(m.id));
     const right = members.filter((m) => !leftEyeIds.has(m.id));

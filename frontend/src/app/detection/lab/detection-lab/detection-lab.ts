@@ -159,7 +159,10 @@ export class DetectionLabComponent implements OnInit {
   stereoUnits = computed<Stereo[]>(() => {
     const albumName = this.selectedAlbumName();
     const leftSerial = albumName ? this.prefs.stereoLeftSerial()[albumName] : undefined;
-    return analyzeStereo(this.assets(), this.hashes(), this.stereoOpts(), albumName, leftSerial);
+    return analyzeStereo(this.assets(), this.hashes(), this.signatures(), this.stereoOpts(), {
+      albumName,
+      leftSerial,
+    });
   });
 
   panoClusters = computed<LabPanoCluster[]>(() => {

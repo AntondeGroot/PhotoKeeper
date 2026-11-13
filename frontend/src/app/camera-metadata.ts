@@ -1,4 +1,5 @@
 import { PhotoAsset } from './lightroom-types';
+import { EyeCandidate } from './detection/detectors/stereo-eyes';
 
 /** Camera identity pulled from an asset — the body that shot the frame. */
 export interface CameraIdentity {
@@ -51,4 +52,14 @@ export function cameraSerial(asset: PhotoAsset): string | undefined {
 export function isCaptureFrame(asset: PhotoAsset): boolean {
   const { make, model, serial } = cameraIdentity(asset);
   return Boolean(make ?? model ?? serial);
+}
+
+/** What stereo pairing needs to know about a frame: its name, its body, and when it was taken. */
+export function eyeCandidate(asset: PhotoAsset): EyeCandidate {
+  return {
+    id: asset.id,
+    fileName: asset.payload?.importSource?.fileName ?? asset.id,
+    serial: cameraSerial(asset),
+    taken: asset.payload?.captureDate ?? '',
+  };
 }
