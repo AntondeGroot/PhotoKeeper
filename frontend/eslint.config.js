@@ -120,6 +120,7 @@ export default tseslint.config(
             'src/app/review/deck/selection/group-corrections.ts',
             'src/app/review/deck/review-buffer-target.ts',
             'src/app/review/progress/day.ts',
+            'src/app/review/progress/daily-tally.ts',
             'src/app/review/pano/pano-frames.ts',
             'src/app/review/edits/edit-detection.ts',
             'src/app/review/edits/merged-photo.ts',

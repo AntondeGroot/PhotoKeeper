@@ -1,3 +1,4 @@
+import { decidedPhotographs } from '../progress/daily-tally';
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { ReviewStore } from '../../storage/review/review-store';
 import { StoredVerdict } from '../../storage/photokeeper-db';
@@ -259,8 +260,10 @@ export class ReviewDecisionsService {
    * <p>Surviving is not a verdict. The duel asks which frames of a near-identical run are worth
    * looking at, which is a different question from whether a photograph is a keeper, one to edit, or
    * one to set aside — so the survivors go back on the deck as ordinary single photos, right where
-   * the burst stood, and are judged one at a time. Only those judgements count toward the day, or the
-   * same photographs would be counted twice.
+   * the burst stood, and are judged one at a time. The frames that did not survive stay on the deck
+   * as a rejected burst of their own, just ahead of the survivors: rejecting a frame of a burst is the
+   * same work as rejecting a single photo, so the day's tally counts each one. The survivors count
+   * when they are judged, so no photograph is counted twice.
    *
    * <p>The group is dissolved on the way out. It is spent either way — its frames have been looked
    * at — and without that record the next selection hydrates it from detection all over again: the
@@ -294,10 +297,19 @@ export class ReviewDecisionsService {
       this.feed.advance();
       return;
     }
-    this.replaceWithFrames(
-      current,
-      survivors.map((frame) => burstFrameToPhoto(frame, current)),
-    );
+    const culled = current.photos.filter((frame) => !kept.has(frame.id));
+    const frames = survivors.map((frame) => burstFrameToPhoto(frame, current));
+    if (culled.length === 0) {
+      this.replaceWithFrames(current, frames);
+      return;
+    }
+    // Decided, so it goes behind the cursor like any decided unit: the next card is a survivor.
+    this.replaceWithFrames(current, [
+      { ...current, status: 'rejected', photos: culled },
+      ...frames,
+    ]);
+    this.feed.advance();
+    this.recordReviewProgress();
   }
 
   /** "Reject the whole burst" — the same settlement with nothing kept. */
@@ -313,7 +325,7 @@ export class ReviewDecisionsService {
    * looked at, and judging them while they are still in mind is the point of sending them back
    * rather than leaving them to a later day's draw.
    */
-  private replaceWithFrames(unit: ReviewItem, frames: Photo[]): void {
+  private replaceWithFrames(unit: ReviewItem, frames: ReviewItem[]): void {
     this.feed.photos.update((list) => {
       const at = list.findIndex((item) => item.id === unit.id);
       return at === -1 ? list : [...list.slice(0, at), ...frames, ...list.slice(at + 1)];
@@ -627,7 +639,7 @@ export class ReviewDecisionsService {
    */
   private recordReviewProgress(): void {
     if (!this.feed.loaded()) return;
-    this.progress.recordReviews(this.feed.photos().filter((p) => p.status !== 'backlog').length);
+    this.progress.recordReviews(decidedPhotographs(this.feed.photos()));
   }
 
   /**

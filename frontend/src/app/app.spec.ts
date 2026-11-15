@@ -489,9 +489,11 @@ describe('App', () => {
 
       app.resolveBurst(['f1']);
 
-      // The survivor takes the burst's place, undecided: winning a duel is not a verdict.
-      expect(app.reviewPhotos().map((p) => p.id)).toEqual(['f1']);
-      expect(app.reviewPhotos()[0].status).toBe('backlog');
+      // The survivor takes the burst's place, undecided: winning a duel is not a verdict. The loser
+      // stays ahead of it as a rejected burst, so the day counts it.
+      expect(app.reviewPhotos().map((p) => p.id)).toEqual(['burst:alb-1:f1', 'f1']);
+      expect(app.reviewPhotos()[0].status).toBe('rejected');
+      expect(app.reviewPhotos()[1].status).toBe('backlog');
       await tick();
       expect(saved.get('f2')?.status).toBe('rejected'); // loser
       expect(saved.has('f1')).toBe(false); // survivor: nothing decided about it yet

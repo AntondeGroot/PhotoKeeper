@@ -3,6 +3,7 @@ import { ReviewFeedService } from '../deck/review-feed.service';
 import { ReviewDecisionsService } from '../decisions/review-decisions.service';
 import { PreferencesService } from '../../preferences.service';
 import { Photo } from '../../photo';
+import { decidedPhotographs, photographsJudged } from './daily-tally';
 
 /** Buckets photos by album for the Edit/Print "by album" sections (null album → "No album"). */
 function groupByAlbum(photos: Photo[]): { album: string; photos: Photo[] }[] {
@@ -27,16 +28,21 @@ export class ReviewStatsService {
   private readonly decisions = inject(ReviewDecisionsService);
   private readonly prefs = inject(PreferencesService);
 
-  /** How many units have a verdict today (anything out of backlog), and whether the run is complete. */
-  readonly doneToday = computed(
-    () => this.feed.photos().filter((p) => p.status !== 'backlog').length,
-  );
-  readonly sessionDone = computed(() => this.doneToday() === this.feed.photos().length);
+  /**
+   * How many photographs have been judged today — a burst counts each of its frames (see
+   * {@link photographsJudged}) — and whether the deck has nothing left undecided.
+   */
+  readonly doneToday = computed(() => decidedPhotographs(this.feed.photos()));
+  readonly sessionDone = computed(() => this.feed.photos().every((p) => p.status !== 'backlog'));
 
   // Per-verdict tallies for the session summary.
   readonly keptCount = computed(() => this.feed.photos().filter((p) => p.status === 'kept').length);
-  readonly rejectedCount = computed(
-    () => this.feed.photos().filter((p) => p.status === 'rejected').length,
+  // Weighted like the day's tally, so a burst's rejected frames show up here as photographs too.
+  readonly rejectedCount = computed(() =>
+    this.feed
+      .photos()
+      .filter((p) => p.status === 'rejected')
+      .reduce((sum, p) => sum + photographsJudged(p), 0),
   );
   readonly toEditCount = computed(
     () => this.feed.photos().filter((p) => p.status === 'toEdit').length,
