@@ -307,7 +307,7 @@ describe('ReviewDecisionsService', () => {
       index.set(0);
       service.resolveBurst(['f1', 'f2']);
       await Promise.resolve();
-      expect(photos().map((p) => p.id)).toEqual(['f1', 'f2']);
+      expect(photos().map((p) => p.id)).toEqual(['b1', 'f1', 'f2']);
 
       await undoLatest();
 
@@ -616,9 +616,11 @@ describe('ReviewDecisionsService', () => {
     service.resolveBurst(['f2']);
     await Promise.resolve();
 
-    expect(photos().map((p) => p.id)).toEqual(['f2', 'later']);
-    expect(photos()[0]).toMatchObject({ kind: 'photo', status: 'backlog' });
-    expect(index()).toBe(0); // the cursor stays on it — it is the next card
+    // The losers stay on the deck as a decided burst, ahead of the survivor, so the day counts them.
+    expect(photos().map((p) => p.id)).toEqual(['grp', 'f2', 'later']);
+    expect(photos()[0]).toMatchObject({ kind: 'burst', status: 'rejected' });
+    expect(photos()[1]).toMatchObject({ kind: 'photo', status: 'backlog' });
+    expect(index()).toBe(1); // the cursor is on the survivor — it is the next card
     expect(verdicts).toContainEqual({
       id: 'f1',
       verdict: { status: 'rejected', starred: false, saveOnly: false },
@@ -639,7 +641,7 @@ describe('ReviewDecisionsService', () => {
     service.resolveBurst(['f1', 'f3']);
     await Promise.resolve();
 
-    expect(photos().map((p) => p.id)).toEqual(['f1', 'f3']);
+    expect(photos().map((p) => p.id)).toEqual(['grp', 'f1', 'f3']);
     expect(verdicts).toContainEqual({
       id: 'f2',
       verdict: { status: 'rejected', starred: false, saveOnly: false },
