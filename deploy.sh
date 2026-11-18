@@ -74,6 +74,8 @@ $SCP backend/target/photokeeper-backend-0.1.0-SNAPSHOT.jar \
 BLUE_PORT=8080
 GREEN_PORT=8081
 UPSTREAM_CONF=/etc/nginx/conf.d/photokeeper-upstream.conf
+ROUTES_DIR=/etc/nginx/app-routes
+ROUTE_CONF=$ROUTES_DIR/photokeeper.conf
 NGINX_SITE=/etc/nginx/sites-available/gameroom
 READY_TIMEOUT=120   # seconds to wait for the new instance to serve a page
 DRAIN_SECONDS=10    # let in-flight requests finish before stopping the old one
@@ -157,28 +159,37 @@ server.servlet.context-path=/photokeeper
 server.ssl.enabled=false
 EOF"
 
-# --- Point nginx at an upstream it can be re-aimed at ---
-# One-time migration off the hardcoded localhost:8080. The site file is shared
-# with GameRoom, Keezen and Qwixx, so it is backed up and the result is tested
-# before anything is reloaded — a syntax error here would take all of them down.
-echo "🔀 Ensuring nginx upstream..."
+# --- Point nginx at PhotoKeeper: an upstream it can re-aim, and a route of its own ---
+# The route is a file of PhotoKeeper's own in /etc/nginx/app-routes/, included from GameRoom's
+# site (GWT_GameRoom/nginx.conf). It used to be a block inside GameRoom's file, and GameRoom's
+# setup-pi.sh copies that file over the Pi's — which wiped the block and took PhotoKeeper offline.
+# Installed on every release, so the route can never stay lost.
+#
+# Same nginx serves GameRoom, Keezen, Qwixx and the portfolio, so nothing is reloaded untested: a
+# rejected config puts the previous route back and stops the release.
+echo "🔀 Ensuring nginx upstream and route..."
+$SCP ops/nginx-route.conf "$TARGET:/home/ubuntu/photokeeper-route.conf"
 $SSH "
 set -e
 if [ ! -f $UPSTREAM_CONF ]; then
   printf 'upstream photokeeper_backend { server 127.0.0.1:%s; }\n' '$SEED_PORT' | \
     sudo tee $UPSTREAM_CONF > /dev/null
 fi
-if grep -q 'proxy_pass http://localhost:8080/photokeeper/;' $NGINX_SITE; then
-  sudo cp $NGINX_SITE $NGINX_SITE.pre-bluegreen
-  sudo sed -i 's|proxy_pass http://localhost:8080/photokeeper/;|proxy_pass http://photokeeper_backend/photokeeper/;|' $NGINX_SITE
-  if ! sudo nginx -t; then
-    echo '❌ nginx rejected the upstream change — restoring'
-    sudo mv $NGINX_SITE.pre-bluegreen $NGINX_SITE
-    sudo rm -f $UPSTREAM_CONF
-    exit 1
-  fi
-  sudo systemctl reload nginx
-fi"
+if ! grep -q 'include $ROUTES_DIR/\*.conf;' $NGINX_SITE; then
+  echo '❌ $NGINX_SITE does not include $ROUTES_DIR/*.conf, so PhotoKeeper would not be reachable.'
+  echo '   Run GWT_GameRoom/setup-pi.sh (its nginx.conf has the include) and deploy again.'
+  exit 1
+fi
+sudo mkdir -p $ROUTES_DIR
+[ -f $ROUTE_CONF ] && sudo cp $ROUTE_CONF $ROUTE_CONF.prev
+sudo mv /home/ubuntu/photokeeper-route.conf $ROUTE_CONF
+if ! sudo nginx -t; then
+  echo '❌ nginx rejected the PhotoKeeper route — restoring the previous one'
+  if [ -f $ROUTE_CONF.prev ]; then sudo mv $ROUTE_CONF.prev $ROUTE_CONF; else sudo rm -f $ROUTE_CONF; fi
+  exit 1
+fi
+sudo rm -f $ROUTE_CONF.prev
+sudo systemctl reload nginx"
 
 # --- Start the idle colour and wait for it to actually answer ---
 # --- Insist the port is ours before trusting anything answering on it ---
@@ -244,6 +255,15 @@ fi
 # and never retire the legacy instance — stranding it on the blue port, where the
 # release after that would find the port taken and refuse to go.
 $SSH "sudo systemctl is-active --quiet photokeeper.service && sudo systemctl disable --now photokeeper.service" || true
+
+# --- Confirm it is reachable the way a phone reaches it: through nginx, by hostname ---
+# The probes above talk to the instance's port directly, so they pass even when nginx has no
+# route to it — which is exactly how PhotoKeeper once went offline with every check green.
+if ! $SSH "curl -sf -o /dev/null -H 'Host: antondegroot.uk' http://127.0.0.1/photokeeper/"; then
+  echo "❌ $COLOUR is running, but nginx does not route /photokeeper/ to it."
+  echo "   Check $ROUTE_CONF and that $NGINX_SITE includes $ROUTES_DIR/*.conf."
+  exit 1
+fi
 
 echo "✅ Done — $COLOUR live on port $PORT.  https://antondegroot.uk/photokeeper"
 echo "   Install page: https://antondegroot.uk/photokeeper/download"
