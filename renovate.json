@@ -1,6 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "reviewers": ["AntondeGroot"],
+  "assignAutomerge": true,
   "packageRules": [
     {
       "description": "Bundle the routine bumps per side, so a week of patches is one PR and one lockfile rebase instead of a queue of PRs that conflict with each other. Majors stay separate PRs to review (separateMajorMinor is on by default). The named groups further down are later rules, so they take their packages out of these bundles.",
