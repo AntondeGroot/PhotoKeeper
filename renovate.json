@@ -30,6 +30,12 @@
       "groupName": "angular"
     },
     {
+      "description": "Wait for the whole Angular release before proposing it. The framework and the CLI publish separately, sometimes a day apart: grouping caught the framework, automerged it, and then raised the CLI half as a second PR under the identical title — which Renovate refuses to automerge (\"a matching PR was automerged previously\"), so it sat open with green CI until merged by hand.",
+      "matchPackageNames": ["@angular/**", "@angular-devkit/**", "angular-eslint", "ng-packagr"],
+      "minimumReleaseAge": "3 days",
+      "internalChecksFilter": "strict"
+    },
+    {
       "description": "TypeScript follows Angular, not the other way round: @angular/compiler-cli accepts only a narrow TypeScript range, and a newer one fails `npm ci` on the peer constraint. Raise this ceiling as part of the Angular major that widens that range.",
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<6.1"
