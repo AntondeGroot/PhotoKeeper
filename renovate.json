@@ -1,5 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "timezone": "Europe/Amsterdam",
+  "schedule": ["* * * * 6"],
   "extends": ["config:recommended"],
   "reviewers": ["AntondeGroot"],
   "assignAutomerge": true,
