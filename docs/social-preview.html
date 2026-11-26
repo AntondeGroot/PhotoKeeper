@@ -1,0 +1,415 @@
+<!doctype html>
+<!--
+  The repo's social preview (GitHub: Settings → General → Social preview), 1280×640.
+  Rendered to docs/social-preview.png by scripts/social-preview.mjs (`npm run social-preview`),
+  so edit this file and regenerate rather than editing the PNG.
+
+  The "photos" are the app's own stand-in landscapes (review/scene), redrawn here — never real
+  photographs, which would put someone's library in every link preview.
+  Colours and fonts are the app's darkroom palette (frontend/src/styles.scss); the stamps use the
+  wording and colours of VERDICT_STYLE (frontend/src/app/verdicts.ts).
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Hanken+Grotesk:wght@400;500;600&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --c-bg: #131110;
+        --c-panel: #1c1916;
+        --c-line: #2c2722;
+        --c-text: #ede6dc;
+        --c-dim: #9a9087;
+        --c-faint: #6e665e;
+        --c-amber: #e5a045;
+        --c-keep: #8fae7e;
+        --c-reject: #c9685a;
+        --c-maybe: #8e9bb0;
+        --font-head: "Fraunces", Georgia, serif;
+        --font-body: "Hanken Grotesk", sans-serif;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--c-bg);
+      }
+      .preview {
+        width: 1280px;
+        height: 640px;
+        overflow: hidden;
+        position: relative;
+        /* A darkroom under its safelight: the amber glow sits behind the work, not the words. */
+        background:
+          radial-gradient(
+            circle at 900px 300px,
+            rgba(229, 160, 69, 0.2) 0,
+            rgba(229, 160, 69, 0) 420px
+          ),
+          var(--c-bg);
+        font-family: var(--font-body);
+        color: var(--c-text);
+      }
+      .grain {
+        position: absolute;
+        inset: 0;
+        opacity: 0.09;
+        mix-blend-mode: screen;
+      }
+
+      /* ── The words ── */
+      .text {
+        position: absolute;
+        left: 72px;
+        top: 74px;
+        width: 500px;
+      }
+      .mark {
+        display: block;
+        width: 64px;
+        height: 64px;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 0 0 1px var(--c-line);
+      }
+      h1 {
+        margin: 22px 0 0;
+        font: italic 600 104px/0.95 var(--font-head);
+        letter-spacing: -2px;
+      }
+      h1 span {
+        color: var(--c-amber);
+      }
+      .tagline {
+        margin: 14px 0 0 4px;
+        font-size: 17px;
+        letter-spacing: 4px;
+        color: var(--c-faint);
+      }
+      .pitch {
+        margin: 30px 0 0;
+        font-size: 28px;
+        line-height: 38px;
+        color: var(--c-text);
+      }
+      .pitch em {
+        font-family: var(--font-head);
+        font-style: italic;
+        color: var(--c-amber);
+      }
+      .facts {
+        margin: 28px 0 0;
+        display: flex;
+        gap: 10px;
+      }
+      .facts span {
+        padding: 7px 15px;
+        border-radius: 999px;
+        border: 1px solid #4a423a;
+        font-size: 18px;
+        color: var(--c-dim);
+        white-space: nowrap;
+      }
+
+      /* ── One photo, mid-swipe ── */
+      .swipe {
+        position: absolute;
+        left: 610px;
+        top: 64px;
+        width: 330px;
+        height: 520px;
+      }
+      /* Where the card was picked up from, left behind as an outline. */
+      .ghost {
+        position: absolute;
+        left: 34px;
+        top: 60px;
+        width: 260px;
+        height: 347px;
+        border-radius: 16px;
+        border: 2px dashed #3a332c;
+      }
+      .card {
+        position: absolute;
+        left: 34px;
+        top: 60px;
+        width: 260px;
+        height: 347px;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid var(--c-line);
+        box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6);
+        transform: translate(30px, -6px) rotate(7deg);
+      }
+      .card svg {
+        display: block;
+      }
+      .stamp {
+        position: absolute;
+        font: italic 700 30px/1 var(--font-head);
+        letter-spacing: 1.5px;
+        border: 3px solid currentColor;
+        border-radius: 6px;
+        padding: 6px 12px;
+        background: rgba(19, 17, 16, 0.72);
+      }
+      .card .stamp {
+        top: 26px;
+        left: 16px;
+        color: var(--c-keep);
+        transform: rotate(-12deg);
+      }
+      .card-meta {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 14px;
+        font-size: 14px;
+        color: rgba(237, 230, 220, 0.85);
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+      }
+      /* The other three ways the card can go, faint, around where it started. */
+      .way {
+        position: absolute;
+        font: 600 16px/1 var(--font-body);
+        letter-spacing: 2px;
+        opacity: 0.55;
+      }
+      .way.edit {
+        top: 18px;
+        left: 120px;
+        color: var(--c-amber);
+      }
+      .way.maybe {
+        top: 436px;
+        left: 112px;
+        color: var(--c-maybe);
+      }
+      .way.reject {
+        top: 226px;
+        left: -54px;
+        color: var(--c-reject);
+        transform: rotate(-90deg);
+      }
+      .caption {
+        position: absolute;
+        font-size: 17px;
+        letter-spacing: 3px;
+        color: var(--c-amber);
+      }
+      .swipe .caption {
+        left: 34px;
+        top: 488px;
+      }
+
+      /* ── A burst, as a duel ── */
+      .duel {
+        position: absolute;
+        left: 968px;
+        top: 64px;
+        width: 260px;
+        height: 520px;
+      }
+      .frame {
+        position: absolute;
+        left: 0;
+        width: 260px;
+        height: 170px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--c-line);
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
+      }
+      .frame svg {
+        display: block;
+      }
+      .frame.a {
+        top: 60px;
+        outline: 3px solid var(--c-amber);
+        outline-offset: 4px;
+      }
+      .frame.b {
+        top: 296px;
+        opacity: 0.8;
+      }
+      .frame .label {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(19, 17, 16, 0.8);
+        border: 1.5px solid var(--c-amber);
+        color: var(--c-amber);
+        font: italic 600 24px/38px var(--font-head);
+        text-align: center;
+      }
+      .or {
+        position: absolute;
+        top: 244px;
+        left: 0;
+        width: 260px;
+        text-align: center;
+        font: italic 400 30px/1 var(--font-head);
+        color: var(--c-dim);
+      }
+      .duel .caption {
+        left: 0;
+        top: 488px;
+      }
+      .scene-blur {
+        filter: blur(3px) saturate(0.85);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview">
+      <!-- Film grain: a fixed seed, so every render is the same. -->
+      <svg class="grain" width="1280" height="640">
+        <filter id="grain">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.9"
+            numOctaves="2"
+            seed="7"
+          />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+        <rect width="1280" height="640" filter="url(#grain)" />
+      </svg>
+
+      <div class="text">
+        <!-- The app icon from the splash screen (frontend/src/app/splash/splash.html). -->
+        <svg class="mark" viewBox="0 0 116 116">
+          <defs>
+            <linearGradient id="mark-sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3a2f26" />
+              <stop offset="1" stop-color="#1c1714" />
+            </linearGradient>
+            <radialGradient id="mark-sun" cx="0.5" cy="0.5" r="0.5">
+              <stop offset="0" stop-color="#f3c98a" />
+              <stop offset="0.55" stop-color="#e5a045" />
+              <stop offset="1" stop-color="#e5a045" stop-opacity="0" />
+            </radialGradient>
+          </defs>
+          <rect width="116" height="116" fill="url(#mark-sky)" />
+          <circle cx="58" cy="66" r="30" fill="url(#mark-sun)" />
+          <circle cx="58" cy="66" r="11" fill="#f5d6a3" />
+          <path
+            d="M0 86 L30 64 L52 80 L78 56 L116 84 L116 116 L0 116 Z"
+            fill="#16110d"
+          />
+          <path
+            d="M0 96 L26 82 L50 94 L80 76 L116 98 L116 116 L0 116 Z"
+            fill="#0d0a08"
+          />
+        </svg>
+        <h1>Photo<span>Keeper</span></h1>
+        <p class="tagline">the backlog ends here</p>
+        <p class="pitch">
+          Go through your Lightroom photos one at a time with a <em>swipe</em>,
+          and settle every burst by picking <em>A or B</em>.
+        </p>
+        <div class="facts">
+          <span>Lightroom</span>
+          <span>Android</span>
+          <span>Panoramas</span>
+          <span>3D pictures</span>
+        </div>
+      </div>
+
+      <div class="swipe">
+        <div class="ghost"></div>
+        <span class="way edit">↑ EDIT</span>
+        <span class="way reject">← REJECT</span>
+        <span class="way maybe">↓ MAYBE</span>
+        <div class="card">
+          <!-- The 'dunes' stand-in scene, in the colours of the mock device photo. -->
+          <svg
+            width="260"
+            height="347"
+            viewBox="0 0 300 400"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <rect width="300" height="400" fill="#DFB088" />
+            <circle cx="100" cy="120" r="34" fill="#F4DCA2" opacity="0.95" />
+            <path
+              d="M0 240 Q90 190 170 250 T300 235 V400 H0 Z"
+              fill="#A87648"
+            />
+            <path
+              d="M0 320 Q110 260 210 330 T300 315 V400 H0 Z"
+              fill="#74502C"
+            />
+            <g
+              stroke="#74502C"
+              stroke-width="3"
+              fill="none"
+              stroke-linecap="round"
+            >
+              <path
+                d="M170 90 q8 -8 16 0 M186 90 q8 -8 16 0"
+                transform="translate(-10,-10)"
+              />
+              <path d="M220 70 q7 -7 14 0" />
+            </g>
+          </svg>
+          <span class="stamp">KEEP →</span>
+          <div class="card-meta">IMG_4021.CR2 · Field work</div>
+        </div>
+        <span class="caption">one photo · swipe</span>
+      </div>
+
+      <div class="duel">
+        <div class="frame a">
+          <!-- The 'peaks' stand-in scene: A sharp, B the same moment a beat later and soft. -->
+          <svg
+            width="260"
+            height="170"
+            viewBox="0 90 300 196"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <rect width="300" height="400" fill="#9FB6C9" />
+            <circle cx="210" cy="150" r="30" fill="#EFEAD8" opacity="0.95" />
+            <polygon
+              points="0,250 70,140 130,240 180,170 240,260 300,190 300,400 0,400"
+              fill="#54657A"
+            />
+            <polygon
+              points="0,310 60,230 140,320 210,250 300,330 300,400 0,400"
+              fill="#39455A"
+            />
+          </svg>
+          <span class="label">A</span>
+        </div>
+        <div class="or">or</div>
+        <div class="frame b">
+          <svg
+            width="260"
+            height="170"
+            viewBox="0 90 300 196"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <g class="scene-blur">
+              <rect x="-20" y="-20" width="340" height="440" fill="#9FB6C9" />
+              <circle cx="222" cy="150" r="30" fill="#EFEAD8" opacity="0.95" />
+              <polygon
+                points="-20,256 64,140 124,240 174,170 234,260 320,196 320,420 -20,420"
+                fill="#54657A"
+              />
+              <polygon
+                points="-20,316 54,230 134,320 204,250 320,336 320,420 -20,420"
+                fill="#39455A"
+              />
+            </g>
+          </svg>
+          <span class="label">B</span>
+        </div>
+        <span class="caption">multiple photos of the same subject</span>
+      </div>
+    </div>
+  </body>
+</html>
