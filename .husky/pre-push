@@ -1,3 +1,6 @@
+# The link preview is rendered from docs/social-preview.html; a stale PNG fails here.
+node scripts/social-preview.mjs --check
+
 cd frontend
 npm run build
 npm run test -- --watch=false

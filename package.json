@@ -6,7 +6,8 @@
     "cap:sync": "npm run build:mobile && cap sync android",
     "cap:android": "npm run cap:sync && cap open android",
     "android:install": "bash scripts/install-android.sh",
-    "assets": "bash scripts/generate-assets.sh"
+    "assets": "bash scripts/generate-assets.sh",
+    "social-preview": "node scripts/social-preview.mjs"
   },
   "dependencies": {
     "@capacitor/local-notifications": "^8.2.1",
